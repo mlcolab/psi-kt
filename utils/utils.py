@@ -4,7 +4,7 @@ import os
 import logging
 import datetime
 import numpy as np
-
+from collections import defaultdict
 
 def format_arg_str(args, exclude_lst, max_len=20):
     linesep = os.linesep
@@ -111,3 +111,16 @@ def as_list(obj) -> list:
     else:
         return [obj]
 
+
+def append_losses(losses_list, losses):
+    for loss, value in losses.items():
+        if type(value) == float:
+            losses_list[loss].append(value)
+        elif type(value) == defaultdict:
+            if losses_list[loss] == []:
+                losses_list[loss] = defaultdict(list)
+            for idx, elem in value.items():
+                losses_list[loss][idx].append(elem)
+        else:
+            losses_list[loss].append(value.item())
+    return losses_list

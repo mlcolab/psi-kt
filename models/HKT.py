@@ -12,7 +12,7 @@ from utils import utils
 
 import ipdb
 
-class hkt(BaseModel):
+class HKT(BaseModel):
     extra_log_args = ['time_log']
 
     @staticmethod
@@ -23,13 +23,14 @@ class hkt(BaseModel):
                             help='Log base of time intervals.')
         return BaseModel.parse_model_args(parser, model_name)
 
-    def __init__(self, args, corpus):
+    def __init__(self, args, corpus, logs):
         self.dataset = args.dataset
         self.problem_num = int(corpus.n_problems)
         self.skill_num = int(corpus.n_skills)
         self.emb_size = args.emb_size
         self.time_log = args.time_log
         self.gpu = args.gpu
+        self.logs = logs
         super().__init__(model_path=args.model_path)
 
     def _init_weights(self):
@@ -44,6 +45,7 @@ class hkt(BaseModel):
         self.loss_function = torch.nn.BCELoss()
 
     def forward(self, feed_dict):
+        ipdb.set_trace()
         skills = feed_dict['skill_seq']      # [batch_size, seq_len]
         problems = feed_dict['problem_seq']  # [batch_size, seq_len]
         times = feed_dict['time_seq']        # [batch_size, seq_len]
@@ -51,9 +53,13 @@ class hkt(BaseModel):
 
         mask_labels = labels * (labels > -1).long()
         inters = skills + mask_labels * self.skill_num # (bs, seq_len)
+
+        # alpha: for each student, how much influence from previous skill and performance on other skills
+        # although it is for each student, but the skill embedding is universal
         alpha_src_emb = self.alpha_inter_embeddings(inters)  # [bs, seq_len, emb]
-        alpha_target_emb = self.alpha_skill_embeddings(skills)
+        alpha_target_emb = self.alpha_skill_embeddings(skills)  # [bs, seq_len, emb]
         alphas = torch.matmul(alpha_src_emb, alpha_target_emb.transpose(-2, -1))  # [bs, seq_len, seq_len]
+
         beta_src_emb = self.beta_inter_embeddings(inters)  # [bs, seq_len, emb]
         beta_target_emb = self.beta_skill_embeddings(skills)
         betas = torch.matmul(beta_src_emb, beta_target_emb.transpose(-2, -1))  # [bs, seq_len, seq_len]
@@ -68,7 +74,7 @@ class hkt(BaseModel):
         valid_mask = np.triu(np.ones((1, seq_len, seq_len)), k=1)
         mask = (torch.from_numpy(valid_mask) == 0)
         # mask = mask.cuda() if self.gpu != '' else mask ??? 
-        sum_t = cross_effects.masked_fill(mask, 0).sum(-2)
+        sum_t = cross_effects.masked_fill(mask, 0).sum(-2) # [bs, seq_len]
 
         problem_bias = self.problem_base(problems).squeeze(dim=-1)
         skill_bias = self.skill_base(skills).squeeze(dim=-1)
@@ -80,6 +86,7 @@ class hkt(BaseModel):
         return out_dict
 
     def loss(self, feed_dict, outdict):
+        ipdb.set_trace()
         prediction = outdict['prediction'].flatten()
         label = outdict['label'].flatten()
         mask = label > -1
@@ -95,7 +102,7 @@ class hkt(BaseModel):
         problem_seqs = data['problem_seq'][batch_start: batch_start + real_batch_size].values
 
         feed_dict = {
-            'skill_seq': torch.from_numpy(utils.pad_lst(skill_seqs)),            # [batch_size, seq_len]
+            'skill_seq': torch.from_numpy(utils.pad_lst(skill_seqs)),            # [batch_size, seq_len] # TODO isn't this -1?
             'label_seq': torch.from_numpy(utils.pad_lst(label_seqs, value=-1)),  # [batch_size, seq_len]
             'problem_seq': torch.from_numpy(utils.pad_lst(problem_seqs)),        # [batch_size, seq_len]
             'time_seq': torch.from_numpy(utils.pad_lst(time_seqs)),              # [batch_size, seq_len]

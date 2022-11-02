@@ -10,6 +10,9 @@ from models.BaseModel import BaseModel
 from utils import utils
 import ipdb
 
+import os 
+
+from collections import defaultdict
 
 class DKTForgetting(BaseModel):
     extra_log_args = ['hidden_size', 'num_layer']
@@ -24,14 +27,17 @@ class DKTForgetting(BaseModel):
                             help='Number of GRU layers.')
         return BaseModel.parse_model_args(parser, model_name)
 
-    def __init__(self, args, corpus):
+    def __init__(self, args, corpus, logs):
         self.problem_num = int(corpus.n_problems)
         self.skill_num = int(corpus.n_skills)
         self.emb_size = args.emb_size
         self.hidden_size = args.hidden_size
         self.num_layer = args.num_layer
         self.dropout = args.dropout
-        BaseModel.__init__(self, model_path=args.model_path)
+
+        self.logs = logs
+        self.args = args
+        BaseModel.__init__(self, model_path=os.path.join(args.log_path, 'Model_{}.pt'))
 
     def _init_weights(self):
         self.skill_embeddings = torch.nn.Embedding(self.skill_num * 2, self.emb_size)
@@ -46,28 +52,32 @@ class DKTForgetting(BaseModel):
         self.loss_function = torch.nn.BCELoss()
 
     def forward(self, feed_dict):
+        
         seq_sorted = feed_dict['skill_seq']  # [batch_size, max_step]
         labels_sorted = feed_dict['label_seq']  # [batch_size, max_step]
         lengths = feed_dict['length']  # [batch_size]
+
+        if lengths.is_cuda:
+            lengths = lengths.cpu().int()
         repeated_time_gap_seq = feed_dict['repeated_time_gap_seq']  # [batch_size, max_step]
         sequence_time_gap_seq = feed_dict['sequence_time_gap_seq']  # [batch_size, max_step]
         past_trial_counts_seq = feed_dict['past_trial_counts_seq']  # [batch_size, max_step]
 
-        embed_history_i = self.skill_embeddings(seq_sorted + labels_sorted * self.skill_num)
-        fin = self.fin(torch.cat((repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq), dim=2))
+        embed_history_i = self.skill_embeddings(seq_sorted + labels_sorted * self.skill_num) # [bs, max_stpe, emb_size]
+        fin = self.fin(torch.cat((repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq), dim=-1)) # [bs, max_stpe, emb_size]
         embed_history_i = torch.cat(
-            (embed_history_i.mul(fin), repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq), dim=2
+            (embed_history_i.mul(fin), repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq), dim=-1
         )
         embed_history_i_packed = torch.nn.utils.rnn.pack_padded_sequence(embed_history_i, lengths - 1, batch_first=True)
-        output, hidden = self.rnn(embed_history_i_packed, None)
+        output, _ = self.rnn(embed_history_i_packed, None)
 
         output, _ = torch.nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
-        fout = self.fout(torch.cat((repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq), dim=2))
+        fout = self.fout(torch.cat((repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq), dim=-1))
         output = torch.cat((
             output.mul(fout[:, 1:, :]), repeated_time_gap_seq[:, 1:, :],
             sequence_time_gap_seq[:, 1:, :], past_trial_counts_seq[:, 1:, :]
-        ), dim=2)
-        pred_vector = self.out(output)
+        ), dim=-1) # [bs, time-1, emb_size+3]
+        pred_vector = self.out(output) # [bs, time-1, skill_num]
         target_item = seq_sorted[:, 1:]
         prediction_sorted = torch.gather(pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)).squeeze(dim=-1)
         label = labels_sorted[:, 1:]
@@ -80,22 +90,38 @@ class DKTForgetting(BaseModel):
         out_dict = {'prediction': prediction, 'label': label}
         return out_dict
 
-    def loss(self, feed_dict, outdict):
+    def loss(self, feed_dict, outdict, metrics=None):
+        losses = defaultdict(lambda: torch.zeros((), device=self.device))
+
         indice = feed_dict['indice']
         lengths = feed_dict['length'] - 1
+
+        if lengths.is_cuda:
+            lengths = lengths.cpu().int()
         predictions, labels = outdict['prediction'][indice], outdict['label'][indice]
         predictions = torch.nn.utils.rnn.pack_padded_sequence(predictions, lengths, batch_first=True).data
         labels = torch.nn.utils.rnn.pack_padded_sequence(labels, lengths, batch_first=True).data
-        loss = self.loss_function(predictions, labels)
-        return loss
+        losses['loss_total'] = self.loss_function(predictions, labels)
 
+        if metrics != None:
+            pred = outdict['prediction'].detach().cpu().data.numpy()
+            gt = outdict['label'].detach().cpu().data.numpy()
+            evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
+        for key in evaluations.keys():
+            losses[key] = evaluations[key]
+
+        return losses
+        
     def get_feed_dict(self, corpus, data, batch_start, batch_size, phase):
+        
         batch_end = min(len(data), batch_start + batch_size)
         real_batch_size = batch_end - batch_start
         user_ids = data['user_id'][batch_start: batch_start + real_batch_size].values
+
+        # *_seqs all have the same shape: [bs, ]; while each element in the bs is a list of times
         user_seqs = data['skill_seq'][batch_start: batch_start + real_batch_size].values
         label_seqs = data['correct_seq'][batch_start: batch_start + real_batch_size].values
-        time_seqs = data['time_seq'][batch_start: batch_start + real_batch_size].values
+        time_seqs = data['time_seq'][batch_start: batch_start + real_batch_size].values 
         
         sequence_time_gap_seq, repeated_time_gap_seq, past_trial_counts_seq = \
             self.get_time_features(user_seqs, time_seqs)
@@ -121,8 +147,9 @@ class DKTForgetting(BaseModel):
 
     @staticmethod
     def get_time_features(user_seqs, time_seqs):
+        
         skill_max = max([max(i) for i in user_seqs])
-        inner_max_len = max(map(len, user_seqs))
+        inner_max_len = max(map(len, user_seqs)) # time (50)
         repeated_time_gap_seq = np.zeros([len(user_seqs), inner_max_len, 1], np.double)
         sequence_time_gap_seq = np.zeros([len(user_seqs), inner_max_len, 1], np.double)
         past_trial_counts_seq = np.zeros([len(user_seqs), inner_max_len, 1], np.double)
@@ -148,7 +175,7 @@ class DKTForgetting(BaseModel):
 
                 past_trial_counts_seq[i][j][0] = (skill_cnt[sk])
                 skill_cnt[sk] += 1
-
+                
         repeated_time_gap_seq[repeated_time_gap_seq < 0] = 1
         sequence_time_gap_seq[sequence_time_gap_seq < 0] = 1
         repeated_time_gap_seq[repeated_time_gap_seq == 0] = 1e4
@@ -159,5 +186,5 @@ class DKTForgetting(BaseModel):
 
         sequence_time_gap_seq = np.log(sequence_time_gap_seq)
         repeated_time_gap_seq = np.log(repeated_time_gap_seq)
-        past_trial_counts_seq = np.log(past_trial_counts_seq)
+        past_trial_counts_seq = np.log(past_trial_counts_seq) # TODO why all use log?
         return sequence_time_gap_seq, repeated_time_gap_seq, past_trial_counts_seq

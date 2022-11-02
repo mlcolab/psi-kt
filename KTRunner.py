@@ -1,44 +1,25 @@
 # -*- coding: UTF-8 -*-
 
 import torch
-import logging
+from torch.optim import lr_scheduler
+
 from time import time
 from tqdm import tqdm
 import gc
 import numpy as np
-import pandas as pd
 import copy
 import os
-
+from collections import defaultdict
 from utils import utils
 
 import ipdb
 
 class KTRunner(object):
-    @staticmethod
-    def parse_runner_args(parser):
-        parser.add_argument('--epoch', type=int, default=200,
-                            help='Number of epochs.')
-        parser.add_argument('--early_stop', type=int, default=1,
-                            help='whether to early-stop.')
-        parser.add_argument('--lr', type=float, default=1e-3,
-                            help='Learning rate.')
-        parser.add_argument('--batch_size', type=int, default=100,
-                            help='Batch size during training.')
-        parser.add_argument('--eval_batch_size', type=int, default=100,
-                            help='Batch size during testing.')
-        parser.add_argument('--dropout', type=float, default=0.2,
-                            help='Dropout probability for each deep layer')
-        parser.add_argument('--l2', type=float, default=0.,
-                            help='Weight of l2_regularize in loss.')
-        parser.add_argument('--optimizer', type=str, default='Adam',
-                            help='optimizer: GD, Adam, Adagrad, Adadelta')
-        parser.add_argument('--metric', type=str, default='AUC, Accuracy',
-                            help='metrics: AUC, F1, Accuracy, Recall, Presicion;'
-                                 'The first one will be used to determine whether to early stop')
-        return parser
 
-    def __init__(self, args):
+    def __init__(self, args, logs):
+        self.overfit = args.overfit
+
+        self.args = args
         self.optimizer_name = args.optimizer
         self.learning_rate = args.lr
         self.epoch = args.epoch
@@ -48,12 +29,10 @@ class KTRunner(object):
         self.metrics = args.metric.strip().lower().split(',')
         self.early_stop = args.early_stop
         self.time = None
+        self.logs = logs
 
-        self.valid_results, self.test_results = {}, {}
         for i in range(len(self.metrics)):
             self.metrics[i] = self.metrics[i].strip()
-            self.valid_results[self.metrics[i]] = list()
-            self.test_results[self.metrics[i]] = list()
 
     def _check_time(self, start=False):
         if self.time is None or start:
@@ -66,26 +45,28 @@ class KTRunner(object):
     def _build_optimizer(self, model):
         optimizer_name = self.optimizer_name.lower()
         if optimizer_name == 'gd':
-            logging.info("Optimizer: GD")
+            self.logs.write_to_log_file("Optimizer: GD")
             optimizer = torch.optim.SGD(model.customize_parameters(), lr=self.learning_rate, weight_decay=self.l2)
         elif optimizer_name == 'adagrad':
-            logging.info("Optimizer: Adagrad")
+            self.logs.write_to_log_file("Optimizer: Adagrad")
             optimizer = torch.optim.Adagrad(model.customize_parameters(), lr=self.learning_rate, weight_decay=self.l2)
         elif optimizer_name == 'adadelta':
-            logging.info("Optimizer: Adadelta")
+            self.logs.write_to_log_file("Optimizer: Adadelta")
             optimizer = torch.optim.Adadelta(model.customize_parameters(), lr=self.learning_rate, weight_decay=self.l2)
         elif optimizer_name == 'adam':
-            logging.info("Optimizer: Adam")
+            self.logs.write_to_log_file("Optimizer: Adam")
             optimizer = torch.optim.Adam(model.customize_parameters(), lr=self.learning_rate, weight_decay=self.l2)
         else:
             raise ValueError("Unknown Optimizer: " + self.optimizer_name)
-        return optimizer
+
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=self.args.lr_decay, gamma=self.args.gamma)
+
+        return optimizer, scheduler
 
     def predict(self, model, corpus, set_name):
         model.eval()
         predictions, labels = [], []
         batches = model.prepare_batches(corpus, corpus.data_df[set_name], self.eval_batch_size, phase=set_name)
-        # ipdb.set_trace()
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
             batch = model.batch_to_gpu(batch)
             outdict = model(batch)
@@ -95,32 +76,47 @@ class KTRunner(object):
         return np.array(predictions), np.array(labels)
 
     def fit(self, model, corpus, epoch_train_data, epoch=-1):  # fit the results for an input set
+        """
+        epoch_train_data: Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
+        """
         if model.optimizer is None:
-            model.optimizer = self._build_optimizer(model)
+            model.optimizer, model.scheduler = self._build_optimizer(model)
+        
+        train_losses = defaultdict(list)
 
         model.train()
-        loss_lst = list()
+        
         batches = model.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
+        
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
+            
             batch = model.batch_to_gpu(batch)
             model.optimizer.zero_grad()
             output_dict = model(batch)
-            loss = model.loss(batch, output_dict)
-            loss.backward()
+            loss_dict = model.loss(batch, output_dict, metrics = self.metrics)
+            loss_dict['loss_total'].backward()
             model.optimizer.step()
-            loss_lst.append(loss.detach().cpu().data.numpy())
+            model.scheduler.step()
+            train_losses = utils.append_losses(train_losses, loss_dict)
+
+        string = self.logs.result_string("train", epoch, train_losses, t=epoch)
+        self.logs.write_to_log_file(string)
+        self.logs.append_train_loss(train_losses)
+        
         model.eval()
-        return np.mean(loss_lst)
+        return self.logs.train_results['loss_total'][-1]
 
     def eva_termination(self, model):
-        valid = self.valid_results[self.metrics[0]]
+        valid = list(self.logs.valid_results[self.metrics[0]])
         if len(valid) > 20 and utils.non_increasing(valid[-10:]):
             return True
         elif len(valid) - valid.index(max(valid)) > 20:
             return True
         return False
 
+
     def train(self, model, corpus):
+        
         assert(corpus.data_df['train'] is not None)
         self._check_time(start=True)
 
@@ -129,61 +125,70 @@ class KTRunner(object):
                 gc.collect()
                 self._check_time()
                 
-                epoch_train_data = copy.deepcopy(corpus.data_df['train'])
-                epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True)
+                if self.overfit > 0:
+                    epoch_train_data = copy.deepcopy(corpus.data_df['train'])[:self.overfit] # Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
+                else:
+                    epoch_train_data = copy.deepcopy(corpus.data_df['train'])
+                epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) # Return a random sample of items from an axis of object.
+
                 loss = self.fit(model, corpus, epoch_train_data, epoch=epoch + 1)
+                
                 del epoch_train_data
                 training_time = self._check_time()
 
-                # output validation
+                # output validation and write to logs
                 valid_result = self.evaluate(model, corpus, 'dev')
                 test_result = self.evaluate(model, corpus, 'test')
+
+                self.logs.append_test_loss(test_result)
+                self.logs.append_val_loss(valid_result)
+                
+                self.logs.draw_loss_curves()
+
                 testing_time = self._check_time()
 
-                for metric in self.metrics:
-                    self.valid_results[metric].append(valid_result[metric])
-                    self.test_results[metric].append(test_result[metric])
-
-                logging.info("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
+                self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
                              epoch + 1, loss, training_time, utils.format_metric(valid_result),
                              utils.format_metric(test_result), testing_time))
+                             
+                if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
+                    model.save_model(epoch=epoch)
+                # if self.eva_termination(model) and self.early_stop:
+                #     self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
+                #     break
 
-                if max(self.valid_results[self.metrics[0]]) == self.valid_results[self.metrics[0]][-1]:
-                    model.save_model()
-                if self.eva_termination(model) and self.early_stop:
-                    logging.info("Early stop at %d based on validation result." % (epoch + 1))
-                    break
         except KeyboardInterrupt:
-            logging.info("Early stop manually")
+            self.logs.write_to_log_file("Early stop manually")
             exit_here = input("Exit completely without evaluation? (y/n) (default n):")
             if exit_here.lower().startswith('y'):
-                logging.info(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)
+                self.logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)
                 exit(1)
 
         # Find the best validation result across iterations
-        best_valid_score = max(self.valid_results[self.metrics[0]])
-        best_epoch = self.valid_results[self.metrics[0]].index(best_valid_score)
+        best_valid_epoch = self.logs.valid_results[self.metrics[0]].argmax()
         valid_res_dict, test_res_dict = dict(), dict()
+        
         for metric in self.metrics:
-            valid_res_dict[metric] = self.valid_results[metric][best_epoch]
-            test_res_dict[metric] = self.test_results[metric][best_epoch]
-        logging.info("\nBest Iter(dev)=  %5d\t valid=(%s) test=(%s) [%.1f s] "
-                     % (best_epoch + 1,
+            
+            valid_res_dict[metric] = self.logs.valid_results[metric][best_valid_epoch]
+            test_res_dict[metric] = self.logs.test_results[metric][best_valid_epoch]
+        self.logs.write_to_log_file("\nBest Iter(dev)=  %5d\t valid=(%s) test=(%s) [%.1f s] "
+                     % (best_valid_epoch + 1,
                         utils.format_metric(valid_res_dict),
                         utils.format_metric(test_res_dict),
                         self.time[1] - self.time[0]))
 
-        best_test_score = max(self.test_results[self.metrics[0]])
-        best_epoch = self.test_results[self.metrics[0]].index(best_test_score)
+        best_test_epoch = self.logs.test_results[self.metrics[0]].argmax()
         for metric in self.metrics:
-            valid_res_dict[metric] = self.valid_results[metric][best_epoch]
-            test_res_dict[metric] = self.test_results[metric][best_epoch]
-        logging.info("Best Iter(test)= %5d\t valid=(%s) test=(%s) [%.1f s] \n"
-                     % (best_epoch + 1,
+            valid_res_dict[metric] = self.logs.valid_results[metric][best_test_epoch]
+            test_res_dict[metric] = self.logs.test_results[metric][best_test_epoch]
+        self.logs.write_to_log_file("Best Iter(test)= %5d\t valid=(%s) test=(%s) [%.1f s] \n"
+                     % (best_test_epoch + 1,
                         utils.format_metric(valid_res_dict),
                         utils.format_metric(test_res_dict),
                         self.time[1] - self.time[0]))
-        model.load_model()
+                        
+        # model.load_model() #???
 
     def evaluate(self, model, corpus, set_name):  # evaluate the results for an input set
         predictions, labels = self.predict(model, corpus, set_name)

@@ -32,6 +32,7 @@ class DataReader(object):
         # aggregate by user
         user_wise_dict = dict()
         cnt, n_inters = 0, 0
+        
         for user, user_df in self.inter_df.groupby('user_id'):
             df = user_df[:self.max_step]  # consider the first 50 interactions
             user_wise_dict[cnt] = {
@@ -77,20 +78,3 @@ class DataReader(object):
         self.logs.write_to_log_file('Data columns:')
         self.logs.write_to_log_file(self.user_seq_df.iloc[np.random.randint(0, len(self.user_seq_df))])
 
-
-# if __name__ == '__main__':
-#     logging.basicConfig(filename='../../log/test.txt', level=logging.INFO)
-#     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
-#     parser = argparse.ArgumentParser(description='')
-#     parser = DataReader.parse_data_args(parser)
-
-#     args, extras = parser.parse_known_args()
-#     args.path = '../../data/'
-#     np.random.seed(2022)
-#     data = DataReader(args)
-#     data.gen_fold_data(k=0)
-#     data.show_columns()
-
-#     corpus_path = os.path.join(args.path, args.dataset, 'Corpus_{}.pkl'.format(args.max_step))
-#     logging.info('Save corpus to {}'.format(corpus_path))
-#     pickle.dump(data, open(corpus_path, 'wb'))

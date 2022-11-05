@@ -98,7 +98,9 @@ class KTRunner(object):
             model.optimizer.step()
             model.scheduler.step()
             train_losses = utils.append_losses(train_losses, loss_dict)
-
+        # TODO for debug
+        if epoch % 10 == 0:
+            print(output_dict['prediction'])
         string = self.logs.result_string("train", epoch, train_losses, t=epoch)
         self.logs.write_to_log_file(string)
         self.logs.append_train_loss(train_losses)

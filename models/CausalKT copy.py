@@ -10,7 +10,7 @@ from models.BaseModel import BaseModel
 from utils import utils
 
 from models.modules import *
-from models.variational_distributions import Var_ENCO
+from models.variational_distributions import VarENCO
 from models.graph import InterventionalGraph
 
 from collections import defaultdict

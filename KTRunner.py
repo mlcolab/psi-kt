@@ -23,7 +23,7 @@ class KTRunner(object):
         self.optimizer_name = args.optimizer
         self.learning_rate = args.lr
         self.epoch = args.epoch
-        self.batch_size = args.batch_size
+        self.batch_size = args.batch_size_multiGPU # ???
         self.eval_batch_size = args.eval_batch_size
         self.l2 = args.l2
         self.metrics = args.metric.strip().lower().split(',')
@@ -55,7 +55,7 @@ class KTRunner(object):
             optimizer = torch.optim.Adadelta(model.customize_parameters(), lr=self.learning_rate, weight_decay=self.l2)
         elif optimizer_name == 'adam':
             self.logs.write_to_log_file("Optimizer: Adam")
-            optimizer = torch.optim.Adam(model.customize_parameters(), lr=self.learning_rate, weight_decay=self.l2)
+            optimizer = torch.optim.Adam(model.module.customize_parameters(), lr=self.learning_rate, weight_decay=self.l2)
         else:
             raise ValueError("Unknown Optimizer: " + self.optimizer_name)
 
@@ -66,9 +66,9 @@ class KTRunner(object):
     def predict(self, model, corpus, set_name):
         model.eval()
         predictions, labels = [], []
-        batches = model.prepare_batches(corpus, corpus.data_df[set_name], self.eval_batch_size, phase=set_name)
+        batches = model.module.prepare_batches(corpus, corpus.data_df[set_name], self.eval_batch_size, phase=set_name)
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
-            batch = model.batch_to_gpu(batch)
+            batch = model.module.batch_to_gpu(batch)
             outdict = model(batch)
             prediction, label = outdict['prediction'], outdict['label']
             predictions.extend(prediction.detach().cpu().data.numpy())
@@ -79,24 +79,24 @@ class KTRunner(object):
         """
         epoch_train_data: Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
         """
-        if model.optimizer is None:
-            model.optimizer, model.scheduler = self._build_optimizer(model)
+        if model.module.optimizer is None:
+            model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
         
         train_losses = defaultdict(list)
 
         model.train()
         
-        batches = model.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
+        batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
         
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
             
-            batch = model.batch_to_gpu(batch)
-            model.optimizer.zero_grad()
+            batch = model.module.batch_to_gpu(batch)
+            model.module.optimizer.zero_grad()
             output_dict = model(batch)
-            loss_dict = model.loss(batch, output_dict, metrics = self.metrics)
+            loss_dict = model.module.loss(batch, output_dict, metrics = self.metrics)
             loss_dict['loss_total'].backward()
-            model.optimizer.step()
-            model.scheduler.step()
+            model.module.optimizer.step()
+            model.module.scheduler.step()
             train_losses = utils.append_losses(train_losses, loss_dict)
         # TODO for debug
         if epoch % 10 == 0:
@@ -154,7 +154,7 @@ class KTRunner(object):
                              utils.format_metric(test_result), testing_time))
                              
                 if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
-                    model.save_model(epoch=epoch)
+                    model.module.save_model(epoch=epoch)
                 # if self.eva_termination(model) and self.early_stop:
                 #     self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
                 #     break
@@ -201,7 +201,7 @@ class KTRunner(object):
             concat_label.append(label[:length])
         concat_pred = np.concatenate(concat_pred)
         concat_label = np.concatenate(concat_label)
-        return model.pred_evaluate_method(concat_pred, concat_label, self.metrics)
+        return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics)
 
     def print_res(self, model, corpus):
         set_name = 'test'

@@ -31,16 +31,16 @@ def main(args, model, logs):
     torch.cuda.manual_seed(args.random_seed)
     np.random.seed(args.random_seed)
 
-    # # GPU & CUDA
-    # if args.device.type != "cpu":
-    #     if args.GPU_to_use is not None:
-    #         torch.cuda.set_device(args.GPU_to_use)
-    #     torch.cuda.manual_seed(args.random_seed)
-    #     args.num_GPU = 1  # torch.cuda.device_count()
-    #     args.batch_size_multiGPU = args.batch_size * args.num_GPU
-    # else:
-    #     args.num_GPU = None
-    #     args.batch_size_multiGPU = args.batch_size
+    # GPU & CUDA
+    if args.device.type != "cpu":
+        if args.GPU_to_use is not None:
+            torch.cuda.set_device(args.GPU_to_use)
+        torch.cuda.manual_seed(args.random_seed)
+        args.num_GPU = torch.cuda.device_count()
+        args.batch_size_multiGPU = args.batch_size * args.num_GPU
+    else:
+        args.num_GPU = None
+        args.batch_size_multiGPU = args.batch_size
     logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
 
     # Load data
@@ -52,7 +52,8 @@ def main(args, model, logs):
     model = model.double()
     model.apply(model.init_weights)
     model.actions_before_train()
-    model = model.to(args.device)
+    model, _ = utils.distribute_over_GPUs(args, model, num_GPU=args.num_GPU)
+    # model = model.to(args.device)
         
     # Define
     runner = KTRunner(args, logs)
@@ -107,6 +108,8 @@ if __name__ == '__main__':
     global_args, extras = parser.parse_known_args() # https://docs.python.org/3/library/argparse.html?highlight=parse_known_args#argparse.ArgumentParser.parse_known_args
     global_args.model_name = model_name
     global_args.time = datetime.datetime.now().isoformat()
+    # print('device count!')
+    # print(torch.cuda.device_count())
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     logs = logger.Logger(global_args)

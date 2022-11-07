@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 
-import os
+import os, torch
 import logging
 import datetime
 import numpy as np
@@ -124,3 +124,59 @@ def append_losses(losses_list, losses):
         else:
             losses_list[loss].append(value.item())
     return losses_list
+
+
+# def create_rel_rec_send(args, num_atoms):
+#     """Based on https://github.com/ethanfetaya/NRI (MIT License)."""
+#     if args.unobserved > 0 and args.model_unobserved == 1:
+#         num_atoms -= args.unobserved
+
+#     # Generate off-diagonal interaction graph
+#     off_diag = np.ones([num_atoms, num_atoms]) - np.eye(num_atoms)
+#     # ipdb.set_trace()
+#     rel_rec = np.array(encode_onehot(np.where(off_diag)[0]), dtype=np.float32)
+#     rel_send = np.array(encode_onehot(np.where(off_diag)[1]), dtype=np.float32)
+#     rel_rec = torch.FloatTensor(rel_rec)
+#     rel_send = torch.FloatTensor(rel_send)
+
+#     if args.cuda:
+#         rel_rec = rel_rec.cuda()
+#         rel_send = rel_send.cuda()
+
+#     return rel_rec, rel_send
+
+
+def create_rel_rec_send(num_atoms, device):
+    """Based on https://github.com/ethanfetaya/NRI (MIT License)."""
+    
+    # Generate off-diagonal interaction graph
+    off_diag = np.ones([num_atoms, num_atoms])
+    # ipdb.set_trace()
+    rel_rec = np.array(np.where(off_diag)[0])
+    rel_send = np.array(np.where(off_diag)[1])
+    rel_rec = torch.tensor(rel_rec).to(device)
+    rel_send = torch.tensor(rel_send).to(device)
+
+    return rel_rec, rel_send
+
+
+def distribute_over_GPUs(args, model, num_GPU=None):
+    ## distribute over GPUs
+    if args.device.type != "cpu":
+        if num_GPU is None:
+            model = torch.nn.DataParallel(model)
+            num_GPU = torch.cuda.device_count()
+            args.batch_size_multiGPU = args.batch_size * num_GPU
+        else:
+            assert (
+                num_GPU <= torch.cuda.device_count()
+            ), "You cant use more GPUs than you have."
+            model = torch.nn.DataParallel(model, device_ids=list(range(num_GPU)))
+            args.batch_size_multiGPU = args.batch_size * num_GPU
+    else:
+        model = torch.nn.DataParallel(model)
+        args.batch_size_multiGPU = args.batch_size
+
+    model = model.to(args.device)
+
+    return model, num_GPU

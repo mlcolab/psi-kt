@@ -11,10 +11,12 @@ from utils import utils
 
 from models.modules import *
 from models.variational_distributions import VarConstant, VarBasic, VarENCO, VarDIBS
-from models.graph_message_passing import GraphTargetMessage, GraphWholeMessage, GraphRecurrent
+from models.graph_message_passing import GraphTargetMessage, GraphWholeMessage, GraphRecurrent, GraphPerformanceTrace
 
 from collections import defaultdict
 import ipdb
+
+# TODO: only whole_graph change the data shape to [bs, num_graph, ...]
 
 class CausalKT(BaseModel):
     extra_log_args = ['time_log']
@@ -23,7 +25,7 @@ class CausalKT(BaseModel):
     def parse_model_args(parser, model_name='CausalKT'):
         parser.add_argument('--tau_gumbel', type=float, default=0.5, help="Temperature for Gumbel softmax.")
 
-        parser.add_argument('--emb_size', type=int, default=32, help='Size of embedding vectors.')
+        parser.add_argument('--emb_size', type=int, default=2, help='Size of embedding vectors.')
         parser.add_argument('--time_log', type=float, default=np.e, help='Log base of time intervals.')
         parser.add_argument('--time_lag', type=int, default=30, )
 
@@ -35,7 +37,7 @@ class CausalKT(BaseModel):
         parser.add_argument('--emb_history', type=int, help='for debug use! \
                                         0: label=1/-1 and multiply the emb history; \
                                         1: label=1/0, and concatenate after the emb vector.')
-        parser.add_argument('--decoder_type', type=str, default='rnn', help='[target_msg, whole_msg, rnn]')
+        parser.add_argument('--decoder_type', type=str, default='perf_trace', help='[target_msg, whole_msg, rnn, perf_trace]')
 
         # for debugging
         parser.add_argument('--dense_init', type=int, default=0, help='whether the graph starts from sparse(0) or dense(1)')  
@@ -49,7 +51,7 @@ class CausalKT(BaseModel):
 
 
 
-    def __init__(self, args, corpus, logs):
+    def __init__(self, args, corpus, logs):#, dev0, dev1):
         self.args = args
         self.device = args.device
         self.logs = logs
@@ -68,6 +70,9 @@ class CausalKT(BaseModel):
         self.latent_rep = args.latent_rep
         self.dense_init = args.dense_init
         self.adj_or_prob = args.adj_or_prob
+
+        # self.dev0 = dev0
+        # self.dev1 = dev1
 
         super().__init__(model_path=os.path.join(args.log_path, 'Model_{}.pt'))
         
@@ -125,7 +130,9 @@ class CausalKT(BaseModel):
         elif self.decoder_type == 'whole_msg':
             self.decoder = GraphWholeMessage(self.device, self.num_nodes, self.args, self.emb_size)
         elif self.decoder_type == 'rnn':
-            self.decoder = GraphRecurrent(self.device, self.num_nodes, self.args, self.emb_size)
+            self.decoder = GraphRecurrent(self.device, self.num_nodes, self.args, self.emb_size, self.dev0, self.dev1)
+        elif self.decoder_type == 'perf_trace':
+            self.decoder = GraphPerformanceTrace(self.device, self.num_nodes, self.args, self.emb_size)
 
         
     def get_weighted_adjacency(self):
@@ -158,7 +165,7 @@ class CausalKT(BaseModel):
         times = feed_dict['time_seq']        # [batch_size, seq_len]
         labels = feed_dict['label_seq']      # [batch_size, seq_len]
 
-        bs, time_steps = labels.shape
+        bs, _ = labels.shape
         
         _, p_adj, b_adj = self.var_dist_A.sample_A(num_graph=self.args.num_graph)
         if self.adj_or_prob == 'adj':
@@ -170,12 +177,12 @@ class CausalKT(BaseModel):
         # adj = self.var_dist_A
         # W_adj = adj * self.get_weighted_adjacency() 
 
-        preds = self.decoder(feed_dict, adj=adj, node_embeddings=self.node_embeddings)
+        preds = self.decoder(feed_dict, adj=adj, node_embeddings=self.node_embeddings, others=self.var_dist_A.latents)
         
-        preds = torch.cat(preds, dim=-1)
+        preds = torch.stack(preds, dim=-1)
         if skills.is_cuda:
             preds = preds.cuda()
-        labels = labels[:, self.time_lag:].unsqueeze(0).tile((preds.shape[0], 1, 1))
+        labels = labels[:, 1:].unsqueeze(1).tile((1, preds.shape[1], 1))
 
         return {
             'prediction': preds.double(),
@@ -187,7 +194,7 @@ class CausalKT(BaseModel):
         prediction = outdict['prediction'].flatten()
         label = outdict['label'].flatten()
         mask = label > -1
-        
+        ipdb.set_trace()
         # # TODO for debugging
         # weight = (label==0)+1
         # loss = torch.nn.BCELoss(weight=weight.to(self.device))

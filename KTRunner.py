@@ -11,7 +11,7 @@ import copy
 import os
 from collections import defaultdict
 from utils import utils
-
+import torch.distributed as dist
 import ipdb
 
 class KTRunner(object):
@@ -98,9 +98,9 @@ class KTRunner(object):
             model.module.optimizer.step()
             model.module.scheduler.step()
             train_losses = utils.append_losses(train_losses, loss_dict)
-        # TODO for debug
-        if epoch % 10 == 0:
-            print(output_dict['prediction'])
+        # # TODO for debug
+        # if epoch % 10 == 0:
+        #     print(output_dict['prediction'])
         string = self.logs.result_string("train", epoch, train_losses, t=epoch)
         self.logs.write_to_log_file(string)
         self.logs.append_train_loss(train_losses)
@@ -118,7 +118,7 @@ class KTRunner(object):
 
 
     def train(self, model, corpus):
-        
+
         assert(corpus.data_df['train'] is not None)
         self._check_time(start=True)
 
@@ -138,23 +138,23 @@ class KTRunner(object):
                 del epoch_train_data
                 training_time = self._check_time()
 
-                # output validation and write to logs
-                valid_result = self.evaluate(model, corpus, 'dev')
-                test_result = self.evaluate(model, corpus, 'test')
+                # # output validation and write to logs
+                # valid_result = self.evaluate(model, corpus, 'dev')
+                # test_result = self.evaluate(model, corpus, 'test')
 
-                self.logs.append_test_loss(test_result)
-                self.logs.append_val_loss(valid_result)
+                # self.logs.append_test_loss(test_result)
+                # self.logs.append_val_loss(valid_result)
                 
                 self.logs.draw_loss_curves()
 
-                testing_time = self._check_time()
+                # testing_time = self._check_time()
 
-                self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
-                             epoch + 1, loss, training_time, utils.format_metric(valid_result),
-                             utils.format_metric(test_result), testing_time))
+                # self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
+                #              epoch + 1, loss, training_time, utils.format_metric(valid_result),
+                #              utils.format_metric(test_result), testing_time))
                              
-                if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
-                    model.module.save_model(epoch=epoch)
+                # if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
+                #     model.module.save_model(epoch=epoch)
                 # if self.eva_termination(model) and self.early_stop:
                 #     self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
                 #     break
@@ -171,7 +171,6 @@ class KTRunner(object):
         valid_res_dict, test_res_dict = dict(), dict()
         
         for metric in self.metrics:
-            
             valid_res_dict[metric] = self.logs.valid_results[metric][best_valid_epoch]
             test_res_dict[metric] = self.logs.test_results[metric][best_valid_epoch]
         self.logs.write_to_log_file("\nBest Iter(dev)=  %5d\t valid=(%s) test=(%s) [%.1f s] "

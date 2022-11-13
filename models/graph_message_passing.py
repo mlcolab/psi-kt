@@ -9,52 +9,13 @@ from models.modules import generate_fully_connected
 from torch.nn import Dropout, LayerNorm, Linear, Module, Sequential
 from utils.utils import create_rel_rec_send
 
-import os
-import sys
-import tempfile
-import torch
-import torch.distributed as dist
-import torch.nn as nn
-import torch.optim as optim
-import torch.multiprocessing as mp
+# from torch_geometric.data import Data
 
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-# https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
-def setup(rank, world_size):
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
+import ipdb
 
-    # initialize the process group
-    dist.init_process_group("gloo", rank=rank, world_size=world_size)
 
-def cleanup():
-    dist.destroy_process_group()
-
-def demo_basic(rank, world_size):
-    print(f"Running basic DDP example on rank {rank}.")
-    setup(rank, world_size)
-
-    # create model and move it to GPU with id rank
-    model = ToyModel().to(rank)
-    ddp_model = DDP(model, device_ids=[rank])
-
-    loss_fn = nn.MSELoss()
-    optimizer = optim.SGD(ddp_model.parameters(), lr=0.001)
-
-    optimizer.zero_grad()
-    outputs = ddp_model(torch.randn(20, 10))
-    labels = torch.randn(20, 5).to(rank)
-    loss_fn(outputs, labels).backward()
-    optimizer.step()
-
-    cleanup()
-
-def run_demo(demo_fn, world_size):
-    mp.spawn(demo_fn,
-             args=(world_size,),
-             nprocs=world_size,
-             join=True)
 
 class Graph(nn.Module):
     def __init__(self, device, num_nodes, args):
@@ -200,15 +161,18 @@ class GraphTargetMessage(Graph):
 
             # pred = (self.final_output_layer(cross_effect) + problem_base_target + skill_base_target).sigmoid()
             # pred = (self.final_output_layer(cross_effect)).sigmoid()
+
             pred = F.softmax(self.final_output_layer(cross_effect), dim=-1)[..., 1:] # problem_base_target + skill_base_target
             preds.append(pred)
 
 
 
 class GraphRecurrent(Graph): 
-    def __init__(self, device, num_nodes, args, emb_size=None):
+    def __init__(self, device, num_nodes, args, emb_size=None, dev0=None, dev1=None):
         super().__init__(device, num_nodes, args)
         self.emb_size = emb_size or args.emb_size
+        self.dev0 = dev0
+        self.dev1 = dev1
         self._init_weights()
 
     def _init_weights(self):
@@ -231,25 +195,25 @@ class GraphRecurrent(Graph):
                 res_connection=self.res_connection,
             )
 
-        self.msg_fc1 = nn.Linear(2 * n_hid, n_hid)
-        self.msg_fc2 = nn.Linear(n_hid, n_hid) 
+        self.msg_fc1 = nn.Linear(2 * n_hid, n_hid, device=self.dev0)
+        self.msg_fc2 = nn.Linear(n_hid, n_hid, device=self.dev1)
         
         self.msg_out_shape = n_hid
         self.skip_first_edge_type = True
 
-        self.hidden_r = nn.Linear(n_hid, n_hid, bias=False)
-        self.hidden_i = nn.Linear(n_hid, n_hid, bias=False)
-        self.hidden_h = nn.Linear(n_hid, n_hid, bias=False)
+        self.hidden_r = nn.Linear(n_hid, n_hid, bias=False).to(self.dev1)
+        self.hidden_i = nn.Linear(n_hid, n_hid, bias=False).to(self.dev1)
+        self.hidden_h = nn.Linear(n_hid, n_hid, bias=False).to(self.dev1)
 
         # n_in_node = self.num_nodes
         n_in_node = n_hid
-        self.input_r = nn.Linear(n_in_node, n_hid, bias=True)
-        self.input_i = nn.Linear(n_in_node, n_hid, bias=True)
-        self.input_n = nn.Linear(n_in_node, n_hid, bias=True)
+        self.input_r = nn.Linear(n_in_node, n_hid, bias=True).to(self.dev1)
+        self.input_i = nn.Linear(n_in_node, n_hid, bias=True).to(self.dev1)
+        self.input_n = nn.Linear(n_in_node, n_hid, bias=True).to(self.dev1)
 
-        self.out_fc1 = nn.Linear(n_hid, n_hid)
-        self.out_fc2 = nn.Linear(n_hid, n_hid)
-        self.out_fc3 = nn.Linear(n_hid, n_in_node)
+        self.out_fc1 = nn.Linear(n_hid, n_hid).to(self.dev1)
+        self.out_fc2 = nn.Linear(n_hid, n_hid).to(self.dev1)
+        self.out_fc3 = nn.Linear(n_hid, n_in_node).to(self.dev1)
 
     def forward(self, feed_dict, adj, node_embeddings):
         '''
@@ -264,8 +228,10 @@ class GraphRecurrent(Graph):
         time_lag = self.args.time_lag
         num_graph = adj.shape[0]
         
-        node_embeddings = node_embeddings.double()
-        hidden = torch.zeros(bs, self.num_nodes, self.msg_out_shape).to(self.device)
+        
+        node_embeddings = node_embeddings.double().to(self.dev1)
+        adj = adj.to(self.dev1)
+        hidden = torch.zeros(bs, self.num_nodes, self.msg_out_shape).to(self.dev1)
 
         # inputs = data.transpose(1, 2).contiguous()
         # time_steps = inputs.size(1)
@@ -277,18 +243,21 @@ class GraphRecurrent(Graph):
         pred_all = []
 
         for t in range(0, time_steps - 1):
+            rel_type = adj.reshape(num_graph, bs, -1) # [num_graph, bs, num_edge]
             ins = skills[:, t:t+1]
-
+            print(t)
             # node2edge
             receivers = torch.index_select(hidden, dim=1, index=self.rec_ind) # [bs, num_edges, dim]
             senders = torch.index_select(hidden, dim=1, index=self.send_ind)
-            pre_msg = torch.cat([senders, receivers], dim=-1).double()
+
+            pre_msg = torch.cat([senders, receivers], dim=-1).double().to(self.dev0)
 
             # Run separate MLP for every edge type
-            rel_type = adj.reshape(num_graph, bs, -1) # [num_graph, bs, num_edge]
             # NOTE: To exclude one edge type, simply offset range by 1
             msg = torch.tanh(self.msg_fc1(pre_msg))
             msg = F.dropout(msg, p=self.dropout)
+
+            msg = msg.to(self.dev1)
             msg = torch.tanh(self.msg_fc2(msg)) # [bs, num_edge, dim]
             
             msg = msg * rel_type.unsqueeze(-1) # [num_graph, bs, num_edge, dim]
@@ -383,17 +352,17 @@ class GraphWholeMessage(Graph): # TODO
                 res_connection=self.res_connection,
             )
 
-        self.interv_edges = generate_fully_connected(
-            input_dim=in_dim_g,
-            output_dim=self.emb_size,
-            hidden_dims=layers_g,
-            p_dropout=self.dropout,
-            non_linearity=nn.LeakyReLU,
-            activation=nn.Identity,
-            device=self.device,
-            normalization=self.norm_layer,
-            res_connection=self.res_connection,
-        )
+        # self.interv_edges = generate_fully_connected(
+        #     input_dim=in_dim_g,
+        #     output_dim=self.emb_size,
+        #     hidden_dims=layers_g,
+        #     p_dropout=self.dropout,
+        #     non_linearity=nn.LeakyReLU,
+        #     activation=nn.Identity,
+        #     device=self.device,
+        #     normalization=self.norm_layer,
+        #     res_connection=self.res_connection,
+        # )
         
         self.final_output_layer = generate_fully_connected(
             input_dim=in_dim_f,
@@ -407,30 +376,57 @@ class GraphWholeMessage(Graph): # TODO
             res_connection=self.res_connection,
         )
 
+        n_hid = self.emb_size
+        self.msg_fc1 = nn.Linear(2 * n_hid, n_hid, device=self.device)
+        self.msg_fc2 = nn.Linear(n_hid, n_hid, device=self.device)
 
     def forward(self, feed_dict, adj, node_embeddings, node_base=None, node_bias_base=None):
 
-        skills = feed_dict['skill_seq']      # [batch_size, seq_len]
-        problems = feed_dict['problem_seq']  # [batch_size, seq_len]
-        times = feed_dict['time_seq']        # [batch_size, seq_len]
-        labels = feed_dict['label_seq']      # [batch_size, seq_len]
+        skills = feed_dict['skill_seq'].to(self.device)       # [batch_size, seq_len]
+        problems = feed_dict['problem_seq'].to(self.device)   # [batch_size, seq_len]
+        times = feed_dict['time_seq'].to(self.device)         # [batch_size, seq_len]
+        labels = feed_dict['label_seq'].to(self.device)      # [batch_size, seq_len]
         
         bs, time_steps = labels.shape
         time_lag = self.args.time_lag
-
+        ipdb.set_trace()
         bs_skill_emb = torch.tile(node_embeddings, (bs, 1, 1)).to(self.device)
         # bs_skill_base = torch.tile(node_base, (bs, 1)).to(self.device)
         # bs_problem_base = torch.tile(node_bias_base, (bs, 1)).to(self.device)
-
+        
         if self.emb_history == 0:
             labels_pro = torch.where(labels==0, -2, labels)
             labels_pro = torch.where(labels_pro==-1, 0, labels_pro)
             labels_pro = torch.where(labels_pro==-2, -1, labels_pro)
         else: labels_pro = labels
         
+        # -- calculate the time difference
         delta_t = (times[:, :, None] - times[:, None, :]).abs().double() # [bs, seq_len, seq_len] # symmetry ranging from 13.47e8-13.74e8
         delta_t = torch.log(delta_t + 1e-10) / torch.log(torch.tensor(self.time_log)) # ??? time_log # ranging from 0 to 17
         
+        # -- initialize hidden features
+        hidden = torch.zeros(bs, self.num_nodes, self.emb_size).to(self.device)
+        # ---- the first #time_lag features
+        skill_init = skills[:, :time_lag] # [bs, time_lag]
+        label_init = labels_pro[:, :time_lag]
+        emb_init = [bs_skill_emb[torch.arange(0, bs), skill_init[:, i]] for i in range(time_lag)]
+        emb_init = torch.stack(emb_init, dim=1) # [bs, time_lag, emd_size]
+        if self.emb_history == 0:
+            emb_init = emb_init * label_init.unsqueeze(-1)
+        elif self.emb_history == 1:
+            label_init = torch.tile(label_init.unsqueeze(-1), (1, 1, self.emb_size))
+            emb_init = torch.cat([emb_init, label_init], dim=-1).double()
+            emb_init = self.emb_history_layer(emb_init)
+        # ---- brutal searching TODO
+        unique_skill = [skill_init[i].unique().tolist() for i in range(bs)]
+        for i in range(bs):
+            skill = unique_skill[i]
+            for j in range(len(skill)):
+                cur_skill = skill[j]
+                last_time_ind = (skill_init[i]==cur_skill).nonzero()[-1]
+                hidden[i][cur_skill] += emb_init[i][last_time_ind][0]
+
+        # ipdb.set_trace()
         preds = []
 
         # TODO
@@ -438,10 +434,11 @@ class GraphWholeMessage(Graph): # TODO
             
             label_history = labels_pro[:, t - time_lag:t] # [bs, time_lag]
             skill_history = skills[:, t - time_lag:t] # [bs, time_lag]
-        
             skill_target = skills[:, t:t+1] # [bs, 1]
             problem_target = problems[:, t:t+1]
-            
+
+            hidden_history = [hidden[torch.arange(0,bs), skill_history[:, i]] for i in range(time_lag)] # [bs, time_lag, emb_size]
+            hidden_history = torch.stack(hidden_history, 1)
             # skill_base_target = bs_skill_base[torch.arange(0, bs), skill_target[:, 0]].unsqueeze(-1) # [bs, 1]
             # problem_base_target = bs_problem_base[torch.arange(0, bs), problem_target[:, 0]].unsqueeze(-1) # [bs, 1]
 
@@ -449,41 +446,150 @@ class GraphWholeMessage(Graph): # TODO
             emb_history = [bs_skill_emb[torch.arange(0, bs), skill_history[:, i]] for i in range(time_lag)]
             emb_history = torch.stack(emb_history, dim=1) # [bs, time_lag, emd_size]
 
-            if self.emb_history == 0:
-                emb_history *= label_history.unsqueeze(-1)
-            elif self.emb_history == 1:
-                label_history = torch.tile(label_history.unsqueeze(-1), (1, 1, self.embedding_size))
-                emb_history = torch.cat([emb_history, label_history], dim=-1).double()
-                emb_history = self.emb_history_layer(emb_history)
-
-            # w_ij means the effect from i to j 
+            # -- w_ij means the effect from i to j 
             cross_weight = [adj[:, torch.arange(0, bs), skill_history[:,i]] for i in range(time_lag)]
             cross_weight = torch.stack(cross_weight, 2) # [num_graph, bs, time_lag, num_nodes]
-            # before edge feat, the emb should be broadcasted
-            emb_history1 = emb_history.unsqueeze(2).repeat(1, 1, self.num_nodes, 1)
-            bs_skill_emb1 = bs_skill_emb.unsqueeze(1).repeat(1, time_lag, 1, 1)
-            edge_feat = torch.cat([emb_history1, bs_skill_emb1], dim=-1).double() # [bs, time_lag, num_nodes, dim_edge_feat]
+            # step 2
+            adj_2 = torch.matrix_power(adj,2)/self.num_nodes
+            # adj_3 = torch.matrix_power(adj,3)/self.num_nodes/self.num_nodes
+            adj_spatial = torch.stack([adj, adj_2], dim=2) # [num_graph, bs, power, num_nodes, num_nodes]
 
-            msg = self.interv_edges(edge_feat) # [bs, time_lag, num_nodes, emb_size]
-            # use a softmax here? TODO
-            cross_effect = (cross_weight * torch.exp(-delta_t_weight.unsqueeze(-1))).unsqueeze(-1) * msg # [num_graph, bs, time_lag, num_nodes, dim]
-            cross_effect = cross_effect.sum(-2) # [num_graph, bs, emb_size]
+            # adj_spatial = adj_spatial.swapaxes(0, 1).reshape(bs, -1, self.num_nodes, self.num_nodes) # [bs, num_graph*power, num_nodes, num_nodes]
+            cross_weight = [adj_spatial[:, torch.arange(0, bs), :, skill_history[:,i]] for i in range(time_lag)]
+            cross_weight = torch.stack(cross_weight, -2) # [num_graph, bs, power, time_lag, num_nodes]
 
-            # column j has all of the effects coming to j
-            # so index in j-th row of w_transpose  
+            # ipdb.set_trace()
+            # -- node2edge
+            pre_msg = torch.cat([hidden_history.unsqueeze(-2).repeat(1, 1, self.num_nodes, 1), hidden.unsqueeze(1).repeat(1, time_lag, 1, 1)], dim=-1).double()
+            msg = torch.tanh(self.msg_fc1(pre_msg))
+            msg = F.dropout(msg, p=self.dropout)
+            msg = torch.tanh(self.msg_fc2(msg)) # [bs, time_lag, num_nodes, dim]
+            msg = msg.unsqueeze(1).unsqueeze(1) * cross_weight.unsqueeze(-1) # [bs, num_graph, power, time_lag, num_nodes, emb_dim] # ~e-05 e-04
 
-            graph_weight = adj.transpose(-1,-2)[:, torch.arange(0, bs), skill_target[:, 0]] # [num_graph, bs, num_nodes]
-            cross_weight = [graph_weight[:, torch.arange(0, bs), skill_history[:, i]] for i in range(time_lag)]
-            cross_weight = torch.stack(cross_weight, -1) # [bs, time_lag]
-            
-            emb_target = torch.tile(bs_skill_emb[torch.arange(0, bs), skill_target[:,0]].unsqueeze(1), (1, time_lag, 1))
-            edge_feat = torch.cat([emb_target, emb_history], dim=-1).double() # [bs, time_lag, emb_size*2]
+            # --edge2node
+            agg_msg = torch.exp(-delta_t_weight.reshape(bs, 1,1, time_lag, 1,1)) * msg
+            agg_msg = agg_msg.sum(3).sum(2)
 
-            
-
-
+            hidden = agg_msg.mean(1) #???
 
             # pred = (self.final_output_layer(cross_effect) + problem_base_target + skill_base_target).sigmoid()
             # pred = (self.final_output_layer(cross_effect)).sigmoid()
-            pred = F.softmax(self.final_output_layer(cross_effect), dim=-1)[..., 1:] # problem_base_target + skill_base_target
+            # ipdb.set_trace()
+            pred = F.softmax(self.final_output_layer(agg_msg), dim=-1)[torch.arange(bs),:,skill_target[:,0],1:] # problem_base_target + skill_base_target
             preds.append(pred)
+
+        return preds
+
+
+
+class GraphPerformanceTrace(Graph):
+    def __init__(self, device, num_nodes, args, emb_size=None):
+        super().__init__(device, num_nodes, args)
+        self.emb_size = emb_size or args.emb_size
+        self._init_weights()
+
+    def _init_weights(self):
+        a = max(self.emb_size, 64)
+        layers_f = self.decoder_layer_sizes or [a, a]
+        in_dim_f = self.emb_size
+        layers_g = self.encoder_layer_sizes or [a, a]
+        in_dim_g = self.emb_size*2
+
+        self.update_user = Sequential(
+            nn.Conv1d(32,32,5, device=self.device),
+            nn.ReLU(),
+            nn.Conv1d(32,32,1, device=self.device),
+            nn.ReLU(),
+        )
+        self.update_f = nn.Linear(32, 32, device=self.device)
+        self.update_b = nn.Linear(32, 32, device=self.device)
+
+
+        # self.final_output_layer = generate_fully_connected(
+        #     input_dim=in_dim_f,
+        #     output_dim=2,
+        #     hidden_dims=layers_f,
+        #     p_dropout=self.dropout,
+        #     non_linearity=nn.LeakyReLU,
+        #     activation=nn.Identity,
+        #     device=self.device,
+        #     normalization=self.norm_layer,
+        #     res_connection=self.res_connection,
+        # )
+
+        n_hid = self.emb_size
+        self.msg_fc1 = nn.Linear(2 * n_hid, n_hid, device=self.device)
+        self.msg_fc2 = nn.Linear(n_hid, n_hid, device=self.device)
+
+    def forward(self, feed_dict, adj, node_embeddings, node_base=None, node_bias_base=None, others=None):
+
+        skills = feed_dict['skill_seq'].to(self.device)       # [batch_size, seq_len]
+        problems = feed_dict['problem_seq'].to(self.device)   # [batch_size, seq_len]
+        times = feed_dict['time_seq'].to(self.device)         # [batch_size, seq_len]
+        labels = feed_dict['label_seq'].to(self.device)      # [batch_size, seq_len]
+        bs, time_steps = labels.shape
+
+        # -- multi-step spatial on graph
+        power = 2
+        adj_list = [torch.matrix_power(adj, i)/torch.float_power(torch.tensor(self.num_nodes), i) for i in range(power)]
+        adj_list = torch.stack(adj_list, 2).permute(1,0,2,3,4).double() # [bs, num_graph, power, num_nodes, num_nodes]
+
+        # -- calculate the time difference
+        delta_t = (times[:, :, None] - times[:, None, :]).abs().double() # [bs, seq_len, seq_len] # symmetry ranging from 13.47e8-13.74e8
+        delta_t = torch.log(delta_t + 1e-10) / torch.log(torch.tensor(self.time_log)) # ??? time_log # ranging from 0 to 17
+
+        latents_dim = node_embeddings.shape[-1]//2
+        node_embeddings = node_embeddings.double()
+        node_send, node_rec = torch.split(node_embeddings, latents_dim, dim=-1) #[1, num_node, latent_dim]
+
+        # bs_skill_emb = torch.tile(node_embeddings, (bs, 1, 1)).to(self.device)
+        # bs_skill_base = torch.tile(node_base, (bs, 1)).to(self.device)
+        # bs_problem_base = torch.tile(node_bias_base, (bs, 1)).to(self.device)
+        
+        # -- initialize hidden features
+        user_b = torch.zeros(bs, latents_dim).to(self.device).double() # TODO other initialization
+        user_f = torch.zeros(bs, latents_dim).to(self.device).double()
+
+        # if self.emb_history == 0:
+        #     labels_pro = torch.where(labels==0, -2, labels)
+        #     labels_pro = torch.where(labels_pro==-1, 0, labels_pro)
+        #     labels_pro = torch.where(labels_pro==-2, -1, labels_pro)
+        # else: labels_pro = labels
+        alpha = 1e-1 # TODO
+
+        last_perf = torch.matmul(user_b, node_rec.permute(1,2,0)).permute(1,2,0)  # [bs, 1, num_nodes]
+        node_last_forget = torch.matmul(user_f, node_send.permute(1,2,0)).permute(1,2,0) # [bs, 1, num_nodes]
+
+        # TODO
+        # user_b and user_f be updated by label_0
+
+        preds = [] 
+        for t in range(1, time_steps): # from t=1 
+            node_cur_base = torch.matmul(user_b, node_rec.permute(1,2,0)).permute(1,2,0) # [bs, 1, num_nodes]
+
+            cur_delta_t =  ((times[:, t] - times[:, t-1]).abs().double()+1e-10).reshape(-1,1,1)
+            tmporal_effect = torch.exp(-cur_delta_t*alpha*node_last_forget) * last_perf # [bs, 1, num_nodes]
+
+            spatial_effect = torch.einsum('bij, banjk->banik', last_perf, adj_list)[:,:,:,0] # [bs, num_graph, power, num_nodes]
+            spatial_effect = spatial_effect.sum(2)/power/self.num_nodes
+            
+            cur_perf = torch.sigmoid(node_cur_base + tmporal_effect + spatial_effect)
+            ipdb.set_trace()
+            node_last_forget = torch.matmul(user_f, node_send.permute(1,2,0)).permute(1,2,0) 
+            last_perf = cur_perf
+
+            # -- update user_b and user_f
+            cur_label = labels[:, t].unsqueeze(-1).repeat(1, latents_dim)
+            cur_skill = skills[:, t]
+            user = torch.stack([user_b, user_f, cur_label, 
+                                    node_rec.repeat(bs,1,1)[torch.arange(bs), cur_skill],
+                                    node_send.repeat(bs,1,1)[torch.arange(bs), cur_skill]], dim=-1).double()
+            
+            user = self.update_user(user)[...,0]
+            # ipdb.set_trace()
+            user_f = torch.tanh(self.update_f(user))
+            user_b = torch.tanh(self.update_b(user))
+
+            preds.append(cur_perf[torch.arange(bs), :, cur_skill])
+
+        return preds

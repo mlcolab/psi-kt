@@ -8,6 +8,20 @@ def parse_args(parser):
     # parser = argparse.ArgumentParser()
     parser.add_argument('--overfit', type=int, default=100,)
 
+    parser.add_argument('--world_size', default=-1, type=int, 
+                        help='number of nodes for distributed training')
+    parser.add_argument('--rank', default=-1, type=int, 
+                        help='node rank for distributed training')
+    parser.add_argument('--dist-url', default='env://', type=str, 
+                        help='url used to set up distributed training')
+    parser.add_argument('--dist-backend', default='nccl', type=str, 
+                        help='distributed backend')
+    parser.add_argument('--local_rank', default=-1, type=int, 
+                        help='local rank for distributed training')
+    # parser.add_argument('--distributed', default=1, type=int, 
+    #                     help='')
+
+
     ############## global ############## from main.py
     parser.add_argument('--random_seed', type=int, default=2022,)
     parser.add_argument("--GPU_to_use", type=int, default=None, help="GPU to use for training")

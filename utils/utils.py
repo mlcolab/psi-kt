@@ -162,6 +162,7 @@ def create_rel_rec_send(num_atoms, device):
 
 def distribute_over_GPUs(args, model, num_GPU=None):
     ## distribute over GPUs
+    # if torch.device("cpu") not in args.device:
     if args.device.type != "cpu":
         if num_GPU is None:
             model = torch.nn.DataParallel(model)

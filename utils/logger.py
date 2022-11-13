@@ -7,7 +7,7 @@ import math
 import pandas as pd
 from collections import defaultdict
 import itertools
-
+import ipdb
 
 class Logger:
     def __init__(self, args):
@@ -65,7 +65,9 @@ class Logger:
         Write given string in log-file and print as terminal output
         """
         print(string)
+        # ipdb.set_trace()
         cur_file = open(self.log_file, "a")
+        # cur_file.write(string)
         print(string, file=cur_file)
         cur_file.close()
 

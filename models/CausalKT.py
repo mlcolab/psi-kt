@@ -112,15 +112,16 @@ class CausalKT(BaseModel):
 
         # ----- initialize the node embeddings -----
         if self.latent_rep == 'dibs':
-            latents = self.var_dist_A.latents
-            self.node_embeddings = torch.cat([latents[0], latents[1]], dim=-1).unsqueeze(0) # [1, num_nodes, num_emb]
+            u, v = self.var_dist_A.u, self.var_dist_A.v
+            self.node_embeddings = torch.cat([u, v], dim=-1).unsqueeze(0) # [1, num_nodes, num_emb]
             self.emb_size = self.node_embeddings.shape[-1]
+            # ipdb.set_trace()
         else:
             node_embeddings = torch.randn(1, self.num_nodes, self.emb_size, device=self.device)
             self.node_embeddings = nn.Parameter(node_embeddings, requires_grad=True)
-        
-        node_base = torch.randn(1, self.num_nodes, device=self.device)
-        self.node_base = nn.Parameter(node_base, requires_grad=True)
+
+        # node_base = torch.randn(1, self.num_nodes, device=self.device)
+        # self.node_base = nn.Parameter(node_base, requires_grad=True)
         # node_bias_base = torch.randn(1, self.num_bias, device=self.device)
         # self.node_bias_base = nn.Parameter(node_bias_base, requires_grad=True) # from the problem
         # -------------------------------------------
@@ -177,7 +178,7 @@ class CausalKT(BaseModel):
         # adj = self.var_dist_A
         # W_adj = adj * self.get_weighted_adjacency() 
 
-        preds = self.decoder(feed_dict, adj=adj, node_embeddings=self.node_embeddings, others=self.var_dist_A.latents)
+        preds = self.decoder(feed_dict, adj=adj, node_embeddings=self.node_embeddings)
         
         preds = torch.stack(preds, dim=-1)
         if skills.is_cuda:
@@ -194,7 +195,7 @@ class CausalKT(BaseModel):
         prediction = outdict['prediction'].flatten()
         label = outdict['label'].flatten()
         mask = label > -1
-        ipdb.set_trace()
+        # ipdb.set_trace()
         # # TODO for debugging
         # weight = (label==0)+1
         # loss = torch.nn.BCELoss(weight=weight.to(self.device))
@@ -203,9 +204,9 @@ class CausalKT(BaseModel):
         
         _, _, adj = self.var_dist_A.sample_A(num_graph=self.args.num_graph)
 
-        losses['loss_spasity'] = F.relu(1 * adj.sum()) * 1e-7
+        losses['loss_spasity'] = F.relu(1 * adj.sum()) * 1e-7 # tensor(0.0069, device='cuda:0', dtype=torch.float64, grad_fn=<MulBackward0>)
 
-        losses['loss_total'] = losses['loss_spasity'] + losses['loss_pred']
+        losses['loss_total'] = losses['loss_pred'] + losses['loss_spasity']
 
         if metrics != None:
             pred = outdict['prediction'].detach().cpu().data.numpy()

@@ -39,7 +39,7 @@ A=({30,40,45})
 srun python main.py --dataset assistment12 \
 --model_name CausalKT --load 0 \
 --max_step 50 --lr 5e-3 --l2 1e-5 \
---batch_size 4 --epoch 200 \
+--batch_size 32 --epoch 200 \
 --expername time_lag_${A[$SLURM_ARRAY_TASK_ID]} \
 --overfit 50 --emb_history 0 \
 --time_lag ${A[$SLURM_ARRAY_TASK_ID]} --num_graph 5 --dense_init 0

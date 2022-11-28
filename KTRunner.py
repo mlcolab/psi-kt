@@ -13,6 +13,7 @@ from collections import defaultdict
 from utils import utils
 import torch.distributed as dist
 import ipdb
+torch.autograd.set_detect_anomaly(True)
 
 class KTRunner(object):
 
@@ -94,9 +95,27 @@ class KTRunner(object):
             model.module.optimizer.zero_grad()
             output_dict = model(batch)
             loss_dict = model.module.loss(batch, output_dict, metrics = self.metrics)
+
+            # ipdb.set_trace()
+            # for name, param in model.module.named_parameters():
+            #     if param.grad != None:
+            #         print(name, torch.isfinite(param.grad).all())
+            #     else: print(name)
+            # for name, param in model.named_parameters():
+            #     if param.grad != None:
+            #         print(name, torch.isfinite(param.grad).all())
+            #     else: print(name)
+            #     if param.requires_grad:
+            #         print('Grad:', name)
+
             loss_dict['loss_total'].backward()
             model.module.optimizer.step()
             model.module.scheduler.step()
+            # ipdb.set_trace()
+            # for name, param in model.module.named_parameters():
+            #     if param.grad != None:
+            #         print(name, torch.isfinite(param.grad).all())
+            #     else: print(name)
             train_losses = utils.append_losses(train_losses, loss_dict)
         # # TODO for debug
         # if epoch % 10 == 0:

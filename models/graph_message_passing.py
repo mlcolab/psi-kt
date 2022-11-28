@@ -389,7 +389,7 @@ class GraphWholeMessage(Graph): # TODO
         
         bs, time_steps = labels.shape
         time_lag = self.args.time_lag
-        ipdb.set_trace()
+        # ipdb.set_trace()
         bs_skill_emb = torch.tile(node_embeddings, (bs, 1, 1)).to(self.device)
         # bs_skill_base = torch.tile(node_base, (bs, 1)).to(self.device)
         # bs_problem_base = torch.tile(node_bias_base, (bs, 1)).to(self.device)
@@ -489,17 +489,11 @@ class GraphPerformanceTrace(Graph):
         self._init_weights()
 
     def _init_weights(self):
-        a = max(self.emb_size, 64)
-        layers_f = self.decoder_layer_sizes or [a, a]
-        in_dim_f = self.emb_size
-        layers_g = self.encoder_layer_sizes or [a, a]
-        in_dim_g = self.emb_size*2
-
         self.update_user = Sequential(
             nn.Conv1d(32,32,5, device=self.device),
             nn.ReLU(),
             nn.Conv1d(32,32,1, device=self.device),
-            nn.ReLU(),
+            # nn.ReLU(),
         )
         self.update_f = nn.Linear(32, 32, device=self.device)
         self.update_b = nn.Linear(32, 32, device=self.device)
@@ -517,10 +511,6 @@ class GraphPerformanceTrace(Graph):
         #     res_connection=self.res_connection,
         # )
 
-        n_hid = self.emb_size
-        self.msg_fc1 = nn.Linear(2 * n_hid, n_hid, device=self.device)
-        self.msg_fc2 = nn.Linear(n_hid, n_hid, device=self.device)
-
     def forward(self, feed_dict, adj, node_embeddings, node_base=None, node_bias_base=None, others=None):
 
         skills = feed_dict['skill_seq'].to(self.device)       # [batch_size, seq_len]
@@ -530,33 +520,26 @@ class GraphPerformanceTrace(Graph):
         bs, time_steps = labels.shape
 
         # -- multi-step spatial on graph
-        power = 2
-        adj_list = [torch.matrix_power(adj, i)/torch.float_power(torch.tensor(self.num_nodes), i) for i in range(power)]
+        power = 3
+        # ipdb.set_trace()
+        adj_list = [torch.matrix_power(adj, i)/torch.float_power(torch.tensor(self.num_nodes), i) for i in range(1, power+1)]
         adj_list = torch.stack(adj_list, 2).permute(1,0,2,3,4).double() # [bs, num_graph, power, num_nodes, num_nodes]
 
         # -- calculate the time difference
-        delta_t = (times[:, :, None] - times[:, None, :]).abs().double() # [bs, seq_len, seq_len] # symmetry ranging from 13.47e8-13.74e8
-        delta_t = torch.log(delta_t + 1e-10) / torch.log(torch.tensor(self.time_log)) # ??? time_log # ranging from 0 to 17
+        log_times = torch.log(times + 1e-10) / torch.log(torch.tensor(self.time_log))
+        # delta_t = (times[:, :, None] - times[:, None, :]).abs().double() # [bs, seq_len, seq_len] # symmetry ranging from 13.47e8-13.74e8
+        # delta_t = torch.log(delta_t + 1e-10) / torch.log(torch.tensor(self.time_log)) # ??? time_log # ranging from 0.6826 to 10.4957
 
         latents_dim = node_embeddings.shape[-1]//2
         node_embeddings = node_embeddings.double()
         node_send, node_rec = torch.split(node_embeddings, latents_dim, dim=-1) #[1, num_node, latent_dim]
-
-        # bs_skill_emb = torch.tile(node_embeddings, (bs, 1, 1)).to(self.device)
-        # bs_skill_base = torch.tile(node_base, (bs, 1)).to(self.device)
-        # bs_problem_base = torch.tile(node_bias_base, (bs, 1)).to(self.device)
         
         # -- initialize hidden features
-        user_b = torch.zeros(bs, latents_dim).to(self.device).double() # TODO other initialization
-        user_f = torch.zeros(bs, latents_dim).to(self.device).double()
+        user_b = torch.rand((bs, latents_dim), device=self.device).double() # TODO other initialization
+        user_f = torch.rand((bs, latents_dim), device=self.device).double()
 
-        # if self.emb_history == 0:
-        #     labels_pro = torch.where(labels==0, -2, labels)
-        #     labels_pro = torch.where(labels_pro==-1, 0, labels_pro)
-        #     labels_pro = torch.where(labels_pro==-2, -1, labels_pro)
-        # else: labels_pro = labels
         alpha = 1e-1 # TODO
-
+        # ipdb.set_trace()
         last_perf = torch.matmul(user_b, node_rec.permute(1,2,0)).permute(1,2,0)  # [bs, 1, num_nodes]
         node_last_forget = torch.matmul(user_f, node_send.permute(1,2,0)).permute(1,2,0) # [bs, 1, num_nodes]
 
@@ -566,15 +549,16 @@ class GraphPerformanceTrace(Graph):
         preds = [] 
         for t in range(1, time_steps): # from t=1 
             node_cur_base = torch.matmul(user_b, node_rec.permute(1,2,0)).permute(1,2,0) # [bs, 1, num_nodes]
-
-            cur_delta_t =  ((times[:, t] - times[:, t-1]).abs().double()+1e-10).reshape(-1,1,1)
-            tmporal_effect = torch.exp(-cur_delta_t*alpha*node_last_forget) * last_perf # [bs, 1, num_nodes]
-
+            # adj_list.register_hook(print)
+            cur_delta_t = (torch.log((times[:, t] - times[:, t-1]).abs().double()+1e-10)/torch.log(torch.tensor(self.time_log))).reshape(-1,1,1)
+            tmporal_effect = torch.exp(-cur_delta_t*alpha*node_last_forget) * last_perf # [bs, 1, num_nodes] # cur_delta_t has some extreme large values!
+            # ipdb.set_trace()
             spatial_effect = torch.einsum('bij, banjk->banik', last_perf, adj_list)[:,:,:,0] # [bs, num_graph, power, num_nodes]
             spatial_effect = spatial_effect.sum(2)/power/self.num_nodes
             
             cur_perf = torch.sigmoid(node_cur_base + tmporal_effect + spatial_effect)
-            ipdb.set_trace()
+            if torch.isnan(node_cur_base).sum()+torch.isnan(cur_delta_t).sum()+torch.isnan(spatial_effect).sum()+torch.isnan(cur_perf).sum() > 0:
+                ipdb.set_trace()
             node_last_forget = torch.matmul(user_f, node_send.permute(1,2,0)).permute(1,2,0) 
             last_perf = cur_perf
 
@@ -585,11 +569,16 @@ class GraphPerformanceTrace(Graph):
                                     node_rec.repeat(bs,1,1)[torch.arange(bs), cur_skill],
                                     node_send.repeat(bs,1,1)[torch.arange(bs), cur_skill]], dim=-1).double()
             
-            user = self.update_user(user)[...,0]
+
+            
+            user_update = self.update_user(user)[...,0] # nan in update user
+            if torch.isnan(user_update).sum() > 0:
+                ipdb.set_trace()
             # ipdb.set_trace()
-            user_f = torch.tanh(self.update_f(user))
-            user_b = torch.tanh(self.update_b(user))
-
+            user_f = torch.tanh(self.update_f(user_update))
+            user_b = torch.tanh(self.update_b(user_update))
+            if torch.isnan(user).sum()+torch.isnan(user_f).sum()+torch.isnan(user_b).sum() > 0:
+                ipdb.set_trace()
             preds.append(cur_perf[torch.arange(bs), :, cur_skill])
-
+        # ipdb.set_trace()
         return preds

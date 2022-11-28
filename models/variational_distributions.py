@@ -208,7 +208,7 @@ class VarDIBS(VarDistribution):
         alpha_linear = 0.05
         self.alpha = lambda t: (alpha_linear * t)
 
-        self.latents = self._initial_random_particles()
+        self.u, self.v = self._initial_random_particles()
 
     def _initial_random_particles(self):
         """
@@ -223,20 +223,19 @@ class VarDIBS(VarDistribution):
         
         if not self.dense_init:
             std = self.latent_prior_std or (1.0 / torch.sqrt(dim))
-            u = torch.randn(size=(self.num_nodes, self.latent_dim)) * std
-            v = torch.randn(size=(self.num_nodes, self.latent_dim)) * std
+            u = torch.randn(size=(self.num_nodes, self.latent_dim), device=self.device) * std
+            v = torch.randn(size=(self.num_nodes, self.latent_dim), device=self.device) * std
             # z = torch.randn(size=(self.num_nodes, self.latent_dim, 2), requires_grad=True) * std # TODO check what distribution this results in
             # torch.randn returns a tensor filled with random numbers from a normal distribution with mean 0 and variance 1 
             # is it actually sparse?
 
         else:
-            u = torch.ones(size=(self.num_nodes, self.latent_dim)) * (1.0 / torch.sqrt(dim))
-            v = torch.ones(size=(self.num_nodes, self.latent_dim)) * (1.0 / torch.sqrt(dim)) # u*v_T = 1, sigmoid(u*v_T) = 0.7311
+            u = torch.ones(size=(self.num_nodes, self.latent_dim), device=self.device) * (1.0 / torch.sqrt(dim))
+            v = torch.ones(size=(self.num_nodes, self.latent_dim), device=self.device) * (1.0 / torch.sqrt(dim)) # u*v_T = 1, sigmoid(u*v_T) = 0.7311
             # z = torch.ones(size=(self.num_nodes, self.latent_dim, 2), requires_grad=True) * (1.0 / torch.sqrt(dim))
-
-        u = nn.Parameter(u, requires_grad=True).to(self.device)
-        v = nn.Parameter(v, requires_grad=True).to(self.device)
-        return [u, v]
+        u = nn.Parameter(u, requires_grad=True)
+        v = nn.Parameter(v, requires_grad=True)
+        return u, v
 
 
     def edge_log_probs(self):
@@ -247,9 +246,9 @@ class VarDIBS(VarDistribution):
         Returns:
             tuple of tensors ``[..., d, d], [..., d, d]`` corresponding to ``log(p)`` and ``log(1-p)``
         """
-        z = self.latents
-        u, v = z[0], z[1] # u, z [num_nodes, latent_dim]
+        u, v = self.u, self.v # u, z [num_nodes, latent_dim]
         scores = torch.matmul(u, v.transpose(0,1))
+        
         log_probs, log_probs_neg = F.logsigmoid(scores), F.logsigmoid(-scores) # TODO in dibs paper, there is an alpha control the temperature here
 
         # scores = jnp.einsum('...ik,...jk->...ij', u, v)

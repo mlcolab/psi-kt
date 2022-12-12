@@ -66,7 +66,7 @@ class VanillaOU():
     def simulate_path(self, x0, t):
         """ 
         Simulates a sample path
-        dX = -A(X-alpha)dt + v dB
+        dX = A(alpha-X)dt + v dB
         """
         assert len(t) > 1
         dt = np.diff(t).reshape(-1, 1, 1)
@@ -84,7 +84,7 @@ class VanillaOU():
         return x
 
 
-class GraphOU(VanillaOU):
+class VanillaGraphOU(VanillaOU):
     def __init__(self, mean_rev_speed, mean_rev_level, vola, nx_graph):
         self.graph = nx_graph
         super().__init__(mean_rev_speed, mean_rev_level, vola)
@@ -102,21 +102,86 @@ class GraphOU(VanillaOU):
         x[1:] = noise[1:] * scale
 
         adj = nx.adjacency_matrix(self.graph).toarray()
-        n_degree = list(self.graph.degree())
-        n_d = np.array([n_degree[i][1] for i in range(len(x0))]).reshape(-1,1) 
+        adj_t = np.transpose(adj, (-1,-2))
+        in_degree = adj_t.sum(axis=1).reshape(-1,1)
+    
         # find degree 0
-        ind = np.where(n_d == 0)[0]
+        ind = np.where(in_degree == 0)[0]
 
         for i in range(1, len(x)):
             # ipdb.set_trace()
             tmp_mean_level = (-self.mean_rev_speed/self.mean_rev_level) 
-            scale = (1/(n_d+1e-7)) * adj@x[i-1]
-            scale[ind] = 1 
-            tmp_mean_level = tmp_mean_level * scale
+            s = (1/(in_degree+1e-7)) * adj_t@x[i-1]
+            s[ind] = 1 
+            tmp_mean_level = tmp_mean_level * s
             x[i] += self.mean(x[i - 1], dt[i - 1], mean_level=tmp_mean_level)
         # ipdb.set_trace()
         return x
 
 
 
+class RewriteGraphOU(VanillaOU):
+    def __init__(self, mean_rev_speed, mean_rev_level, vola, nx_graph):
+        self.graph = nx_graph
+        super().__init__(mean_rev_speed, mean_rev_level, vola)
+    
+    def simulate_path(self, x0, t):
+        assert len(t) > 1
+        dt = np.diff(t).reshape(-1, 1, 1)
+        dt = np.repeat(dt, len(x0), -2)
 
+        x = np.zeros((len(t), len(x0), 1))
+        x[0] = x0
+        
+        noise = scipy.stats.norm.rvs(size=(len(t), len(x0), 1)) # shape [times, num_node]
+        scale = self.std(dt)
+        x[1:] = noise[1:] * scale
+
+        adj = nx.adjacency_matrix(self.graph).toarray()
+        adj_t = np.transpose(adj, (-1,-2))
+        in_degree = adj_t.sum(axis=1).reshape(-1,1)
+    
+        # find degree 0
+        ind = np.where(in_degree == 0)[0]
+
+        for i in range(1, len(x)):
+            s = (1/(in_degree+1e-7)) * adj_t@x[i-1]
+            s[ind] = 1 
+            tmp_mean_level = self.mean_rev_level * s
+            x[i] += self.mean(x[i - 1], dt[i - 1], mean_level=tmp_mean_level)
+        # ipdb.set_trace()
+        return x
+
+
+
+class ExtendGraphOU(VanillaOU):
+    def __init__(self, mean_rev_speed, mean_rev_level, vola, nx_graph):
+        self.graph = nx_graph
+        super().__init__(mean_rev_speed, mean_rev_level, vola)
+    
+    def simulate_path(self, x0, t):
+        assert len(t) > 1
+        dt = np.diff(t).reshape(-1, 1, 1)
+        dt = np.repeat(dt, len(x0), -2)
+
+        x = np.zeros((len(t), len(x0), 1))
+        x[0] = x0
+        
+        noise = scipy.stats.norm.rvs(size=(len(t), len(x0), 1)) # shape [times, num_node]
+        scale = self.std(dt)
+        x[1:] = noise[1:] * scale
+
+        adj = nx.adjacency_matrix(self.graph).toarray()
+        adj_t = np.transpose(adj, (-1,-2))
+        in_degree = adj_t.sum(axis=1).reshape(-1,1)
+    
+        # find degree 0
+        ind = np.where(in_degree == 0)[0]
+
+        for i in range(1, len(x)):
+            s = (1/(in_degree+1e-7)) * adj_t@x[i-1]
+            s[ind] = 1 
+            tmp_mean_level = self.mean_rev_level * s
+            x[i] += self.mean(x[i - 1], dt[i - 1], mean_level=tmp_mean_level)
+        # ipdb.set_trace()
+        return x

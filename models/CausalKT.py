@@ -6,12 +6,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import joblib
 
+
 from models.BaseModel import BaseModel
 from utils import utils
 
 from models.modules import *
 from models.variational_distributions import VarConstant, VarBasic, VarENCO, VarDIBS
-from models.graph_message_passing import GraphTargetMessage, GraphWholeMessage, GraphRecurrent, GraphPerformanceTrace
+from models.graph_message_passing import GraphTargetMessage, GraphWholeMessage, GraphRecurrent, GraphPerformanceTrace, GraphOUProcess, GraphOUProcessDebug
+from models.generative_ou import GenerativeOU
 
 from collections import defaultdict
 import ipdb
@@ -37,11 +39,11 @@ class CausalKT(BaseModel):
         parser.add_argument('--emb_history', type=int, help='for debug use! \
                                         0: label=1/-1 and multiply the emb history; \
                                         1: label=1/0, and concatenate after the emb vector.')
-        parser.add_argument('--decoder_type', type=str, default='perf_trace', help='[target_msg, whole_msg, rnn, perf_trace]')
+        parser.add_argument('--decoder_type', type=str, default='ou', help='[target_msg, whole_msg, rnn, perf_trace]')
 
         # for debugging
         parser.add_argument('--dense_init', type=int, default=0, help='whether the graph starts from sparse(0) or dense(1)')  
-        parser.add_argument('--adj_or_prob', type=str, default='adj')  
+        parser.add_argument('--adj_or_prob', type=str, default='b_adj', help=['adj=b*p', 'b_adj', 'p_adj'])  
         parser.add_argument('--diagonal', type=int, default=1, help='for debug use! 0: wo_diagonal; 1: w_diagonal')   
         parser.add_argument('--skill_base', type=int, default=0, help='for debug use! 0: wo_problem_base; 1: w_problem_base')     
         parser.add_argument('--problem_base', type=int, default=0, help='for debug use! 0: wo_problem_base; 1: w_problem_base')     
@@ -50,8 +52,7 @@ class CausalKT(BaseModel):
         return BaseModel.parse_model_args(parser, model_name)
 
 
-
-    def __init__(self, args, corpus, logs):#, dev0, dev1):
+    def __init__(self, args, corpus, logs):
         self.args = args
         self.device = args.device
         self.logs = logs
@@ -134,6 +135,8 @@ class CausalKT(BaseModel):
             self.decoder = GraphRecurrent(self.device, self.num_nodes, self.args, self.emb_size, self.dev0, self.dev1)
         elif self.decoder_type == 'perf_trace':
             self.decoder = GraphPerformanceTrace(self.device, self.num_nodes, self.args, self.emb_size)
+        elif self.decoder_type == 'ou':
+            self.decoder = GraphOUProcessDebug(self.device, self.num_nodes, self.args)
 
         
     def get_weighted_adjacency(self):
@@ -142,6 +145,7 @@ class CausalKT(BaseModel):
         else: W_adj = self.W
         return W_adj
 
+
     def get_feed_dict(self, corpus, data, batch_start, batch_size, phase):
         batch_end = min(len(data), batch_start + batch_size)
         real_batch_size = batch_end - batch_start
@@ -149,18 +153,19 @@ class CausalKT(BaseModel):
         label_seqs = data['correct_seq'][batch_start: batch_start + real_batch_size].values
         time_seqs = data['time_seq'][batch_start: batch_start + real_batch_size].values
         problem_seqs = data['problem_seq'][batch_start: batch_start + real_batch_size].values
-
+        gt_adj = corpus.adj
         feed_dict = {
             'skill_seq': torch.from_numpy(utils.pad_lst(skill_seqs)),            # [batch_size, seq_len] # TODO isn't this -1?
             'label_seq': torch.from_numpy(utils.pad_lst(label_seqs, value=-1)),  # [batch_size, seq_len]
             'problem_seq': torch.from_numpy(utils.pad_lst(problem_seqs)),        # [batch_size, seq_len]
             'time_seq': torch.from_numpy(utils.pad_lst(time_seqs)),              # [batch_size, seq_len]
+            'gt_adj': torch.from_numpy(gt_adj)
+
         }
         return feed_dict
 
 
     def forward(self, feed_dict):
-        
         skills = feed_dict['skill_seq']      # [batch_size, seq_len]
         problems = feed_dict['problem_seq']  # [batch_size, seq_len]
         times = feed_dict['time_seq']        # [batch_size, seq_len]
@@ -169,22 +174,26 @@ class CausalKT(BaseModel):
         bs, _ = labels.shape
         
         _, p_adj, b_adj = self.var_dist_A.sample_A(num_graph=self.args.num_graph)
-        if self.adj_or_prob == 'adj':
+        # ipdb.set_trace()
+        if self.adj_or_prob == 'b_adj':
+            adj = b_adj.tile((1, bs, 1, 1))
+        elif self.adj_or_prob == 'adj':
             adj = b_adj*p_adj
             adj = adj.tile((1, bs, 1, 1))
         else:
             adj = p_adj.tile((1, bs, 1, 1)) # [num_graph, 1, num_nodes, num_nodes]
         
+        # adj = feed_dict['gt_adj'].reshape(1,1,5,5).tile(self.args.num_graph,bs,1,1,)
         # adj = self.var_dist_A
         # W_adj = adj * self.get_weighted_adjacency() 
-
+        # ipdb.set_trace()
         preds = self.decoder(feed_dict, adj=adj, node_embeddings=self.node_embeddings)
         
-        preds = torch.stack(preds, dim=-1)
+        preds = torch.stack(preds, dim=-1)[:,:,0,0]
         if skills.is_cuda:
             preds = preds.cuda()
-        labels = labels[:, 1:].unsqueeze(1).tile((1, preds.shape[1], 1))
-
+        labels = labels[:, 0:].unsqueeze(1).tile((1, preds.shape[1], 1)) # TODO in real data should be labels[:, 1:]
+        # ipdb.set_trace()
         return {
             'prediction': preds.double(),
             'label': labels.double(),
@@ -195,18 +204,21 @@ class CausalKT(BaseModel):
         prediction = outdict['prediction'].flatten()
         label = outdict['label'].flatten()
         mask = label > -1
+        _, _, adj = self.var_dist_A.sample_A(num_graph=self.args.num_graph)
         # ipdb.set_trace()
         # # TODO for debugging
         # weight = (label==0)+1
         # loss = torch.nn.BCELoss(weight=weight.to(self.device))
         # losses['loss_pred'] = loss(prediction[mask], label[mask])
         losses['loss_pred'] = self.loss_function(prediction[mask], label[mask])
-        
-        _, _, adj = self.var_dist_A.sample_A(num_graph=self.args.num_graph)
-
-        losses['loss_spasity'] = F.relu(1 * adj.sum()) * 1e-7 # tensor(0.0069, device='cuda:0', dtype=torch.float64, grad_fn=<MulBackward0>)
+        losses['loss_spasity'] = F.relu(1 * adj.sum() / self.args.num_graph) * 1e-7 # tensor(0.0069, device='cuda:0', dtype=torch.float64, grad_fn=<MulBackward0>)
 
         losses['loss_total'] = losses['loss_pred'] + losses['loss_spasity']
+
+        # TODO DEBUG
+        losses['speed'] = self.decoder.mean_rev_speed
+        losses['level'] = self.decoder.mean_rev_level
+        losses['vola'] = self.decoder.vola
 
         if metrics != None:
             pred = outdict['prediction'].detach().cpu().data.numpy()

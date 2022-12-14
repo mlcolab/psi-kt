@@ -13,6 +13,8 @@ from collections import defaultdict
 from utils import utils
 import torch.distributed as dist
 import ipdb
+import matplotlib.pyplot as plt
+
 torch.autograd.set_detect_anomaly(True)
 
 class KTRunner(object):
@@ -76,6 +78,7 @@ class KTRunner(object):
             labels.extend(label.detach().cpu().data.numpy())
         return np.array(predictions), np.array(labels)
 
+
     def fit(self, model, corpus, epoch_train_data, epoch=-1):  # fit the results for an input set
         """
         epoch_train_data: Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
@@ -111,13 +114,27 @@ class KTRunner(object):
             loss_dict['loss_total'].backward()
             model.module.optimizer.step()
             model.module.scheduler.step()
-            # ipdb.set_trace()
-            # for name, param in model.module.named_parameters():
-            #     if param.grad != None:
-            #         print(name, torch.isfinite(param.grad).all())
-            #     else: print(name)
+            
             train_losses = utils.append_losses(train_losses, loss_dict)
-        # # TODO for debug
+
+        # ipdb.set_trace()
+        # TODO DEBUG: to visualize the difference of synthetic data adj
+        if self.args.dataset == 'synthetic' and epoch%2 == 0:
+            import matplotlib.patches as mpatches
+            gt_adj = batch['gt_adj']
+            _, _, pred_adj = model.module.var_dist_A.sample_A(num_graph=1)
+            mat_diff = gt_adj-pred_adj[0,0] 
+            mat_diff = mat_diff.int().cpu().detach().numpy()
+            im = plt.imshow(mat_diff, interpolation='none', cmap='Blues',aspect='auto',alpha=0.5)
+
+            values = np.unique(mat_diff.ravel())
+            colors = [im.cmap(im.norm(value)) for value in values]
+            patches = [mpatches.Patch(color=colors[i], label="Level {l}".format(l=values[i]) ) for i in range(len(values))]
+
+            plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
+            plt.savefig(os.path.join(self.args.plotdir, 'adj_diff_epoch{}.png'.format(epoch)))
+
+        # # TODO DEBUG
         # if epoch % 10 == 0:
         #     print(output_dict['prediction'])
         string = self.logs.result_string("train", epoch, train_losses, t=epoch)
@@ -153,16 +170,16 @@ class KTRunner(object):
                 epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) # Return a random sample of items from an axis of object.
 
                 loss = self.fit(model, corpus, epoch_train_data, epoch=epoch + 1)
-                
+
                 del epoch_train_data
                 training_time = self._check_time()
 
-                # # output validation and write to logs
-                # valid_result = self.evaluate(model, corpus, 'dev')
-                # test_result = self.evaluate(model, corpus, 'test')
+                # output validation and write to logs
+                valid_result = self.evaluate(model, corpus, 'dev')
+                test_result = self.evaluate(model, corpus, 'test')
 
-                # self.logs.append_test_loss(test_result)
-                # self.logs.append_val_loss(valid_result)
+                self.logs.append_test_loss(test_result)
+                self.logs.append_val_loss(valid_result)
                 
                 self.logs.draw_loss_curves()
 

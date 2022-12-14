@@ -28,7 +28,6 @@ class DataReader(object):
         logs.write_to_log_file('Reading data from \"{}\", dataset = \"{}\" '.format(self.prefix, self.dataset))
 
         self.inter_df = pd.read_csv(os.path.join(self.prefix, self.dataset, 'interactions_{}.csv'.format(args.max_step)), sep=self.sep)
-
         # aggregate by user
         user_wise_dict = dict()
         cnt, n_inters = 0, 0
@@ -54,6 +53,10 @@ class DataReader(object):
         # TODO the number of unique exercise in log and exercise is not the same
         # self.inter_df['exercise'].unique().shape[0] # max(self.inter_df['skill_id']) + 1
         self.n_problems = max(self.inter_df['problem_id']) + 1
+
+        if self.dataset == 'synthetic':
+            self.adj = np.load(os.path.join(self.prefix, self.dataset, 'adj.npy'))
+        else: self.adj = np.zeros((self.n_skills, self.n_skills))
 
         self.logs.write_to_log_file('"n_users": {}, "n_skills": {}, "n_problems": {}, "n_interactions": {}'.format(
             self.n_users, self.n_skills, self.n_problems, n_inters

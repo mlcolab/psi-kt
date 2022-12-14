@@ -29,11 +29,13 @@ def parse_args(parser):
 
     ############## data loader ##############
     parser.add_argument('--data_dir', type=str, default='/mnt/qb/work/mlcolab/hzhou52/kt', help='Input data dir.')
-    parser.add_argument('--dataset', type=str, default='test', help='[junyi, assistment12, ]')
+    parser.add_argument('--dataset', type=str, help='[junyi, assistment12, ]')
     parser.add_argument('--sep', type=str, default='\t', help='sep of csv file.')
     parser.add_argument('--kfold', type=int, default=5, help='K-fold number.')
     parser.add_argument('--max_step', type=int, default=50, help='Max time steps per sequence.')
     parser.add_argument('--quick_test', action="store_true",)
+    parser.add_argument('--regenerate_corpus', action="store_true", default=False)
+
 
     ############## logger ##############
     # parser.add_argument('--model_name', type=str, default='hkt', help='Choose a model to run.')
@@ -67,8 +69,6 @@ def parse_args(parser):
     parser.add_argument("--lr_decay", type=int, default=50, help="After how epochs to decay LR by a factor of gamma.",)
     parser.add_argument("--gamma", type=float, default=0.5, help="LR decay factor.")
 
-
-
     parser.add_argument(
         "--load_folder",
         type=str,
@@ -76,8 +76,6 @@ def parse_args(parser):
         help="Where to load pre-trained model if finetuning/evaluating. "
         + "Leave empty to train from scratch",
     )
-
-
 
     parser.add_argument(
         "--validate", action="store_true", default=True, help="validate results throughout training."
@@ -87,10 +85,7 @@ def parse_args(parser):
     
 
     # args.cuda = not args.no_cuda and torch.cuda.is_available()
-
     # np.random.seed(args.random_seed)
     # torch.manual_seed(args.random_seed)
-
-
 
     return parser # args

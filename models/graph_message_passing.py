@@ -11,7 +11,7 @@ from utils.utils import create_rel_rec_send
 
 # from torch_geometric.data import Data
 
-from data.ou_process import RewriteGraphOU
+from data.ou_process import VanillaGraphOU
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 import ipdb

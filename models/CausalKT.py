@@ -25,7 +25,7 @@ class CausalKT(BaseModel):
 
     @staticmethod
     def parse_model_args(parser, model_name='CausalKT'):
-        parser.add_argument('--tau_gumbel', type=float, default=0.5, help="Temperature for Gumbel softmax.")
+        parser.add_argument('--tau_gumbel', type=float, default=1.0, help="Temperature for Gumbel softmax.")
 
         parser.add_argument('--emb_size', type=int, default=2, help='Size of embedding vectors.')
         parser.add_argument('--time_log', type=float, default=np.e, help='Log base of time intervals.')

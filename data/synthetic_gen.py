@@ -13,7 +13,7 @@ import argparse
 import torch
 import datetime
 
-from data.ou_process import VanillaOU, VanillaGraphOU, RewriteGraphOU, ExtendGraphOU
+from data.ou_process import VanillaOU, VanillaGraphOU, ExtendGraphOU
 from utils.visualize import *
 
 import ipdb
@@ -121,7 +121,7 @@ if __name__ == '__main__':
     ipdb.set_trace()
     times = time_point_generate(args)
 
-    ou_generator = RewriteGraphOU(args.mean_rev_speed, args.mean_rev_level, args.vola, args.num_sequence, graph)
+    ou_generator = VanillaGraphOU(args.mean_rev_speed, args.mean_rev_level, args.vola, args.num_sequence, graph)
     path = ou_generator.simulate_path(np.zeros((args.num_node,1)), times)
 
     save_as_unified_format(args, path, times, save_path=None)

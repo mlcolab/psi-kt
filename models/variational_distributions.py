@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from torch import nn
 
 import ipdb
+# TODO gumbel_softmax!!!
 
 class VarDistribution(nn.Module):
     def __init__(self, device, num_nodes, tau_gumbel=None):
@@ -21,6 +22,7 @@ class VarDistribution(nn.Module):
     def sample_A(self, num_graph=1):
         logits = self.edge_log_probs()
         off_diag_mask = 1 - torch.eye(self.num_nodes, device=self.device)
+        ipdb.set_trace()
 
         probs = [F.gumbel_softmax(logits, tau=self.tau_gumbel, hard=False, dim=0)[1:] for _ in range(num_graph)]
         probs = torch.stack(probs)
@@ -248,7 +250,7 @@ class VarDIBS(VarDistribution):
         """
         u, v = self.u, self.v # u, z [num_nodes, latent_dim]
         scores = torch.matmul(u, v.transpose(0,1))
-        
+        ipdb.set_trace()
         log_probs, log_probs_neg = F.logsigmoid(scores), F.logsigmoid(-scores) # TODO in dibs paper, there is an alpha control the temperature here
 
         # scores = jnp.einsum('...ik,...jk->...ij', u, v)

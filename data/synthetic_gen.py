@@ -22,14 +22,14 @@ import ipdb
 
 def parse_args(parser):
     # ----- global -----
-    parser.add_argument('--random_seed', type=int, default=8,)
-    parser.add_argument('--num_sequence', type=int, default=100,)
+    parser.add_argument('--random_seed', type=int, default=1,)
+    parser.add_argument('--num_sequence', type=int, default=4,)
     parser.add_argument('--learner_model', type=str, default='ou_graph', help=['hlr', 'ou', 'ou_graph', 'ou_extend_graph', 'ppe'])
     
     # ----- time points -----
     parser.add_argument('--time_random_type', type=str, default='random', help=['random', 'uniform'])
-    parser.add_argument('--time_step', type=int, default=50,)
-    parser.add_argument('--max_time_step', type=int, default=500,)
+    parser.add_argument('--time_step', type=int, default=20,)
+    parser.add_argument('--max_time_step', type=int, default=200,)
 
     # ----- random graph -----
     parser.add_argument('--num_node', type=int, default=3,)
@@ -41,8 +41,13 @@ def parse_args(parser):
     parser.add_argument('--mean_base_level', type=float, default=1.0,)
     parser.add_argument('--vola', type=float, default=0.01,)
 
-    # ----- hlr process ---
+    # ----- hlr process -----
     parser.add_argument('--theta', type=list, default=[1/4, 1/2, -1/3],)
+
+    # ----- ppe process -----
+    parser.add_argument('--learning_rate', type=float, default=0.1)
+    # parser.add_argument('--decay_rate', type=float, default=0.2)
+
     
 
     # ----- save path -----
@@ -185,18 +190,22 @@ if __name__ == '__main__':
     # -- initialize a KT Data Object
     # ktdata = KTData(data_type='syn', times=times, items=items, graph_adj=adj) TODO
 
+    
     if not os.path.exists(args.log_path):
         os.makedirs(args.log_path)
+
+    # -- PPE process 
+    ppe_generator = PPE(args.learning_rate, num_seq=args.num_sequence)
+    ppe_path = ppe_generator.simulate_path(np.zeros((args.num_node,1)), times, items)
+    draw_path(ppe_path[0], args, times[0], items=items[0], prefix='ppe', scatter=False)
 
 
     # -- HLR process 
     theta = np.array(args.theta)
     hlr_generator = HLR(theta=theta, num_seq=args.num_sequence)
     hlr_path = hlr_generator.simulate_path(np.zeros((args.num_node,1)), times, items)
-    ipdb.set_trace()
     draw_path(hlr_path[0], args, times[0], items=items[0], prefix='hlr')
 
-    ipdb.set_trace()
     # -- OU process 
     ou_generator = GraphOU(args.mean_rev_speed, args.mean_rev_level, args.vola, args.num_sequence, graph) # test
     path = ou_generator.simulate_path(np.zeros((args.num_node,1)), times)

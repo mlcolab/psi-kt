@@ -11,13 +11,6 @@ import pandas as pd
 import ipdb
 
 
-
-        
-
-
-
-
-
 class DataReader(object):
     
     def __init__(self, args, logs):
@@ -70,16 +63,12 @@ class DataReader(object):
             
             cnt += 1
             n_inters += len(df)
-
         self.user_seq_df = pd.DataFrame.from_dict(user_wise_dict, orient='index')
         self.n_users = max(self.inter_df['user_id'].values) + 1
         self.n_skills = max(self.inter_df['skill_id']) + 1
-        # TODO: now, every user list is not in the same length. Add 0 to make them all in max_step length
-        # TODO the number of unique exercise in log and exercise is not the same
-        # self.inter_df['exercise'].unique().shape[0] # max(self.inter_df['skill_id']) + 1
         self.n_problems = max(self.inter_df['problem_id']) + 1
 
-        if self.dataset == 'synthetic':
+        if self.dataset == 'synthetic': # DUBUG TODO 
             self.adj = np.load(os.path.join(self.prefix, self.dataset, 'adj.npy'))
         else: self.adj = np.zeros((self.n_skills, self.n_skills))
 

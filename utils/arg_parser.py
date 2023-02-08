@@ -1,26 +1,24 @@
 import argparse
-import torch
 import datetime
 import numpy as np
 
 
 def parse_args(parser):
-    # parser = argparse.ArgumentParser()
+    '''
+    All of the general arguments defined here.
+    Model-specific arguments are defined in corresponding files.
+    '''
+    ############## TODO debugging experiment ############## 
     parser.add_argument('--overfit', type=int, default=100,)
+    parser.add_argument('--gt_adj_path', type=str)
 
-    parser.add_argument('--world_size', default=-1, type=int, 
-                        help='number of nodes for distributed training')
-    parser.add_argument('--rank', default=-1, type=int, 
-                        help='node rank for distributed training')
-    parser.add_argument('--dist-url', default='env://', type=str, 
-                        help='url used to set up distributed training')
-    parser.add_argument('--dist-backend', default='nccl', type=str, 
-                        help='distributed backend')
-    parser.add_argument('--local_rank', default=-1, type=int, 
-                        help='local rank for distributed training')
-    # parser.add_argument('--distributed', default=1, type=int, 
-    #                     help='')
-
+    ############## distributed training ############## 
+    parser.add_argument('--world_size', default=-1, type=int, help='number of nodes for distributed training')
+    parser.add_argument('--rank', default=-1, type=int, help='node rank for distributed training')
+    parser.add_argument('--dist-url', default='env://', type=str, help='url used to set up distributed training')
+    parser.add_argument('--dist-backend', default='nccl', type=str, help='distributed backend')
+    parser.add_argument('--local_rank', default=-1, type=int, help='local rank for distributed training')
+    parser.add_argument('--distributed', default=1, type=int, help='')
 
     ############## global ############## from main.py
     parser.add_argument('--random_seed', type=int, default=2022,)
@@ -36,9 +34,7 @@ def parse_args(parser):
     parser.add_argument('--quick_test', action="store_true",)
     parser.add_argument('--regenerate_corpus', action="store_true", default=False)
 
-
     ############## logger ##############
-    # parser.add_argument('--model_name', type=str, default='hkt', help='Choose a model to run.')
     parser.add_argument("--save_folder", type=str, default="/mnt/qb/work/mlcolab/hzhou52/kt/logs",)
     parser.add_argument("--expername", type=str, default="",)
 
@@ -63,10 +59,9 @@ def parse_args(parser):
                         help='Select a fold to run.')
     parser.add_argument('--train', type=int, default=1,
                         help='To train the model or not.')
-    parser.add_argument('--regenerate', type=int, default=0,
-                        help='Whether to regenerate intermediate files.')
+
     ############## training hyperparameter ##############
-    parser.add_argument("--lr_decay", type=int, default=50, help="After how epochs to decay LR by a factor of gamma.",)
+    parser.add_argument("--lr_decay", type=int, default=5000, help="After how epochs to decay LR by a factor of gamma.",)
     parser.add_argument("--gamma", type=float, default=0.5, help="LR decay factor.")
 
     parser.add_argument(
@@ -83,9 +78,4 @@ def parse_args(parser):
 
     parser.add_argument("--var", type=float, default=5e-2, help="Output variance.") # TODO
     
-
-    # args.cuda = not args.no_cuda and torch.cuda.is_available()
-    # np.random.seed(args.random_seed)
-    # torch.manual_seed(args.random_seed)
-
-    return parser # args
+    return parser 

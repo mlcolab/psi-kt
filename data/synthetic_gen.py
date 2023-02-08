@@ -24,15 +24,15 @@ def parse_args(parser):
     # ----- global -----
     parser.add_argument('--random_seed', type=int, default=1,)
     parser.add_argument('--num_sequence', type=int, default=4,)
-    parser.add_argument('--learner_model', type=str, default='ou_graph', help=['hlr', 'ou', 'ou_graph', 'ou_extend_graph', 'ppe'])
+    parser.add_argument('--learner_model', type=str, default=['graph_ou'], help=['hlr', 'ou', 'graph_ou', 'egraph_ou', 'ppe'])
     
     # ----- time points -----
     parser.add_argument('--time_random_type', type=str, default='random', help=['random', 'uniform'])
-    parser.add_argument('--time_step', type=int, default=20,)
-    parser.add_argument('--max_time_step', type=int, default=200,)
+    parser.add_argument('--time_step', type=int, default=50,)
+    parser.add_argument('--max_time_step', type=int, default=1000,)
 
     # ----- random graph -----
-    parser.add_argument('--num_node', type=int, default=3,)
+    parser.add_argument('--num_node', type=int, default=10,)
     parser.add_argument('--edge_prob', type=float, default=0.2,)
 
     # ----- ou process -----
@@ -40,6 +40,7 @@ def parse_args(parser):
     parser.add_argument('--mean_rev_level', type=float, default=0.7,)
     parser.add_argument('--mean_base_level', type=float, default=1.0,)
     parser.add_argument('--vola', type=float, default=0.01,)
+    # ----- extend graph ou process -----
 
     # ----- hlr process -----
     parser.add_argument('--theta', type=list, default=[1/4, 1/2, -1/3],)
@@ -190,14 +191,18 @@ if __name__ == '__main__':
     # -- initialize a KT Data Object
     # ktdata = KTData(data_type='syn', times=times, items=items, graph_adj=adj) TODO
 
-    
+    # -- Extend Graph OU process 
+    eg_ou_generator = ExtendGraphOU(args.mean_rev_speed, args.mean_rev_level, args.vola, args.num_sequence, graph) # test
+    ou_path = eg_ou_generator.simulate_path(np.zeros((args.num_node,1)), times, items)
+    draw_path(ou_path[0], args, times[0], items=items[0], prefix='extend_graph_ou')
+    ipdb.set_trace()
     if not os.path.exists(args.log_path):
         os.makedirs(args.log_path)
 
     # -- PPE process 
     ppe_generator = PPE(args.learning_rate, num_seq=args.num_sequence)
     ppe_path = ppe_generator.simulate_path(np.zeros((args.num_node,1)), times, items)
-    draw_path(ppe_path[0], args, times[0], items=items[0], prefix='ppe', scatter=False)
+    draw_path(ppe_path[0], args, times[0], items=items[0], prefix='ppe', scatter=True)
 
 
     # -- HLR process 
@@ -206,15 +211,19 @@ if __name__ == '__main__':
     hlr_path = hlr_generator.simulate_path(np.zeros((args.num_node,1)), times, items)
     draw_path(hlr_path[0], args, times[0], items=items[0], prefix='hlr')
 
-    # -- OU process 
+    # -- Graph OU process 
     ou_generator = GraphOU(args.mean_rev_speed, args.mean_rev_level, args.vola, args.num_sequence, graph) # test
-    path = ou_generator.simulate_path(np.zeros((args.num_node,1)), times)
+    ou_path = ou_generator.simulate_path(np.zeros((args.num_node,1)), times)
+    draw_path(ou_path[0], args, times[0], items=items[0], prefix='graph_ou')
     
-    save_as_unified_format(args, path, times, items, adj)
-
     # -- Vanilla OU process
     ou_vanilla_generator = VanillaOU(args.mean_rev_speed, args.mean_rev_level, args.vola, args.num_sequence)
     vanilla_path = ou_vanilla_generator.simulate_path(np.zeros((args.num_node,1)), times)
+    draw_path(vanilla_path[0], args, times[0], items=items[0], prefix='ou')
+    
+
+    ipdb.set_trace()
+    save_as_unified_format(args, path, times, items, adj)
 
     # TODO debug: visualize
     draw_path(path[0], args, times[0], prefix='graph')

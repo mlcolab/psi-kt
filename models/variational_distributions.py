@@ -1,13 +1,25 @@
 
 from typing import List, Optional
 
+import numpy as np
+
 import torch
 import torch.distributions as td
 import torch.nn.functional as F
 from torch import nn
 
 import ipdb
-# TODO gumbel_softmax!!!
+
+class VarGT(nn.Module):
+    def __init__(self, device, num_nodes, gt_adj_path=None):
+        super(VarGT, self).__init__()
+        self.device = device
+        self.num_nodes = num_nodes
+        self.gt_adj_path = gt_adj_path
+    def sample_A(self, num_graph=1):
+        adj = np.load(self.gt_adj_path)
+        adj = torch.from_numpy(adj).to(self.device).unsqueeze(0)
+        return None, None, adj
 
 class VarDistribution(nn.Module):
     def __init__(self, device, num_nodes, tau_gumbel=None):
@@ -22,7 +34,7 @@ class VarDistribution(nn.Module):
     def sample_A(self, num_graph=1):
         logits = self.edge_log_probs()
         off_diag_mask = 1 - torch.eye(self.num_nodes, device=self.device)
-        ipdb.set_trace()
+        # ipdb.set_trace()
 
         probs = [F.gumbel_softmax(logits, tau=self.tau_gumbel, hard=False, dim=0)[1:] for _ in range(num_graph)]
         probs = torch.stack(probs)
@@ -54,10 +66,10 @@ class VarBasic(VarDistribution):
     def _initial_latents(self):        
         if not self.dense_init:
             # Returns a tensor filled with random numbers from a uniform distribution on the interval [0, 1)[0,1)
-            latents = torch.rand(size=(self.num_nodes, self.num_nodes))
+            latents = torch.rand(size=(self.num_nodes, self.num_nodes), device=self.device)
         else:
-            latents = torch.ones(size=(self.num_nodes, self.num_nodes))
-        latents = nn.Parameter(latents, requires_grad=True).to(self.device)
+            latents = torch.ones(size=(self.num_nodes, self.num_nodes), device=self.device)
+        latents = nn.Parameter(latents, requires_grad=True)
         return latents
 
     def edge_log_probs(self):
@@ -250,7 +262,7 @@ class VarDIBS(VarDistribution):
         """
         u, v = self.u, self.v # u, z [num_nodes, latent_dim]
         scores = torch.matmul(u, v.transpose(0,1))
-        ipdb.set_trace()
+        # ipdb.set_trace()
         log_probs, log_probs_neg = F.logsigmoid(scores), F.logsigmoid(-scores) # TODO in dibs paper, there is an alpha control the temperature here
 
         # scores = jnp.einsum('...ik,...jk->...ij', u, v)

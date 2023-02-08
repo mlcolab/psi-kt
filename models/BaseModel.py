@@ -122,16 +122,16 @@ class BaseModel(torch.nn.Module):
         self.logs.write_to_log_file('Load model from ' + model_path)
 
     def customize_parameters(self):
-        # customize optimizer settings for different parameters
+        '''
+        Customize optimizer settings for different parameters
+        '''
         weight_p, bias_p = [], []
-        for name, p in filter(lambda x: x[1].requires_grad, self.named_parameters()):
-            # print(name, p.shape)
+        # find parameters which require gradient
+        for name, p in filter(lambda x: x[1].requires_grad, self.named_parameters()): 
             if 'bias' in name:
                 bias_p.append(p)
             else:
                 weight_p.append(p)
-        # for name, p in self.state_dict().items():
-        #     print(name, p.shape)
         optimize_dict = [{'params': weight_p}, {'params': bias_p, 'weight_decay': 0}]
         return optimize_dict
 

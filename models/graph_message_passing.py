@@ -13,6 +13,7 @@ from utils.utils import create_rel_rec_send
 
 from data.ou_process import VanillaGraphOU
 from torch.nn.parallel import DistributedDataParallel as DDP
+from utils.parametric_models import ExtendGraphOU
 
 import ipdb
 
@@ -699,15 +700,15 @@ class GraphOUProcessDebug(Graph):
     def _init_weights(self):
         # -- initialize alpha, mu, beta
         # mean_rev_speed = torch.zeros((1, ), device=self.device).double() 
-        mean_rev_speed = torch.tensor(0.02, device=self.device).double() 
-        self.mean_rev_speed = nn.Parameter(mean_rev_speed, requires_grad=False)
-
         # mean_rev_level = torch.zeros((1, ), device=self.device).double() 
-        mean_rev_level = torch.tensor(0.5, device=self.device).double() 
-        self.mean_rev_level = nn.Parameter(mean_rev_level, requires_grad=False)
-
-        vola = torch.tensor(0.08, device=self.device).double() 
         # vola = torch.zeros((1, ), device=self.device).double() 
+        
+        mean_rev_speed = torch.tensor(0.02, device=self.device).double() 
+        mean_rev_level = torch.tensor(0.5, device=self.device).double() 
+        vola = torch.tensor(0.01, device=self.device).double() 
+        
+        self.mean_rev_speed = nn.Parameter(mean_rev_speed, requires_grad=False)
+        self.mean_rev_level = nn.Parameter(mean_rev_level, requires_grad=False)
         self.vola = nn.Parameter(vola, requires_grad=False)
 
     def std(self, t, vola, mean_rev_speed):
@@ -725,7 +726,7 @@ class GraphOUProcessDebug(Graph):
         labels = feed_dict['label_seq'].to(self.device)      # [batch_size, seq_len]
         bs, time_steps = labels.shape
         num_graph = adj.shape[0]
-        # ipdb.set_trace()
+        
         # -- multi-step spatial on graph
         power = 1
         adj_list = [adj]
@@ -734,10 +735,9 @@ class GraphOUProcessDebug(Graph):
 
         # -- TODO DEBUG
         x_last = torch.zeros((bs, num_graph, power, self.num_nodes, 1), device=self.device).double()
-
-        # TODO intergrate 
-        # ou_simulator = RewriteGraphOU
         # ipdb.set_trace()
+        
+        # TODO intergrate 
         preds = [] 
         for t in range(0, time_steps): # from t=1 
             if t == 0: 
@@ -746,7 +746,7 @@ class GraphOUProcessDebug(Graph):
                 dt = times[:, t:t+1] - times[:, t-1:t]
             dt = dt.reshape(bs, -1, 1, 1, 1)
             dt = dt.tile(1, num_graph, 1, self.num_nodes, 1)
-            # ipdb.set_trace()
+
             noise = torch.randn(size=x_last.shape, device=self.device) 
             scale = self.std(dt, self.vola, self.mean_rev_speed)
 
@@ -772,6 +772,112 @@ class GraphOUProcessDebug(Graph):
             pred = pred[torch.arange(bs), :, :, cur_skill]
             preds.append(pred) # [bs, num_graph, power, 1]
             
+        return preds
+    
+    
+    
+class GraphOU_FixedGraph(Graph):
+    def __init__(self, device, num_nodes, args, emb_size=None):
+        super().__init__(device, num_nodes, args)
+        self.emb_size = emb_size or args.emb_size
+        self.time_lag = args.time_lag
+        self.emb_size = args.emb_size
+        
+        self._init_weights()
+
+    def _init_weights(self):
+        # -- initialize alpha, mu, beta
+        input_dim = self.time_lag * self.emb_size
+        self.mlp_speed = generate_fully_connected(
+            input_dim=input_dim,
+            output_dim=1,
+            hidden_dims=[64], # to increase [256, 64]
+            p_dropout=self.dropout,
+            non_linearity=nn.LeakyReLU,
+            activation=nn.ReLU,
+            device=self.device,
+            normalization=self.norm_layer,
+            res_connection=self.res_connection,
+        )
+        self.mlp_gamma = generate_fully_connected(
+            input_dim=input_dim,
+            output_dim=1,
+            hidden_dims=[64],
+            p_dropout=self.dropout,
+            non_linearity=nn.LeakyReLU,
+            activation=nn.Sigmoid,
+            device=self.device,
+            normalization=self.norm_layer,
+            res_connection=self.res_connection,
+        )
+        self.mlp_vola = generate_fully_connected(
+            input_dim=input_dim,
+            output_dim=1,
+            hidden_dims=[64],
+            p_dropout=self.dropout,
+            non_linearity=nn.LeakyReLU,
+            activation=nn.ReLU, # TODO sigmoid???
+            device=self.device,
+            normalization=self.norm_layer,
+            res_connection=self.res_connection,
+        )
+        # self.mlp_rho = generate_fully_connected(
+        #     input_dim=input_dim,
+        #     output_dim=1,
+        #     hidden_dims=[64],
+        #     p_dropout=self.dropout,
+        #     non_linearity=nn.LeakyReLU,
+        #     activation=nn.Sigmoid, # TODO
+        #     device=self.device,
+        #     normalization=self.norm_layer,
+        #     res_connection=self.res_connection,
+        # )
+        
+        self.learner_model = ExtendGraphOU(0,0,0,1)
+        # mean_rev_speed = torch.tensor(0.02, device=self.device).double() 
+        # mean_rev_level = torch.tensor(0.5, device=self.device).double() 
+        # vola = torch.tensor(0.01, device=self.device).double() 
+        
+        # self.mean_rev_speed = nn.Parameter(mean_rev_speed, requires_grad=True)
+        # self.mean_rev_level = nn.Parameter(mean_rev_level, requires_grad=True)
+        # self.vola = nn.Parameter(vola, requires_grad=True)
+
+
+    def forward(self, feed_dict, adj, node_embeddings, node_base=None, node_bias_base=None, others=None):
+
+        skills = feed_dict['skill_seq']        # [batch_size, seq_len]
+        times = feed_dict['time_seq']          # [batch_size, seq_len]
+        labels = feed_dict['label_seq']       # [batch_size, seq_len]
+        
+        bs, time_steps = labels.shape
+        num_graph = adj.shape[0]
+        
+        # -- multi-step spatial on graph
+        power = 1
+        adj_list = [adj]
+        # TODO has bug: [torch.matrix_power(adj, i)/torch.float_power(torch.tensor(self.num_nodes), i) for i in range(1, power+1)]
+        adj_list = torch.stack(adj_list, 2).permute(1,0,2,3,4).double() # [bs, num_graph, power, num_nodes, num_nodes]
+
+        # -- embedding history
+        time_lag = self.time_lag
+        labels_pro = torch.where(labels==0, -2, labels)
+        labels_pro = torch.where(labels_pro==-1, 0, labels_pro)
+        labels_pro = torch.where(labels_pro==-2, -1, labels_pro)
+        skill_init = skills[:, :time_lag] # [bs, time_lag]
+        label_init = labels_pro[:, :time_lag]
+        bs_skill_emb = torch.tile(node_embeddings, (bs, 1, 1)).to(self.device)
+        emb_init = [bs_skill_emb[torch.arange(0, bs), skill_init[:, i]] for i in range(time_lag)]
+        emb_init = torch.stack(emb_init, dim=1)
+        emb_init = emb_init * label_init.unsqueeze(-1) # [bs, time_lag, emb_size]
+        emb_init = emb_init.reshape(bs, -1)
+        
+        speed = self.mlp_speed(emb_init)
+        gamma = self.mlp_gamma(emb_init)
+        vola = self.mlp_vola(emb_init)
+        # rho = torch.
+        preds = self.learner_model.simulate_path(feed_dict, time_lag, adj=adj_list,
+                                         speed=speed, gamma=gamma, vola=vola)# , rho=rho)
+    
+
             
-        # ipdb.set_trace()
         return preds

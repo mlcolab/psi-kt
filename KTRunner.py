@@ -1,41 +1,48 @@
-# -*- coding: UTF-8 -*-
+import gc
+import copy
+import os
+
+from time import time
+from tqdm import tqdm
+import numpy as np
+import matplotlib.pyplot as plt
+from collections import defaultdict
 
 import torch
 from torch.optim import lr_scheduler
 
-from time import time
-from tqdm import tqdm
-import gc
-import numpy as np
-import copy
-import os
-from collections import defaultdict
 from utils import utils
-import torch.distributed as dist
 import ipdb
-import matplotlib.pyplot as plt
 
 torch.autograd.set_detect_anomaly(True)
 
+
 class KTRunner(object):
+    '''
+    This implements the training loop, testing & validation, optimization etc. 
+
+    Args:
+        args: the global arguments
+        logs: the Logger instance for logging information
+    '''
 
     def __init__(self, args, logs):
-        self.overfit = args.overfit
+        # TODO debug args
+        self.overfit = args.overfit 
 
         self.args = args
-        self.optimizer_name = args.optimizer
-        self.learning_rate = args.lr
         self.epoch = args.epoch
-        self.batch_size = args.batch_size_multiGPU # ???
+        self.batch_size = args.batch_size_multiGPU 
         self.eval_batch_size = args.eval_batch_size
-        self.l2 = args.l2
+        
         self.metrics = args.metric.strip().lower().split(',')
+        for i in range(len(self.metrics)):
+            self.metrics[i] = self.metrics[i].strip()
+
         self.early_stop = args.early_stop
         self.time = None
         self.logs = logs
 
-        for i in range(len(self.metrics)):
-            self.metrics[i] = self.metrics[i].strip()
 
     def _check_time(self, start=False):
         if self.time is None or start:
@@ -45,26 +52,40 @@ class KTRunner(object):
         self.time[1] = time()
         return self.time[1] - tmp_time
 
+
     def _build_optimizer(self, model):
-        optimizer_name = self.optimizer_name.lower()
+        '''
+        Choose the optimizer based on the optimizer name in the global arguments.
+        The optimizer has the setting of weight decay, and learning rate decay which can be modified in global arguments.
+
+        Args:
+            model: the training KT model
+        '''
+        optimizer_name = self.args.optimizer.lower()
+        lr = self.args.lr
+        weight_decay = self.args.l2
+        lr_decay = self.args.lr_decay
+        lr_decay_gamma = self.args.gamma
+
         if optimizer_name == 'gd':
             self.logs.write_to_log_file("Optimizer: GD")
-            optimizer = torch.optim.SGD(model.customize_parameters(), lr=self.learning_rate, weight_decay=self.l2)
+            optimizer = torch.optim.SGD(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay)
         elif optimizer_name == 'adagrad':
             self.logs.write_to_log_file("Optimizer: Adagrad")
-            optimizer = torch.optim.Adagrad(model.customize_parameters(), lr=self.learning_rate, weight_decay=self.l2)
+            optimizer = torch.optim.Adagrad(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay)
         elif optimizer_name == 'adadelta':
             self.logs.write_to_log_file("Optimizer: Adadelta")
-            optimizer = torch.optim.Adadelta(model.customize_parameters(), lr=self.learning_rate, weight_decay=self.l2)
+            optimizer = torch.optim.Adadelta(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay)
         elif optimizer_name == 'adam':
             self.logs.write_to_log_file("Optimizer: Adam")
-            optimizer = torch.optim.Adam(model.module.customize_parameters(), lr=self.learning_rate, weight_decay=self.l2)
+            optimizer = torch.optim.Adam(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay)
         else:
             raise ValueError("Unknown Optimizer: " + self.optimizer_name)
 
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=self.args.lr_decay, gamma=self.args.gamma)
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay, gamma=lr_decay_gamma)
 
         return optimizer, scheduler
+
 
     def predict(self, model, corpus, set_name):
         model.eval()
@@ -93,36 +114,38 @@ class KTRunner(object):
         batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
         
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
-            
+            # ipdb.set_trace()
+            # # TODO for debugging
+            for name, param in model.module.named_parameters():
+                if param.grad != None:
+                    print(name, torch.isfinite(param.grad).all())
+                else: print(name)
+            for name, param in model.named_parameters():
+                if param.grad != None:
+                    print(name, torch.isfinite(param.grad).all())
+                else: print(name)
+                if param.requires_grad:
+                    print('Grad:', name)
+                    
             batch = model.module.batch_to_gpu(batch)
             model.module.optimizer.zero_grad()
             output_dict = model(batch)
             loss_dict = model.module.loss(batch, output_dict, metrics = self.metrics)
-
-            # ipdb.set_trace()
-            # for name, param in model.module.named_parameters():
-            #     if param.grad != None:
-            #         print(name, torch.isfinite(param.grad).all())
-            #     else: print(name)
-            # for name, param in model.named_parameters():
-            #     if param.grad != None:
-            #         print(name, torch.isfinite(param.grad).all())
-            #     else: print(name)
-            #     if param.requires_grad:
-            #         print('Grad:', name)
 
             loss_dict['loss_total'].backward()
             model.module.optimizer.step()
             model.module.scheduler.step()
             
             train_losses = utils.append_losses(train_losses, loss_dict)
-
+            
         # ipdb.set_trace()
         # TODO DEBUG: to visualize the difference of synthetic data adj
-        if self.args.dataset == 'synthetic' and epoch%2 == 0:
+        if 'synthetic' in self.args.dataset and epoch%2 == 0:
             import matplotlib.patches as mpatches
             gt_adj = batch['gt_adj']
-            _, _, pred_adj = model.module.var_dist_A.sample_A(num_graph=1)
+            _, probs, pred_adj = model.module.var_dist_A.sample_A(num_graph=100)
+            print(torch.mean(probs, 0))
+            # ipdb.set_trace()
             mat_diff = gt_adj-pred_adj[0,0] 
             mat_diff = mat_diff.int().cpu().detach().numpy()
             im = plt.imshow(mat_diff, interpolation='none', cmap='Blues',aspect='auto',alpha=0.5)
@@ -174,12 +197,12 @@ class KTRunner(object):
                 del epoch_train_data
                 training_time = self._check_time()
 
-                # output validation and write to logs
-                valid_result = self.evaluate(model, corpus, 'dev')
-                test_result = self.evaluate(model, corpus, 'test')
+                # # output validation and write to logs
+                # valid_result = self.evaluate(model, corpus, 'dev')
+                # test_result = self.evaluate(model, corpus, 'test')
 
-                self.logs.append_test_loss(test_result)
-                self.logs.append_val_loss(valid_result)
+                # self.logs.append_test_loss(test_result)
+                # self.logs.append_val_loss(valid_result)
                 
                 self.logs.draw_loss_curves()
 

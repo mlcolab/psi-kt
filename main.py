@@ -23,7 +23,9 @@ import ipdb
 
 
 def main(args, model, logs, fun=None):
-    # logging.info(msg, *args, **kwargs) Logs a message with level INFO on the root logger. 
+    '''
+    args: 
+    '''
     logs.write_to_log_file('-' * 45 + ' BEGIN: ' + utils.get_time() + ' ' + '-' * 45)
     exclude = ['check_epoch', 'log_file', 'model_path', 'path', 'pin_memory',
                'regenerate', 'sep', 'train', 'verbose']
@@ -71,9 +73,6 @@ def main(args, model, logs, fun=None):
     # Running
     runner = KTRunner(args, logs)
 
-    # ipdb.set_trace()
-    # model_path = '/home/mlcolab/hzhou52/mykt/logs/CausalKT/2022-10-09T22:04:22.946163_whole_problem_bias_data_assistment12_overfit_0/Model_0.pt'
-
     # if args.distributed:
     #     mp.spawn(fun, nprocs=args.num_GPU, args=(args, corpus, runner, model, logs)) 
     # else:
@@ -81,14 +80,22 @@ def main(args, model, logs, fun=None):
     if args.load > 0:
         model.load_model()
     # logs.write_to_log_file('Test Before Training: ' + runner.print_res(model, corpus))
-    test_train(args.device, args, corpus, runner, model, logs)
+    fun(args.device, args, corpus, runner, model, logs)
     logs.write_to_log_file('\nTest After Training: ' + runner.print_res(model, corpus))
 
     model.actions_after_train()
     logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)
 
 
-def test_train(gpu, args, corpus, runner, model, logs):
+def distributed_train(gpu, args, corpus, runner, model, logs):
+    '''
+    args: global arguments
+    corpus: the loaded training data
+    runner: the KTRunner instance for training, testing and validation
+    model: the defined model instance for training
+    logs: the Logger instance for logging information
+    '''
+    # # Define multiple gpus
     # dev0 = (gpu*2) %  args.world_size
     # dev1 = (gpu*2+1) % args.world_size
     # print("Start the initialize of the process group")
@@ -102,16 +109,18 @@ def test_train(gpu, args, corpus, runner, model, logs):
     model = model.double()
     model.apply(model.init_weights)
     model.actions_before_train()
-    model, _ = utils.distribute_over_GPUs(args, model, num_GPU=args.num_GPU)
-    # model = model.to(args.device)
 
+    if torch.cuda.is_available():
+        if args.distributed:
+            model, _ = utils.distribute_over_GPUs(args, model, num_GPU=args.num_GPU)
+        else: 
+            model = model.to(args.device)
+
+    # # DPP training
     # torch.cuda.set_device(gpu)
     # model.cuda(gpu)
     # model = torch.nn.parallel.DistributedDataParallel(model)# , device_ids=[gpu])
-
-    # DPP training
     # print(f"Running basic DDP example on rank {args.rank}.")
-
     # # TODO DEBUG
     # for name, param in model.module.named_parameters():
     #     if param.grad != None:
@@ -123,21 +132,20 @@ def test_train(gpu, args, corpus, runner, model, logs):
     #     else: print(name)
     #     if param.requires_grad:
     #         print('Grad:', name)
+
     runner.train(model, corpus)
 
+
 def load_corpus(logs, args):
+    '''
+    agrs: the global arguments
+    Load corupus from the corpus path, and split the data into k folds. 
+    '''
+
     corpus_path = os.path.join(args.data_dir, args.dataset, 'Corpus_{}.pkl'.format(args.max_step))
-    if os.path.exists(corpus_path) and not global_args.regenerate_corpus:
-        logs.write_to_log_file('Load corpus from {}'.format(corpus_path))
-        with open(corpus_path, 'rb') as f:
-            corpus = pickle.load(f)
-    else:
-        t1 = time.time()
-        corpus = reader_name(args)
-        logs.write_to_log_file('Done! [{:<.2f} s]'.format(time.time() - t1))
-        logs.write_to_log_file('Save corpus to {}'.format(corpus_path))
-        with open(corpus_path, 'wb') as f:
-            pickle.dump(corpus, f)
+    logs.write_to_log_file('Load corpus from {}'.format(corpus_path))
+    with open(corpus_path, 'rb') as f:
+        corpus = pickle.load(f)
     corpus.gen_fold_data(args.fold)
     logs.write_to_log_file('# Train: {}, # Dev: {}, # Test: {}'.format(
             len(corpus.data_df['train']), len(corpus.data_df['dev']), len(corpus.data_df['test'])
@@ -170,16 +178,15 @@ if __name__ == '__main__':
     if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
         data = data_loader.DataReader(global_args, logs)
         data.gen_fold_data(k=0)
-        data.show_columns()
-        ipdb.set_trace()
+        data.show_columns() 
         logs.write_to_log_file('Save corpus to {}'.format(corpus_path))
         pickle.dump(data, open(corpus_path, 'wb'))
 
-    # Logging configuration
+    # ----- logger information -----
     log_args = [init_args.model_name, global_args.dataset, str(global_args.random_seed)]
     for arg in ['lr', 'l2', 'fold'] + model.extra_log_args:
         log_args.append(arg + '=' + str(eval('global_args.' + arg))) 
     # os.environ['MASTER_ADDR'] = 'localhost'
     # os.environ['MASTER_PORT'] = '44144'
 
-    main(global_args, model, logs, test_train)
+    main(global_args, model, logs, distributed_train)

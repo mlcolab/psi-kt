@@ -42,7 +42,10 @@ to zero so we will treat it as a constant and update iteratively if needed.
 The MLE estimators are biased, but we should be in the large-N limit where any
 correction is small.
 """
+import math
 
+def sigmoid(x):
+  return 1 / (1 + np.exp(-x))
 class VanillaOU():
     def __init__(self, mean_rev_speed, mean_rev_level, vola, num_seq=1):
         self.mean_rev_speed = mean_rev_speed
@@ -89,22 +92,26 @@ class VanillaOU():
 
 
 class GraphOU(VanillaOU):
-    def __init__(self, mean_rev_speed, mean_rev_level, vola, num_seq, nx_graph):
+    def __init__(self, mean_rev_speed, mean_rev_level, vola, num_seq, nx_graph, gamma=None, rho=None, omega=None):
         self.graph = nx_graph
+        self.gamma = gamma
+        self.rho = rho
+        self.omega = omega
         super().__init__(mean_rev_speed, mean_rev_level, vola, num_seq)
     
     def simulate_path(self, x0, t, items=None):
+        eps = 1e-6
         assert len(t) > 1
         num_node = len(x0)
-        time_step = t.shape[1]
-
-        dt = np.diff(t).reshape(self.num_seq, -1, 1, 1) # TODO index????
+        num_seq, time_step = t.shape
+        
+        dt = np.diff(t).reshape(self.num_seq, -1, 1, 1) 
         dt = np.repeat(dt, num_node, -2)
 
         x = np.zeros((self.num_seq, time_step, num_node, 1))
         x[:, 0] += x0
+        
         noise = scipy.stats.norm.rvs(size=x.shape) 
-
         scale = self.std(dt)
         x[:, 1:] += noise[:, 1:] * scale
 
@@ -112,15 +119,60 @@ class GraphOU(VanillaOU):
         adj_t = np.transpose(adj, (-1,-2))
         in_degree = adj_t.sum(axis=1).reshape(1,-1,1)
     
+        item_start = items[:, 0]
+        all_feature = np.zeros((self.num_seq, num_node, 3))
+        all_feature[np.arange(num_seq), item_start, 0] += 1
+        all_feature[np.arange(num_seq), item_start, 2] += 1
+        
         # find degree 0
         ind = np.where(in_degree[0,:,0] == 0)[0]
 
+        # TODO for debugging visualization
+        empowers = []
+        stables = []
+        tmp_mean_levels = []
+        all_features = []
+        
         for i in range(1, time_step):
-            sc = (1/(in_degree+1e-7)) * adj_t@x[:, i-1] # [num_seq, num_node, 1]
-            sc[:, ind] = 1 
-            tmp_mean_level = self.mean_rev_level * sc
-            x[:, i] += self.mean(x[:, i-1], dt[:, i-1], mean_level=tmp_mean_level)
-        return x
+            empower = (1/(in_degree+1e-7)) * adj_t@x[:, i-1] * self.gamma # [num_seq, num_node, 1]
+            empower[:, ind] = 0.0
+            stable = np.power((all_feature[..., 1:2]/(all_feature[..., 0:1]+eps)), self.rho)
+            tmp_mean_level = self.omega * empower + (1-self.omega) * stable
+            perf = self.mean(x[:, i-1], dt[:, i-1], mean_level=tmp_mean_level)
+            # x[:, i] += sigmoid(perf)
+            x[:, i] += perf # TODO
+            
+            cur_item = items[:, i]
+            cur_perf = sigmoid(x[np.arange(num_seq), i, cur_item])
+            # cur_perf = x[np.arange(num_seq), i, cur_item]
+            cur_success = (cur_perf>=0.5) * 1
+            # ipdb.set_trace()
+            all_feature[np.arange(num_seq), cur_item, 0:1] += 1
+            all_feature[np.arange(num_seq), cur_item, 1:2] += cur_success
+            tmp_feature = np.copy(all_feature)
+            
+            # DEBUG
+            empowers.append(empower)
+            stables.append(stable)
+            tmp_mean_levels.append(tmp_mean_level)
+            all_features.append(tmp_feature)
+        
+        # DEBUG
+        # ipdb.set_trace()
+        empowers = np.stack(empowers, 1) # [num_seq, time_step-1, num_node, 1]
+        stables = np.stack(stables, 1)
+        tmp_mean_levels = np.stack(tmp_mean_levels, 1)
+        all_features = np.stack(all_features, 1).astype(int) # [num_seq, time_step-1, num_node, 3]
+        params = {
+            'empowers': empowers,
+            'stables': stables,
+            'tmp_mean_levels': tmp_mean_levels,
+            # 'num_history': all_features[..., 0:1],
+            # 'num_success': all_features[..., 1:2],
+            # 'num_failure': all_features[..., 2:3],
+        }
+        
+        return x, params
 
 
 class ExtendGraphOU(VanillaOU):
@@ -248,15 +300,13 @@ class ExtendGraphOU(VanillaOU):
 '''
 https://github.com/duolingo/halflife-regression/blob/0041df0dcd436bf1b4aa7a17a020d9c670db70d8/experiment.py#L29
 '''
-import argparse
-import csv
-import gzip
+
 import math
-import os
 import random
 import sys
 
-from collections import defaultdict, namedtuple
+from collections import defaultdict
+
 MIN_HALF_LIFE = 15.0 / (24 * 60)    # 15 minutes
 MAX_HALF_LIFE = 274.                # 9 months
 LN2 = math.log(2.)
@@ -287,6 +337,9 @@ class HLR(object):
         all_feature[np.arange(num_seq), item_start, 0] += 1
         all_feature[np.arange(num_seq), item_start, 2] += 1
 
+        # DEBUG
+        all_features = []
+        half_lifes = []
         for i in range(1, time_step):
             cur_item = items[:, i] # [num_seq, ] 
             cur_dt = dt[:, i-1:i]
@@ -302,11 +355,26 @@ class HLR(object):
             all_feature[np.arange(num_seq), cur_item, 0] += 1
             all_feature[np.arange(num_seq), cur_item, 1] += success
             all_feature[np.arange(num_seq), cur_item, 2] += fail
+            # ipdb.set_trace()
+            
+            tmp_feature = np.copy(all_feature)
+            all_features.append(tmp_feature)
+            half_lifes.append(half_life)
             
             x[:, i, :, 0] += p_all
             # ipdb.set_trace()
 
-        return x
+        all_features = np.stack(all_features, 1).astype(int) # [num_seq, time_step-1, num_node, 3]
+        half_lifes = np.stack(half_lifes, 1)
+        params = {
+            'half_life': half_lifes,
+            'num_history': all_features[..., 0:1],
+            'num_success': all_features[..., 1:2],
+            'num_failure': all_features[..., 2:3],
+        }
+        
+        
+        return x, params
             
 
 
@@ -497,6 +565,8 @@ class PPE(object):
         items_time_seq = np.zeros((self.num_seq, num_node, max_item_repeat))
         items_time_seq[np.arange(num_seq), init_item, 0] += t[:, 0]
 
+        all_features = []
+        drs = []
         for i in range(1, time_step):
             cur_item = items[:, i] # [num_seq, ] 
             cur_item_repeat = all_feature[np.arange(num_seq), cur_item, 0].astype(np.int)
@@ -514,6 +584,7 @@ class PPE(object):
             lag_mask = (lags>0)
             dn = np.sum(1/np.log(abs(lags) + np.e) * lag_mask, -1) * (1/(cur_item_repeat+eps))
             dn = self.variable_b + self.variable_m * dn
+            
             
             # - big T
             small_t = np.expand_dims(cur_t, -1) - cur_item_times
@@ -534,7 +605,21 @@ class PPE(object):
             all_feature[np.arange(num_seq), cur_item, 1] += success
             all_feature[np.arange(num_seq), cur_item, 2] += fail
             
+            tmp_feature = np.copy(all_feature)
+            all_features.append(tmp_feature)
+            drs.append(dn)
+            
             x[:, i, cur_item, 0] += pn
+            
+            
         # ipdb.set_trace()
-
-        return x
+        all_features = np.repeat(np.stack(all_features, 1).astype(int), num_node, -1) # [num_seq, time_step-1, num_node, 3]
+        drs = np.repeat(np.stack(drs, 1).reshape(num_seq, -1, 1), num_node, -1)
+        params = {
+            'decay_rate': drs,
+            'num_history': all_features[..., 0:1],
+            'num_success': all_features[..., 1:2],
+            'num_failure': all_features[..., 2:3],
+        }
+        
+        return x, params

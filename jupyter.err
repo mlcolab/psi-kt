@@ -1,74 +1,36 @@
-/var/spool/slurmd/job2585526/slurm_script: /usr/bin/modulecmd: No such file or directory
-/var/spool/slurmd/job2585526/slurm_script: /usr/bin/modulecmd: No such file or directory
-[I 10:06:17.900 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
-[I 10:06:17.901 NotebookApp] Jupyter Notebook 6.4.12 is running at:
-[I 10:06:17.901 NotebookApp] http://slurm-bm-28:8888/?token=80347c148ed5d36187e1231ca01dafa8ac787e91024bccb6
-[I 10:06:17.901 NotebookApp]  or http://127.0.0.1:8888/?token=80347c148ed5d36187e1231ca01dafa8ac787e91024bccb6
-[I 10:06:17.901 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
-[C 10:06:17.915 NotebookApp] 
+/var/spool/slurmd/job2678347/slurm_script: /usr/bin/modulecmd: No such file or directory
+/var/spool/slurmd/job2678347/slurm_script: /usr/bin/modulecmd: No such file or directory
+[I 13:37:43.617 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
+[I 13:37:43.618 NotebookApp] Jupyter Notebook 6.4.12 is running at:
+[I 13:37:43.618 NotebookApp] http://slurm-bm-23:8888/?token=24fc87eb82a88b2667dd9801f51b85daceb8c3b746f0b19c
+[I 13:37:43.618 NotebookApp]  or http://127.0.0.1:8888/?token=24fc87eb82a88b2667dd9801f51b85daceb8c3b746f0b19c
+[I 13:37:43.618 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 13:37:43.817 NotebookApp] 
     
     To access the notebook, open this file in a browser:
-        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-235138-open.html
+        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-114296-open.html
     Or copy and paste one of these URLs:
-        http://slurm-bm-28:8888/?token=80347c148ed5d36187e1231ca01dafa8ac787e91024bccb6
-     or http://127.0.0.1:8888/?token=80347c148ed5d36187e1231ca01dafa8ac787e91024bccb6
-[I 10:12:46.782 NotebookApp] 302 GET /?token=80347c148ed5d36187e1231ca01dafa8ac787e91024bccb6 (192.168.212.63) 0.520000ms
-[I 10:14:38.226 NotebookApp] Kernel started: 0066b328-27f0-485a-8191-9c1e338ce08e, name: python3
+        http://slurm-bm-23:8888/?token=24fc87eb82a88b2667dd9801f51b85daceb8c3b746f0b19c
+     or http://127.0.0.1:8888/?token=24fc87eb82a88b2667dd9801f51b85daceb8c3b746f0b19c
+[I 14:05:35.109 NotebookApp] 302 GET /?token=24fc87eb82a88b2667dd9801f51b85daceb8c3b746f0b19c (192.168.212.63) 0.570000ms
+[W 14:06:20.677 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
+[I 14:06:21.216 NotebookApp] Kernel started: ad82deb7-cde5-4cf1-8ad3-b5637d563247, name: python3
 [IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 02718426-987c-43a9-802c-b5d069b3b2b9
-[I 10:16:39.499 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 10:18:39.562 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 10:28:39.630 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 10:35:52.518 NotebookApp] Starting buffering for 0066b328-27f0-485a-8191-9c1e338ce08e:bb50138cccc945b1891abc326922597f
-[I 10:35:53.161 NotebookApp] Discarding 2 buffered messages for 0066b328-27f0-485a-8191-9c1e338ce08e:bb50138cccc945b1891abc326922597f
-[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 60971ad5-d219-472f-9d2c-1acfd5972dea
-[I 10:37:53.446 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 10:47:53.368 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 11:31:53.542 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 11:33:53.287 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 11:35:53.279 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 12:27:53.291 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 12:29:53.260 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 12:31:53.439 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 12:35:53.351 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 12:37:53.298 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 12:39:53.359 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 12:43:53.499 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 12:45:53.401 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 12:53:53.449 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 12:55:53.404 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 12:57:53.395 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 12:59:53.562 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 13:09:09.552 NotebookApp] Kernel started: a30f9f46-11f3-4ce4-84b6-be9a622ac40e, name: python3
-[I 13:09:53.441 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 13:11:53.423 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 13:13:53.458 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 13:15:53.451 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 13:21:53.227 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 13:23:53.186 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 13:29:53.208 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 13:31:53.196 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 13:37:53.217 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 13:39:53.393 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:40:14.835 NotebookApp] zmq message arrived on closed channel
-[W 13:40:14.843 NotebookApp] zmq message arrived on closed channel
-[W 13:40:14.844 NotebookApp] zmq message arrived on closed channel
-[W 13:40:14.845 NotebookApp] zmq message arrived on closed channel
-[W 13:40:14.861 NotebookApp] zmq message arrived on closed channel
-[W 13:40:14.862 NotebookApp] zmq message arrived on closed channel
-[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 0bad6045-4ad5-4cb4-aa33-d218260b2e42
-[W 13:40:14.866 NotebookApp] zmq message arrived on closed channel
-[W 13:40:14.867 NotebookApp] zmq message arrived on closed channel
-[W 13:40:14.868 NotebookApp] zmq message arrived on closed channel
-[W 13:40:14.869 NotebookApp] zmq message arrived on closed channel
-[W 13:40:14.871 NotebookApp] zmq message arrived on closed channel
-[W 13:40:14.901 NotebookApp] zmq message arrived on closed channel
-[W 13:40:14.902 NotebookApp] zmq message arrived on closed channel
-[I 13:41:53.197 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 13:43:54.010 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 14:01:59.214 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 14:01:59.730 NotebookApp] Starting buffering for 0066b328-27f0-485a-8191-9c1e338ce08e:0029ba19127f4a8c93d93603b688ccc3
-[I 14:02:00.486 NotebookApp] Starting buffering for a30f9f46-11f3-4ce4-84b6-be9a622ac40e:8dde5222e97949ff9d16c609a94cf454
-slurmstepd: error: *** JOB 2585526 ON slurm-bm-28 CANCELLED AT 2023-02-08T07:50:26 ***
+[IPKernelApp] WARNING | No such comm: 89ed0843-5a29-4bc4-9a97-cdaa2c66987e
+[I 14:08:21.839 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[W 14:08:21.842 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
+[I 14:19:22.368 NotebookApp] Starting buffering for ad82deb7-cde5-4cf1-8ad3-b5637d563247:35ea79fa994b41e18536f665b88d4d6c
+[I 14:19:24.229 NotebookApp] Restoring connection for ad82deb7-cde5-4cf1-8ad3-b5637d563247:35ea79fa994b41e18536f665b88d4d6c
+[I 14:31:54.162 NotebookApp] Starting buffering for ad82deb7-cde5-4cf1-8ad3-b5637d563247:35ea79fa994b41e18536f665b88d4d6c
+[I 14:31:55.995 NotebookApp] Restoring connection for ad82deb7-cde5-4cf1-8ad3-b5637d563247:35ea79fa994b41e18536f665b88d4d6c
+[I 14:42:32.311 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[W 14:42:32.320 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
+[I 14:44:29.987 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[W 14:44:29.990 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
+[I 14:53:38.703 NotebookApp] Starting buffering for ad82deb7-cde5-4cf1-8ad3-b5637d563247:35ea79fa994b41e18536f665b88d4d6c
+[I 14:53:40.033 NotebookApp] Restoring connection for ad82deb7-cde5-4cf1-8ad3-b5637d563247:35ea79fa994b41e18536f665b88d4d6c
+[I 15:00:40.353 NotebookApp] Starting buffering for ad82deb7-cde5-4cf1-8ad3-b5637d563247:35ea79fa994b41e18536f665b88d4d6c
+[I 15:00:42.522 NotebookApp] Restoring connection for ad82deb7-cde5-4cf1-8ad3-b5637d563247:35ea79fa994b41e18536f665b88d4d6c
+[W 15:02:12.523 NotebookApp] WebSocket ping timeout after 90000 ms.
+[I 15:02:17.527 NotebookApp] Starting buffering for ad82deb7-cde5-4cf1-8ad3-b5637d563247:35ea79fa994b41e18536f665b88d4d6c
+slurmstepd: error: *** JOB 2678347 ON slurm-bm-23 CANCELLED AT 2023-02-09T15:27:36 ***

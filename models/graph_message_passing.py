@@ -13,7 +13,7 @@ from utils.utils import create_rel_rec_send
 
 from data.ou_process import VanillaGraphOU
 from torch.nn.parallel import DistributedDataParallel as DDP
-from utils.parametric_models import ExtendGraphOU
+from models.parametric_models import ExtendGraphOU
 
 import ipdb
 

@@ -102,7 +102,10 @@ class KTRunner(object):
 
     def fit(self, model, corpus, epoch_train_data, epoch=-1):  # fit the results for an input set
         """
-        epoch_train_data: Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
+        Args: 
+            model:
+            corpus: 
+            epoch_train_data: Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
         """
         if model.module.optimizer is None:
             model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
@@ -114,18 +117,18 @@ class KTRunner(object):
         batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
         
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
-            # ipdb.set_trace()
-            # # TODO for debugging
-            for name, param in model.module.named_parameters():
-                if param.grad != None:
-                    print(name, torch.isfinite(param.grad).all())
-                else: print(name)
-            for name, param in model.named_parameters():
-                if param.grad != None:
-                    print(name, torch.isfinite(param.grad).all())
-                else: print(name)
-                if param.requires_grad:
-                    print('Grad:', name)
+            # # ipdb.set_trace()
+            # # # TODO for debugging
+            # for name, param in model.module.named_parameters():
+            #     if param.grad != None:
+            #         print(name, torch.isfinite(param.grad).all())
+            #     else: print(name)
+            # for name, param in model.named_parameters():
+            #     if param.grad != None:
+            #         print(name, torch.isfinite(param.grad).all())
+            #     else: print(name)
+            #     if param.requires_grad:
+            #         print('Grad:', name)
                     
             batch = model.module.batch_to_gpu(batch)
             model.module.optimizer.zero_grad()
@@ -167,6 +170,7 @@ class KTRunner(object):
         model.eval()
         return self.logs.train_results['loss_total'][-1]
 
+
     def eva_termination(self, model):
         valid = list(self.logs.valid_results[self.metrics[0]])
         if len(valid) > 20 and utils.non_increasing(valid[-10:]):
@@ -177,6 +181,11 @@ class KTRunner(object):
 
 
     def train(self, model, corpus):
+        '''
+        Args:
+            model: KT model instance with parameters to train
+            corpus: data
+        '''
 
         assert(corpus.data_df['train'] is not None)
         self._check_time(start=True)
@@ -198,25 +207,25 @@ class KTRunner(object):
                 training_time = self._check_time()
 
                 # # output validation and write to logs
-                # valid_result = self.evaluate(model, corpus, 'dev')
-                # test_result = self.evaluate(model, corpus, 'test')
+                if self.args.validate:
+                    valid_result = self.evaluate(model, corpus, 'dev')
+                    test_result = self.evaluate(model, corpus, 'test')
 
-                # self.logs.append_test_loss(test_result)
-                # self.logs.append_val_loss(valid_result)
+                    self.logs.append_test_loss(test_result)
+                    self.logs.append_val_loss(valid_result)
                 
+                    testing_time = self._check_time()
+
+                    self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
+                                epoch + 1, loss, training_time, utils.format_metric(valid_result),
+                                utils.format_metric(test_result), testing_time))
+                                
+                    if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
+                        model.module.save_model(epoch=epoch)
+                    if self.eva_termination(model) and self.early_stop:
+                        self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
+                        break
                 self.logs.draw_loss_curves()
-
-                # testing_time = self._check_time()
-
-                # self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
-                #              epoch + 1, loss, training_time, utils.format_metric(valid_result),
-                #              utils.format_metric(test_result), testing_time))
-                             
-                # if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
-                #     model.module.save_model(epoch=epoch)
-                # if self.eva_termination(model) and self.early_stop:
-                #     self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
-                #     break
 
         except KeyboardInterrupt:
             self.logs.write_to_log_file("Early stop manually")

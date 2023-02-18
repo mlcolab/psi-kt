@@ -15,6 +15,7 @@ from scipy import stats
 
 import ipdb
 import torch
+import torch.nn as nn
 
 ##########################################################################################
 # OU Process
@@ -46,15 +47,18 @@ import math
 
 def sigmoid(x):
   return 1 / (1 + np.exp(-x))
-class VanillaOU():
+
+
+class VanillaOU(nn.Module):
     def __init__(self, mean_rev_speed, mean_rev_level, vola, num_seq=1):
         self.mean_rev_speed = mean_rev_speed
         self.mean_rev_level = mean_rev_level
         self.vola = vola
         self.num_seq = num_seq
-        assert self.mean_rev_speed >= 0
+        # assert self.mean_rev_speed >= 0
         # assert self.mean_rev_level >= 0
         assert self.vola >= 0
+        super(VanillaOU, self).__init__()
 
     def variance(self, t):
         return self.vola * self.vola * (1.0 - np.exp(- 2.0 * self.mean_rev_speed * t)) / (2 * self.mean_rev_speed)
@@ -282,6 +286,7 @@ class ExtendGraphOU(VanillaOU):
             cur_skill = skill_future[:, i]
             cur_perf =perf[torch.arange(num_seq), cur_skill] # TODO sigmoid?
             cur_x = (cur_perf>=0.5) * 1
+            ipdb.set_trace()
             num_last[torch.arange(num_seq), cur_skill] += 1
             success_last[torch.arange(num_seq), cur_skill] += cur_x
             

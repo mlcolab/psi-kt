@@ -87,6 +87,11 @@ class BaseModel(torch.nn.Module):
         pass
 
     def prepare_batches(self, corpus, data, batch_size, phase):
+        '''
+        Args:
+            corpus:
+            data: the training/validation/test data which needs to be batched
+        '''
         num_example = len(data) # -> num of students?
         total_batch = int((num_example + batch_size - 1) / batch_size)
         assert(num_example > 0)

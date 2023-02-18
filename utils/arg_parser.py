@@ -9,7 +9,7 @@ def parse_args(parser):
     Model-specific arguments are defined in corresponding files.
     '''
     ############## TODO debugging experiment ############## 
-    parser.add_argument('--overfit', type=int, default=100,)
+    parser.add_argument('--overfit', type=int, default=100, help='whether to overfit and debug (0/>0); if overfit>0, the number of data to train')
     parser.add_argument('--gt_adj_path', type=str)
 
     ############## distributed training ############## 
@@ -39,6 +39,8 @@ def parse_args(parser):
     parser.add_argument("--expername", type=str, default="",)
 
     ############## KTRunner ##############
+    parser.add_argument('--train', type=int, default=1, help='To train the model or not.')
+    parser.add_argument("--validate", action="store_true", default=False, help="validate results throughout training.")
     parser.add_argument('--epoch', type=int, default=200, help='Number of epochs.')
     parser.add_argument('--early_stop', type=int, default=1, help='whether to early-stop.')
     parser.add_argument('--lr', type=float, default=5e-3, help='Learning rate.')
@@ -50,20 +52,11 @@ def parse_args(parser):
     parser.add_argument('--metric', type=str, default='F1, AUC, Accuracy, Recall, Precision',
                         help='metrics: AUC, F1, Accuracy, Recall, Presicion;'
                                 'The first one will be used to determine whether to early stop')
+    parser.add_argument('--fold', type=int, default=0, help='Select a fold to run.')
     
     
-    
-    parser.add_argument('--load', type=int, default=1,
-                        help='Whether load model and continue to train')
-    parser.add_argument('--fold', type=int, default=0,
-                        help='Select a fold to run.')
-    parser.add_argument('--train', type=int, default=1,
-                        help='To train the model or not.')
-
-    ############## training hyperparameter ##############
-    parser.add_argument("--lr_decay", type=int, default=5000, help="After how epochs to decay LR by a factor of gamma.",)
-    parser.add_argument("--gamma", type=float, default=0.5, help="LR decay factor.")
-
+    ############## load and save model ##############
+    parser.add_argument('--load', type=int, default=0, help='Whether load model and continue to train')
     parser.add_argument(
         "--load_folder",
         type=str,
@@ -71,11 +64,11 @@ def parse_args(parser):
         help="Where to load pre-trained model if finetuning/evaluating. "
         + "Leave empty to train from scratch",
     )
+    
 
-    parser.add_argument(
-        "--validate", action="store_true", default=True, help="validate results throughout training."
-    )
-
+    ############## training hyperparameter ##############
+    parser.add_argument("--lr_decay", type=int, default=5000, help="After how epochs to decay LR by a factor of gamma.",)
+    parser.add_argument("--gamma", type=float, default=0.5, help="LR decay factor.")
     parser.add_argument("--var", type=float, default=5e-2, help="Output variance.") # TODO
     
     return parser 

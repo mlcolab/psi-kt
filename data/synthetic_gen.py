@@ -14,7 +14,7 @@ import argparse
 import datetime
 import torch
 
-from utils.parametric_models import *
+from models.parametric_models import *
 from utils.visualize import *
 # rom data.data_loader import KTData
 

@@ -77,8 +77,11 @@ def main(args, model, logs, fun=None):
     #     mp.spawn(fun, nprocs=args.num_GPU, args=(args, corpus, runner, model, logs)) 
     # else:
     #     test_train(args.device[0], args, corpus, runner, model, logs)
+    
+    # -- load model from existing path
     if args.load > 0:
         model.load_model()
+        
     # logs.write_to_log_file('Test Before Training: ' + runner.print_res(model, corpus))
     fun(args.device, args, corpus, runner, model, logs)
     logs.write_to_log_file('\nTest After Training: ' + runner.print_res(model, corpus))

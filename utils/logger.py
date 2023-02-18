@@ -64,6 +64,7 @@ class Logger:
         """
         Write given string in log-file and print as terminal output
         """
+        # ipdb.set_trace()
         print(string)
         # ipdb.set_trace()
         cur_file = open(self.log_file, "a")

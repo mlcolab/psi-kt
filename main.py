@@ -86,9 +86,9 @@ def main(args, model, logs, fun=None):
     if args.load > 0:
         model.load_model()
         
-    # logs.write_to_log_file('Test Before Training: ' + runner.print_res(model, corpus))
+    # logs.write_to_log_file('Test Before Training: ' + runner._print_res(model, corpus))
     fun(args.device, args, corpus, runner, model, logs)
-    logs.write_to_log_file('\nTest After Training: ' + runner.print_res(model, corpus))
+    logs.write_to_log_file('\nTest After Training: ' + runner._print_res(model, corpus))
 
     model.actions_after_train()
     logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)

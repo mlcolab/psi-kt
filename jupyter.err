@@ -28,3 +28,21 @@
 [I 13:24:03.232 NotebookApp] Starting buffering for a451c113-a156-4b49-a75c-a1943984e545:527fa7ac7034450e84f2aca1c3119f5b
 [I 13:25:50.158 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
 [W 13:25:50.167 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
+[W 15:39:46.344 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
+[I 15:39:46.850 NotebookApp] Kernel started: f1e60d7f-ffa6-4d7e-b1bc-2698b20da3f5, name: python3
+[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
+[IPKernelApp] WARNING | No such comm: 5afe84ba-fbfe-45b5-8fe7-811d6b4323e9
+[W 15:40:01.831 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
+[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
+[IPKernelApp] WARNING | No such comm: 398e4af4-182d-47ab-8a0a-1910034722a9
+[I 15:40:03.148 NotebookApp] Starting buffering for a451c113-a156-4b49-a75c-a1943984e545:8e854ecfdd2646899709495fc8e36c98
+[I 15:40:34.169 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
+[W 15:40:34.171 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
+/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/nbformat/__init__.py:128: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  validate(nb)
+/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/notebook/services/contents/manager.py:353: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  validate_nb(model['content'])
+[I 15:40:38.260 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
+[W 15:40:38.262 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
+[I 15:40:43.683 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
+[W 15:40:43.689 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted

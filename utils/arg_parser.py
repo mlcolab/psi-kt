@@ -31,7 +31,6 @@ def parse_args(parser):
     parser.add_argument('--sep', type=str, default='\t', help='sep of csv file.')
     parser.add_argument('--kfold', type=int, default=5, help='K-fold number.')
     parser.add_argument('--max_step', type=int, default=50, help='Max time steps per sequence.')
-    parser.add_argument('--quick_test', action="store_true",)
     parser.add_argument('--regenerate_corpus', action="store_true", default=False)
 
     ############## logger ##############

@@ -72,9 +72,7 @@ class DataReader(object):
             
             cnt += 1
             n_inters += len(df)
-            
-            cnt += 1
-            n_inters += len(df)
+
         self.user_seq_df = pd.DataFrame.from_dict(user_wise_dict, orient='index')
         self.n_users = max(self.inter_df['user_id'].values) + 1
         self.n_skills = max(self.inter_df['skill_id']) + 1
@@ -97,13 +95,16 @@ class DataReader(object):
         assert k < self.k_fold
         n_examples = len(self.user_seq_df)
         fold_size = math.ceil(n_examples / self.k_fold)
+        
         fold_begin = k * fold_size
         fold_end = min((k + 1) * fold_size, n_examples)
         self.data_df['test'] = self.user_seq_df.iloc[fold_begin:fold_end]
+        
         residual_df = pd.concat([self.user_seq_df.iloc[0:fold_begin], self.user_seq_df.iloc[fold_end:n_examples]])
         dev_size = int(0.1 * len(residual_df)) # 
         dev_indices = np.random.choice(residual_df.index, dev_size, replace=False)  # random
         self.data_df['dev'] = self.user_seq_df.iloc[dev_indices]
+        
         self.data_df['train'] = residual_df.drop(dev_indices)
         
     def show_columns(self):

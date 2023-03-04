@@ -90,85 +90,20 @@ class KTRunner(object):
         return optimizer, scheduler
 
 
-    def fit(self, model, corpus, epoch_train_data, epoch=-1): 
-        """
-        Args: 
-            model:
-            corpus: 
-            epoch_train_data: Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
-        """
-        if model.module.optimizer is None:
-            model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
-        
-        train_losses = defaultdict(list)
-
-        model.train()
-        
-        batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
-        ipdb.set_trace()
-        
-        for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
-            # # ipdb.set_trace()
-            # # # TODO for debugging
-            # for name, param in model.module.named_parameters():
-            #     if param.grad != None:
-            #         print(name, torch.isfinite(param.grad).all())
-            #     else: print(name)
-            # for name, param in model.named_parameters():
-            #     if param.grad != None:
-            #         print(name, torch.isfinite(param.grad).all())
-            #     else: print(name)
-            #     if param.requires_grad:
-            #         print('Grad:', name)
-                    
-            batch = model.module.batch_to_gpu(batch)
-            model.module.optimizer.zero_grad()
-            output_dict = model(batch)
-            loss_dict = model.module.loss(batch, output_dict, metrics = self.metrics)
-
-            loss_dict['loss_total'].backward()
-            model.module.optimizer.step()
-            model.module.scheduler.step()
-            
-            train_losses = utils.append_losses(train_losses, loss_dict)
-            
-        # ipdb.set_trace()
-        # TODO DEBUG: to visualize the difference of synthetic data adj
-        if 'synthetic' in self.args.dataset and epoch%2 == 0:
-            import matplotlib.patches as mpatches
-            gt_adj = batch['gt_adj']
-            _, probs, pred_adj = model.module.var_dist_A.sample_A(num_graph=100)
-            print(torch.mean(probs, 0))
-            # ipdb.set_trace()
-            mat_diff = gt_adj-pred_adj[0,0] 
-            mat_diff = mat_diff.int().cpu().detach().numpy()
-            im = plt.imshow(mat_diff, interpolation='none', cmap='Blues',aspect='auto',alpha=0.5)
-
-            values = np.unique(mat_diff.ravel())
-            colors = [im.cmap(im.norm(value)) for value in values]
-            patches = [mpatches.Patch(color=colors[i], label="Level {l}".format(l=values[i]) ) for i in range(len(values))]
-
-            plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
-            plt.savefig(os.path.join(self.args.plotdir, 'adj_diff_epoch{}.png'.format(epoch)))
-
-        # # TODO DEBUG
-        # if epoch % 10 == 0:
-        #     print(output_dict['prediction'])
-        string = self.logs.result_string("train", epoch, train_losses, t=epoch)
-        self.logs.write_to_log_file(string)
-        self.logs.append_train_loss(train_losses)
-        
-        model.eval()
-        return self.logs.train_results['loss_total'][-1]
-
-
-    def eva_termination(self, model):
-        valid = list(self.logs.valid_results[self.metrics[0]])
-        if len(valid) > 20 and utils.non_increasing(valid[-10:]):
-            return True
-        elif len(valid) - valid.index(max(valid)) > 20:
-            return True
-        return False
+    def _print_res(self, model, corpus):
+        '''
+        Print the model prediction on test data set.
+        This is used in main function to compare the performance of model before and after training.
+        Args:
+            model: KT model instance
+            corpus: data containing test dataset
+        '''
+        set_name = 'test'
+        result = self.evaluate(model, corpus, set_name)
+        res_str = utils.format_metric(result)
+        return res_str
+    
+    
 
 
     def train(self, model, corpus):
@@ -180,21 +115,23 @@ class KTRunner(object):
 
         assert(corpus.data_df['train'] is not None)
         self._check_time(start=True)
-
+        
+        
+        ##### prepare training data (if needs quick test then specify overfit arguments in the args);
+        ##### prepare the batches of training data; this is specific to different KT models (different models may require different features)
+        if self.overfit > 0:
+            epoch_train_data = copy.deepcopy(corpus.data_df['train'])[:self.overfit] # Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
+        else:
+            epoch_train_data = copy.deepcopy(corpus.data_df['train'])
+        epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) # Return a random sample of items from an axis of object.
+        batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
+                
         try:
             for epoch in range(self.epoch):
                 gc.collect()
                 self._check_time()
-                
-                if self.overfit > 0:
-                    epoch_train_data = copy.deepcopy(corpus.data_df['train'])[:self.overfit] # Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
-                else:
-                    epoch_train_data = copy.deepcopy(corpus.data_df['train'])
-                ipdb.set_trace()
-                epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) # Return a random sample of items from an axis of object.
-                ipdb.set_trace()
 
-                loss = self.fit(model, corpus, epoch_train_data, epoch=epoch + 1)
+                loss = self.fit(model, batches, epoch_train_data, epoch=epoch + 1)
 
                 del epoch_train_data
                 training_time = self._check_time()
@@ -254,11 +191,85 @@ class KTRunner(object):
 
 
 
-    def print_res(self, model, corpus):
-        set_name = 'test'
-        result = self.evaluate(model, corpus, set_name)
-        res_str = utils.format_metric(result)
-        return res_str
+    def fit(self, model, batches, epoch_train_data, epoch=-1): 
+        """
+        Args: 
+            model:
+            batches: a list of data, each element is a batch to train
+            epoch_train_data: Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
+        """
+        if model.module.optimizer is None:
+            model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
+        
+        train_losses = defaultdict(list)
+
+        model.train()
+        
+        
+        ipdb.set_trace()
+        
+        for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
+            # # ipdb.set_trace()
+            # # # TODO for debugging
+            # for name, param in model.module.named_parameters():
+            #     if param.grad != None:
+            #         print(name, torch.isfinite(param.grad).all())
+            #     else: print(name)
+            # for name, param in model.named_parameters():
+            #     if param.grad != None:
+            #         print(name, torch.isfinite(param.grad).all())
+            #     else: print(name)
+            #     if param.requires_grad:
+            #         print('Grad:', name)
+                    
+            batch = model.module.batch_to_gpu(batch)
+            model.module.optimizer.zero_grad()
+            output_dict = model(batch)
+            loss_dict = model.module.loss(batch, output_dict, metrics = self.metrics)
+
+            loss_dict['loss_total'].backward()
+            model.module.optimizer.step()
+            model.module.scheduler.step()
+            
+            train_losses = utils.append_losses(train_losses, loss_dict)
+            
+        # ipdb.set_trace()
+        # TODO DEBUG: to visualize the difference of synthetic data adj
+        if 'synthetic' in self.args.dataset and epoch%2 == 0:
+            import matplotlib.patches as mpatches
+            gt_adj = batch['gt_adj']
+            _, probs, pred_adj = model.module.var_dist_A.sample_A(num_graph=100)
+            print(torch.mean(probs, 0))
+            # ipdb.set_trace()
+            mat_diff = gt_adj-pred_adj[0,0] 
+            mat_diff = mat_diff.int().cpu().detach().numpy()
+            im = plt.imshow(mat_diff, interpolation='none', cmap='Blues',aspect='auto',alpha=0.5)
+
+            values = np.unique(mat_diff.ravel())
+            colors = [im.cmap(im.norm(value)) for value in values]
+            patches = [mpatches.Patch(color=colors[i], label="Level {l}".format(l=values[i]) ) for i in range(len(values))]
+
+            plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
+            plt.savefig(os.path.join(self.args.plotdir, 'adj_diff_epoch{}.png'.format(epoch)))
+
+        # # TODO DEBUG
+        # if epoch % 10 == 0:
+        #     print(output_dict['prediction'])
+        string = self.logs.result_string("train", epoch, train_losses, t=epoch)
+        self.logs.write_to_log_file(string)
+        self.logs.append_train_loss(train_losses)
+        
+        model.eval()
+        return self.logs.train_results['loss_total'][-1]
+
+
+
+
+
+
+
+
+
     
     
 
@@ -285,3 +296,11 @@ class KTRunner(object):
         concat_pred = np.concatenate(concat_pred)
         concat_label = np.concatenate(concat_label)
         return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics)
+
+    def eva_termination(self, model):
+        valid = list(self.logs.valid_results[self.metrics[0]])
+        if len(valid) > 20 and utils.non_increasing(valid[-10:]):
+            return True
+        elif len(valid) - valid.index(max(valid)) > 20:
+            return True
+        return False

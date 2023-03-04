@@ -157,12 +157,19 @@ class CausalKT(BaseModel):
 
     def get_feed_dict(self, corpus, data, batch_start, batch_size, phase):
         '''
+        Prepare the batch data and add model-specific data features
+        Dont need to move the data to device in this step (the function is implemented in the BaseModel)
         Args:
-            corpus:
-            data: 
+            corpus:       DataReader instance containing all of the data information
+            data:         specific data to be batched (train/test/dev)
+            batch_start:  the index of current batch
+            batch_size:   size of batch
+        Return:
+            feed_dict:    a dictionary containing all of the data needed for training the model
         '''
         batch_end = min(len(data), batch_start + batch_size)
         real_batch_size = batch_end - batch_start
+        
         skill_seqs = data['skill_seq'][batch_start: batch_start + real_batch_size].values
         label_seqs = data['correct_seq'][batch_start: batch_start + real_batch_size].values
         time_seqs = data['time_seq'][batch_start: batch_start + real_batch_size].values
@@ -182,8 +189,7 @@ class CausalKT(BaseModel):
             'num_success': torch.from_numpy(utils.pad_lst(num_success)), 
             'num_failure': torch.from_numpy(utils.pad_lst(num_failure)), 
         }
-        for k, v in feed_dict.items():
-            feed_dict[k] = v.to(self.device)
+        
         return feed_dict
 
 

@@ -23,7 +23,7 @@ import ipdb
 def parse_args(parser):
     # ----- global -----
     parser.add_argument('--random_seed', type=int, default=1,)
-    parser.add_argument('--num_sequence', type=int, default=4,)
+    parser.add_argument('--num_sequence', type=int, default=1,)
     parser.add_argument('--learner_model', type=str, default=['graph_ou'], help=['hlr', 'ou', 'graph_ou', 'egraph_ou', 'ppe'])
     
     # ----- time points -----
@@ -32,7 +32,7 @@ def parse_args(parser):
     parser.add_argument('--max_time_step', type=int, default=250,)
 
     # ----- random graph -----
-    parser.add_argument('--num_node', type=int, default=10,)
+    parser.add_argument('--num_node', type=int, default=2,)
     parser.add_argument('--edge_prob', type=float, default=0.4,)
 
     # ----- ou process -----
@@ -179,7 +179,8 @@ if __name__ == '__main__':
     args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     args.log_path = os.path.join(args.save_path, args.time + '_' + 'node_' + str(args.num_node))
-    
+    if not os.path.exists(args.log_path):
+        os.makedirs(args.log_path)
 
     # -- generate random graphs
     graph = nx.erdos_renyi_graph(args.num_node, args.edge_prob, seed=args.random_seed, directed=True)
@@ -187,16 +188,48 @@ if __name__ == '__main__':
     # draw_graph(graph, args)
 
     # -- generate time points & reviewing items
-    times = time_point_generate()
-    items = review_item_generate()
+    times = torch.tensor(time_point_generate(), device=args.device)
+    items = torch.tensor(review_item_generate(), device=args.device)
     
     # -- initialize a KT Data Object
     # ktdata = KTData(data_type='syn', times=times, items=items, graph_adj=adj) TODO
 
-    if not os.path.exists(args.log_path):
-        os.makedirs(args.log_path)
-        
-        
+
+    # # -- Vanilla OU process
+    # x0 = torch.zeros((args.num_sequence, args.num_node), device=args.device)
+    # ou_vanilla_generator = VanillaOU(
+    #     mean_rev_speed=args.mean_rev_speed, 
+    #     mean_rev_level=args.mean_rev_level, 
+    #     vola=args.vola, 
+    #     num_seq=args.num_sequence, 
+    #     mode='synthetic', 
+    #     device=args.device)
+    # vanilla_path, params = ou_vanilla_generator.simulate_path(x0, times)
+    # draw_path(vanilla_path[0], args, times[0], items=items[0], prefix='ou')
+
+
+    # -- HLR process 
+    weight_total = [1/12, 1/6, 1/4, 1/3, 1/2, 2/3]
+    weight_success = [1/2]
+    weight_failure = [-1/3]
+    x0 = torch.zeros((args.num_sequence, args.num_node), device=args.device)
+    for w in weight_total:
+        theta = [w] + weight_success + weight_failure
+        theta = np.array(theta)
+        hlr_generator = HLR(
+            theta=theta, 
+            num_seq=args.num_sequence,
+            mode='synthetic',
+            device=args.device
+        )
+        hlr_path, params = hlr_generator.simulate_path(x0=x0, t=times, items=items)
+        prefix = 'hlr_theta_{:.2f}_{:.2f}_{:.2f}'.format(theta[0], theta[1], theta[2])
+    
+        draw_path(hlr_path[0], args, times[0], items=items[0], prefix=prefix)
+        # draw_params(params, args, times, items, prefix=prefix) TODO to test
+        ipdb.set_trace()
+
+    
     # # -- PPE process 
     # for learning_rate in [0.01, 0.05, 0.1, 0.2, 0.5, 1]:
     #     ppe_generator = PPE(learning_rate, num_seq=args.num_sequence)
@@ -207,42 +240,26 @@ if __name__ == '__main__':
     #     draw_params(params, args, times, items, prefix=prefix)
     
     
-    # # -- HLR process 
-    # weight_total = [1/12, 1/6, 1/4, 1/3, 1/2, 2/3]
-    # weight_success = [1/2]
-    # weight_failure = [-1/3]
-    # for w in weight_total:
-    #     theta = [w] + weight_success + weight_failure
-    #     theta = np.array(theta)
-    #     hlr_generator = HLR(theta=theta, num_seq=args.num_sequence)
-    #     hlr_path, params = hlr_generator.simulate_path(np.zeros((args.num_node,1)), times, items)
-    #     prefix = 'hlr_theta_{:.2f}_{:.2f}_{:.2f}'.format(theta[0], theta[1], theta[2])
+
     
-    #     draw_path(hlr_path[0], args, times[0], items=items[0], prefix=prefix)
+    # # -- Extend Graph OU process 
+    # # -- Graph OU process 
+    # # for speed in [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1]:
+    # for gamma in [0.1, 0.2, 0.5, 0.75, 1]: 
+    #     ou_generator = GraphOU(args.mean_rev_speed, args.mean_rev_level, args.vola, args.num_sequence, 
+    #                             nx_graph=graph, gamma=gamma, rho=args.rho, omega=args.omega) # test
+    #     ou_path, params = ou_generator.simulate_path(np.zeros((args.num_node,1)), times, items=items)
+    #     prefix = 'GraphOU_speed_{}_vola_{}_gamma_{}_rho_{}_omega_{}'.format(
+    #         args.mean_rev_speed, args.vola, gamma, args.rho, args.omega
+    #     )
+    #     # args.mean_rev_speed
+        
+    #     draw_path(ou_path[0], args, times[0], items=items[0], prefix=prefix)
+    #     draw_path(sigmoid(ou_path[0]), args, times[0], items=items[0], prefix=prefix+'sigmoid')
     #     draw_params(params, args, times, items, prefix=prefix)
     # ipdb.set_trace()
-    
-    # -- Extend Graph OU process 
-    # -- Graph OU process 
-    # for speed in [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1]:
-    for gamma in [0.1, 0.2, 0.5, 0.75, 1]: 
-        ou_generator = GraphOU(args.mean_rev_speed, args.mean_rev_level, args.vola, args.num_sequence, 
-                                nx_graph=graph, gamma=gamma, rho=args.rho, omega=args.omega) # test
-        ou_path, params = ou_generator.simulate_path(np.zeros((args.num_node,1)), times, items=items)
-        prefix = 'GraphOU_speed_{}_vola_{}_gamma_{}_rho_{}_omega_{}'.format(
-            args.mean_rev_speed, args.vola, gamma, args.rho, args.omega
-        )
-        # args.mean_rev_speed
-        
-        draw_path(ou_path[0], args, times[0], items=items[0], prefix=prefix)
-        draw_path(sigmoid(ou_path[0]), args, times[0], items=items[0], prefix=prefix+'sigmoid')
-        draw_params(params, args, times, items, prefix=prefix)
-    ipdb.set_trace()
 
-    # -- Vanilla OU process
-    ou_vanilla_generator = VanillaOU(args.mean_rev_speed, args.mean_rev_level, args.vola, args.num_sequence)
-    vanilla_path = ou_vanilla_generator.simulate_path(np.zeros((args.num_node,1)), times)
-    draw_path(vanilla_path[0], args, times[0], items=items[0], prefix='ou')
+
     
     ipdb.set_trace()
 

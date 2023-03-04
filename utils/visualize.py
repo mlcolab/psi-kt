@@ -8,16 +8,32 @@ import ipdb
 
 
 def draw_path(path, args, times, items=None, prefix=None, scatter=False):
-    plt.clf()
+    '''
+    Args:
+        path: [num_node, t]
+        times: [t]
+    '''
+    if args.device.type == 'cuda':
+        path = path.cpu().numpy()
+        times = times.cpu().numpy()
+        items = items.cpu().numpy()
+    else: 
+        path = path.numpy()
+        times = times.numpy()
+        items = items.numpy()
     process = prefix.split('_')[0]
-
     color = cm.rainbow(np.linspace(0, 1, args.num_node))
+    
+    
+    plt.clf()
     plt.figure(figsize=(20,8))
     plt.xlabel('time t')
     plt.ylabel('recall_probability')
-    plt.title(label=process.upper()+' Model',
-            fontsize=20,
-            color="black")
+    plt.title(
+        label=process.upper()+' Model',
+        fontsize=20,
+        color="black"
+    )
         
     for i, c in zip(range(args.num_node), color):
         # ipdb.set_trace()
@@ -25,16 +41,14 @@ def draw_path(path, args, times, items=None, prefix=None, scatter=False):
             ind = np.where(items==i)[0]
             plt.plot(times[ind], path[ind,i], color=c, label='{}'.format(i), linewidth=4)
         else:
-            plt.plot(times, path[:,i], color=c, label='{}'.format(i), linewidth=4)
+            plt.plot(times, path[i], color=c, label='{}'.format(i), linewidth=4)
             
         # put labels on interacted nodes
         ind = np.where(items==i)[0]
-        plt.scatter(times[ind], path[ind, i], s=150, marker='*')
+        plt.scatter(times[ind], path[i, ind], s=150, marker='*')
         plt.vlines(x=times[ind], ymin = np.min(path), ymax = np.max(path),
                 colors = 'grey', linestyles='dashdot')# ,
                 # label = 'vline_multiple - full height')
-        
-    
     plt.legend()
     if not os.path.exists(os.path.join(args.log_path, process)):
         os.makedirs(os.path.join(args.log_path, process))

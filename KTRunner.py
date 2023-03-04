@@ -20,15 +20,15 @@ torch.autograd.set_detect_anomaly(True)
 class KTRunner(object):
     '''
     This implements the training loop, testing & validation, optimization etc. 
-
-    Args:
-        args: the global arguments
-        logs: the Logger instance for logging information
     '''
 
     def __init__(self, args, logs):
-        # TODO debug args
-        self.overfit = args.overfit 
+        '''
+        Args:
+            args: the global arguments
+            logs: the Logger instance for logging information
+        '''
+        self.overfit = args.overfit # TODO debug args
 
         self.args = args
         self.epoch = args.epoch
@@ -45,6 +45,9 @@ class KTRunner(object):
 
 
     def _check_time(self, start=False):
+        '''
+        Check the time to compute the training/test/val time
+        '''
         if self.time is None or start:
             self.time = [time()] * 2
             return self.time[0]
@@ -87,20 +90,7 @@ class KTRunner(object):
         return optimizer, scheduler
 
 
-    def predict(self, model, corpus, set_name):
-        model.eval()
-        predictions, labels = [], []
-        batches = model.module.prepare_batches(corpus, corpus.data_df[set_name], self.eval_batch_size, phase=set_name)
-        for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
-            batch = model.module.batch_to_gpu(batch)
-            outdict = model(batch)
-            prediction, label = outdict['prediction'], outdict['label']
-            predictions.extend(prediction.detach().cpu().data.numpy())
-            labels.extend(label.detach().cpu().data.numpy())
-        return np.array(predictions), np.array(labels)
-
-
-    def fit(self, model, corpus, epoch_train_data, epoch=-1):  # fit the results for an input set
+    def fit(self, model, corpus, epoch_train_data, epoch=-1): 
         """
         Args: 
             model:
@@ -115,6 +105,7 @@ class KTRunner(object):
         model.train()
         
         batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
+        ipdb.set_trace()
         
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
             # # ipdb.set_trace()
@@ -199,14 +190,16 @@ class KTRunner(object):
                     epoch_train_data = copy.deepcopy(corpus.data_df['train'])[:self.overfit] # Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
                 else:
                     epoch_train_data = copy.deepcopy(corpus.data_df['train'])
+                ipdb.set_trace()
                 epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) # Return a random sample of items from an axis of object.
+                ipdb.set_trace()
 
                 loss = self.fit(model, corpus, epoch_train_data, epoch=epoch + 1)
 
                 del epoch_train_data
                 training_time = self._check_time()
 
-                # # output validation and write to logs
+                ##### output validation and write to logs
                 if self.args.validate:
                     valid_result = self.evaluate(model, corpus, 'dev')
                     test_result = self.evaluate(model, corpus, 'test')
@@ -259,6 +252,29 @@ class KTRunner(object):
                         
         # model.load_model() #???
 
+
+
+    def print_res(self, model, corpus):
+        set_name = 'test'
+        result = self.evaluate(model, corpus, set_name)
+        res_str = utils.format_metric(result)
+        return res_str
+    
+    
+
+
+    def predict(self, model, corpus, set_name):
+        model.eval()
+        predictions, labels = [], []
+        batches = model.module.prepare_batches(corpus, corpus.data_df[set_name], self.eval_batch_size, phase=set_name)
+        for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
+            batch = model.module.batch_to_gpu(batch)
+            outdict = model(batch)
+            prediction, label = outdict['prediction'], outdict['label']
+            predictions.extend(prediction.detach().cpu().data.numpy())
+            labels.extend(label.detach().cpu().data.numpy())
+        return np.array(predictions), np.array(labels)
+
     def evaluate(self, model, corpus, set_name):  # evaluate the results for an input set
         predictions, labels = self.predict(model, corpus, set_name)
         lengths = np.array(list(map(lambda lst: len(lst) - 1, corpus.data_df[set_name]['skill_seq'])))
@@ -269,9 +285,3 @@ class KTRunner(object):
         concat_pred = np.concatenate(concat_pred)
         concat_label = np.concatenate(concat_label)
         return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics)
-
-    def print_res(self, model, corpus):
-        set_name = 'test'
-        result = self.evaluate(model, corpus, set_name)
-        res_str = utils.format_metric(result)
-        return res_str

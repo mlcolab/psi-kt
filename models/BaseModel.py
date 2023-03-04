@@ -97,8 +97,9 @@ class BaseModel(torch.nn.Module):
         assert(num_example > 0)
         batches = []
         for batch in tqdm(range(total_batch), leave=False, ncols=100, mininterval=1, desc='Prepare Batches'):
+            ipdb.set_trace()
             batches.append(self.get_feed_dict(corpus, data, batch * batch_size, batch_size, phase))
-        
+        ipdb.set_trace()
         if self.args.quick_test:
             return batches[:2]
         else: return batches

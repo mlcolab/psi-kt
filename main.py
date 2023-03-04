@@ -24,7 +24,11 @@ import ipdb
 
 def main(args, model, logs, fun=None):
     '''
-    args: 
+    Args:
+        args:
+        model:
+        logs:
+        fun
     '''
     logs.write_to_log_file('-' * 45 + ' BEGIN: ' + utils.get_time() + ' ' + '-' * 45)
     exclude = ['check_epoch', 'log_file', 'model_path', 'path', 'pin_memory',
@@ -92,11 +96,12 @@ def main(args, model, logs, fun=None):
 
 def distributed_train(gpu, args, corpus, runner, model, logs):
     '''
-    args: global arguments
-    corpus: the loaded training data
-    runner: the KTRunner instance for training, testing and validation
-    model: the defined model instance for training
-    logs: the Logger instance for logging information
+    Args:
+        args:    global arguments
+        corpus:  loaded training data
+        runner:  KTRunner instance for training, testing and validation
+        model:   defined model instance for training
+        logs:    Logger instance for logging information
     '''
     # # Define multiple gpus
     # dev0 = (gpu*2) %  args.world_size
@@ -141,15 +146,18 @@ def distributed_train(gpu, args, corpus, runner, model, logs):
 
 def load_corpus(logs, args):
     '''
-    agrs: the global arguments
     Load corupus from the corpus path, and split the data into k folds. 
+    Args:
+        data_dir:
+        dataset:
+    Return:
+        corpus: 
     '''
-
     corpus_path = os.path.join(args.data_dir, args.dataset, 'Corpus_{}.pkl'.format(args.max_step))
     logs.write_to_log_file('Load corpus from {}'.format(corpus_path))
     with open(corpus_path, 'rb') as f:
         corpus = pickle.load(f)
-    corpus.gen_fold_data(args.fold)
+    corpus.gen_fold_data(k=0)
     logs.write_to_log_file('# Train: {}, # Dev: {}, # Test: {}'.format(
             len(corpus.data_df['train']), len(corpus.data_df['dev']), len(corpus.data_df['test'])
         ))

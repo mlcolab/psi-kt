@@ -1,8 +1,10 @@
-import numpy as np
-import scipy.optimize as opt
 import collections
-
 import math
+import random
+import sys
+import numpy as np
+import pandas as pd
+from collections import defaultdict
 
 import scipy.constants
 import scipy.stats
@@ -11,88 +13,351 @@ import scipy.optimize
 
 import networkx as nx 
 import scipy
+import math
 from scipy import stats
 
 import ipdb
 import torch
 import torch.nn as nn
 
-##########################################################################################
-# OU Process
-##########################################################################################
-'''
-https://github.com/felix-clark/ornstein-uhlenbeck/blob/master/ornstein_uhlenbeck.py
-and
-https://github.com/jwergieluk/ou_noise/blob/master/ou_noise/ou.py
-'''
-
-"""
-A module for evaluation and analysis with an Ornstein-Uhlenbeck process:
-    dX_t = - eta * X_t + sigma * dW_t
-The log-likelihood function is:
-    l = - (n/2) log(sigma^2/(2*eta)) - 1/2 sum log [1 - exp(-2*eta*dt)] - (n*eta/sigma^2) * D
-        where D = (1/n) * sum{ [(x_t-mu) - (x_{t-1}-mu)*exp(-eta*dt)]^2 /
-        (1-exp(-2*eta*dt)) } is a modified sum of squares.
-    Setting dl/d(sigma^2) = 0 yields sigma^2/2*eta = D so for the purposes of
-    minimization the log-likelihood can be simplified:
-        l = - (n/2) [1 + log(D)] - 1/2 sum log [1 - exp(-2*eta*dt)]
-Keep in mind that this will not be valid when evaluating variations from the
-minimum such as when computing multi-parameter uncertainties.
-The mean mu is also a function of eta, but for our purposes it should be close
-to zero so we will treat it as a constant and update iteratively if needed.
-The MLE estimators are biased, but we should be in the large-N limit where any
-correction is small.
-"""
-import math
-
 def sigmoid(x):
   return 1 / (1 + np.exp(-x))
 
 
+##########################################################################################
+# OU Process
+##########################################################################################
+
 class VanillaOU(nn.Module):
-    def __init__(self, mean_rev_speed, mean_rev_level, vola, num_seq=1):
-        self.mean_rev_speed = mean_rev_speed
-        self.mean_rev_level = mean_rev_level
-        self.vola = vola
-        self.num_seq = num_seq
-        # assert self.mean_rev_speed >= 0
-        # assert self.mean_rev_level >= 0
-        assert self.vola >= 0
+    def __init__(self, 
+                 mean_rev_speed=None, 
+                 mean_rev_level=None, 
+                 vola=None, 
+                 num_seq=1, 
+                 num_node=1,
+                 mode='train', 
+                 device='cpu'):
+        '''
+        Modified from 
+            https://github.com/jwergieluk/ou_noise/tree/master/ou_noise
+            https://github.com/felix-clark/ornstein-uhlenbeck/blob/master/ornstein_uhlenbeck.py
+            https://github.com/369geofreeman/Ornstein_Uhlenbeck_Model/blob/main/research.ipynb
+        Args:
+            mean_rev_speed: [bs/1, 1] or scalar
+            mean_rev_level: [bs/1, 1] or scalar
+            vola: [bs/1, 1] or scalar
+            num_seq: when training mode, the num_seq will be automatically the number of batch size; 
+                     when synthetic mode, the num_seq will be the number of sequences to generate
+            mode: can be 'training' or 'synthetic'
+            device:  
+        '''
+        
         super(VanillaOU, self).__init__()
+        if mode == 'train': # TODO: for now it only considers parameters to optimize
+            speed = torch.rand((num_seq, 1), device=device).double()
+            # speed = torch.tensor(1e-5, device=device).double()
+            self.mean_rev_speed = nn.Parameter(speed, requires_grad=True)
+            
+            level = torch.rand((num_seq, 1), device=device)
+            self.mean_rev_level = nn.Parameter(level, requires_grad=True)
+            vola = torch.rand((num_seq, 1), device=device)
+            self.vola = nn.Parameter(vola, requires_grad=True)
 
-    def variance(self, t):
-        return self.vola * self.vola * (1.0 - np.exp(- 2.0 * self.mean_rev_speed * t)) / (2 * self.mean_rev_speed)
+            # level = torch.tensor(0.64, device=device)
+            # self.mean_rev_level = nn.Parameter(level, requires_grad=False)
+            # vola = torch.tensor(1e-3, device=device).double()
+            # self.vola = torch.relu(nn.Parameter(vola, requires_grad=False))
+        elif mode == 'synthetic':
+            assert mean_rev_speed is not None
+            self.mean_rev_speed = mean_rev_speed
+            self.mean_rev_level = mean_rev_level
+            self.vola = vola
+        else:
+            raise Exception('It is not a compatible mode')
+            
+        self.num_seq = num_seq
+        self.device = device
+        assert self.mean_rev_speed >= 0
+        assert self.vola >= 0
+        
 
-    def std(self, t):
-        return np.sqrt(self.variance(t))
+    def variance(self, t, speed=None, vola=None):
+        '''
+        The variances introduced by the parameter vola, time difference and Wiener process (Gaussian noise)
+        Args:
+            t: 
+        '''
+        speed = speed if speed is not None else self.mean_rev_speed
+        vola = vola if vola is not None else self.vola
+        return vola * vola * (1.0 - torch.exp(- 2.0 * speed * t)) / (2 * speed + 1e-6)
 
-    def mean(self, x0, t, mean_speed=None, mean_level=None):
-        speed = mean_speed if mean_speed is not None else self.mean_rev_speed
-        level = mean_level if mean_level is not None else self.mean_rev_level
-        return x0 * np.exp(-speed * t) + (1.0 - np.exp(- speed * t)) * level
+    def std(self, t, speed=None, vola=None):
+        '''
+        Args:
+            t: [num_seq/bs, num_node, times] usually is the time difference of a sequence
+        '''
+        return torch.sqrt(self.variance(t, speed, vola))
+
+    def mean(self, x0, t, speed=None, level=None):
+        '''
+        Args:
+            x0: 
+            t: 
+        '''
+        speed = speed if speed is not None else self.mean_rev_speed
+        level = level if level is not None else self.mean_rev_level
+        return x0 * torch.exp(-speed * t) + (1.0 - torch.exp(- speed * t)) * level
+
+    def logll(self, x, t, speed=None, level=None, vola=None):
+        """
+        Calculates log likelihood of a path
+        Args:
+            t: [num_seq/bs, time_step]
+            x: [num_seq/bs, time_step] it should be the same size as t
+        Return:
+            log_pdf: [num_seq/bs, 1]
+        """
+        speed = speed if speed is not None else self.mean_rev_speed
+        level = level if level is not None else self.mean_rev_level
+        vola = vola if vola is not None else self.vola
+        
+        dt = torch.diff(t)
+        dt = torch.log(dt) # TODO
+        mu = self.mean(x, dt, speed, level)
+        sigma = self.std(dt, speed, vola)
+        var = self.variance(dt, speed, vola)
+
+        dist = torch.distributions.normal.Normal(loc=mu, scale=var)
+        log_pdf = dist.log_prob(x).sum(-1)
+        # log_scale = torch.log(sigma) / 2
+        # log_pdf = -((x - mu) ** 2) / (2 * var) - log_scale - torch.log(torch.sqrt(2 * torch.tensor(math.pi,device=device)))
+
+        return log_pdf
 
     def simulate_path(self, x0, t, items=None):
         """ 
-        Simulates a sample path
-        dX = A(alpha-X)dt + v dB
+        Simulates a sample path or forward based on the parameters (speed, level, vola)
+        dX = speed*(level-X)dt + vola*dB
+        ** the num_node here can be considered as multivariate case of OU process 
+            while the correlations between nodes wdo not matter
+        Args:
+            x0: [num_seq/bs, num_node] the initial states for each node in each sequences
+            t: [num_seq/bs, time_step] the time points to sample (or interact);
+                It should be the same for all nodes
+            items: 
+        Return: 
+            x_pred: [num_seq/bs, num_node, time_step-1]
         """
-        assert len(t) > 1
-        time_step = t.shape[1]
-        num_node = len(x0)
+        assert len(t) > 0
+        num_seq, time_step = t.shape
+        num_node = x0.shape[1]
 
-        dt = np.diff(t).reshape(self.num_seq, -1, 1, 1)
-        dt = np.repeat(dt, num_node, -2)
+        dt = torch.diff(t).unsqueeze(1) 
+        dt = torch.tile(dt, (1, num_node, 1)) # [bs, num_node, time-1]
+        dt = torch.log(dt) # TODO to find the right temperature of time difference in different real-world datasets
 
-        x = np.zeros((self.num_seq, time_step, num_node, 1))
-        x[:, 0] += x0
-
-        noise = scipy.stats.norm.rvs(size=x.shape)
-        scale = self.std(dt)
-        x[:, 1:] += noise[:, 1:] * scale
-
+        scale = self.std(dt) # [bs, num_node, t-1]
+        noise = torch.randn(size=scale.shape, device=self.device)
+        
+        x_last = x0 
+        x_pred = []
+        x_pred.append(x_last)
         for i in range(1, time_step):
-            x[:, i] += self.mean(x[:, i-1], dt[:, i-1])
-        return x
+            x_next = self.mean(x_last, dt[..., i-1])  # [bs, num_node]
+            x_next = x_next + noise[..., i-1] * scale[..., i-1]
+            x_pred.append(x_next)
+            
+            x_last = x_next
+        x_pred = torch.stack(x_pred, -1)
+        params = None
+        
+        return x_pred, params
+    
+    
+    
+##########################################################################################
+# HLR Model
+##########################################################################################
+
+######################################## train HLR learner model
+
+class HLR(nn.Module):
+    def __init__(self, 
+                 theta=None, 
+                 base=2, 
+                 num_seq=1, 
+                 num_node=1, 
+                 mode='train', 
+                 device='cpu'):
+        '''
+        TODO:
+            multiple nodes have bugs 
+        Modified from:
+            https://github.com/duolingo/halflife-regression/blob/0041df0dcd436bf1b4aa7a17a020d9c670db70d8/experiment.py
+        Args:
+            theta: [3, ]; should be 3D vector indicates the parameters of the model; 
+                the näive version is to compute the dot product of theta and [N_total, N_success, N_failure]
+            base: the base of HLR model
+            num_seq: when mode==synthetic, it is the number of sequences to generate;
+                is mode==train, it is the number of batch size
+            items: [bs/num_seq, time_step]
+            mode: [synthetic, train]; synthetic is to generate new sequences based on given theta; train is to 
+                train the parameters theta given observed data.
+            device: cpu or cuda to put all variables and train the model
+        '''
+        super().__init__()
+        if mode == 'train':
+            theta = torch.empty(1,3, device=device)
+            theta = torch.nn.init.xavier_uniform_(theta)[0]
+            self.theta = nn.Parameter(theta, requires_grad=True)
+        elif mode == 'synthetic':
+            self.theta = torch.tensor(theta, device=device).float()
+        else:
+            raise Exception('It is not a compatible mode')
+        self.mode = mode
+        self.num_seq = num_seq
+        self.base = base
+        self.device = device
+        
+    @staticmethod
+    def hclip(h):
+        '''
+        bound min/max half-life
+        '''
+        MIN_HALF_LIFE = torch.tensor(15.0 / (24 * 60), device=h.device)    # 15 minutes
+        MAX_HALF_LIFE = torch.tensor(274., device=h.device)                # 9 months
+        return torch.min(torch.max(h, MIN_HALF_LIFE), MAX_HALF_LIFE)
+    @staticmethod
+    def pclip(p):
+        '''
+        bound min/max model predictions (helps with loss optimization)
+        '''
+        MIN_P = torch.tensor(0.0001, device=p.device)
+        MAX_P = torch.tensor(0.9999, device=p.device)
+        return torch.min(torch.max(p, MIN_P), MAX_P)
+    
+    def simulate_path(self, x0, t, items=None, stats_cal_on_fly=False, stats=None):
+        '''
+        Args:
+            x0: shape[num_seq/bs, num_node]; the initial state of the learner model
+            t: shape[num_seq/bs, num_time_step]
+            items: [num_seq/bs, num_time_step]; 
+                ** it cannot be None when mode=synthetic
+            stats_cal_on_fly: whether calculate the stats of history based on the prediction 
+                ** TODO test. it causes gradient error now
+            stats: [num_seq/bs, num_node, num_time_step, 3]; it contains [N_total, N_success, N_failure]
+        '''
+        torch.autograd.set_detect_anomaly(True) 
+        num_node = x0.shape[-1]
+        num_seq, time_step = t.shape
+
+        dt = torch.diff(t).unsqueeze(1) 
+        dt = torch.tile(dt, (1, num_node, 1))/60/60/24 # [bs, num_node, time-1]
+        # dt = torch.log(dt) # [bs, num_node, t-1] TODO
+        
+        if items == None:
+            items = torch.zeros_like(t, device=self.device)
+        if stats_cal_on_fly or self.mode=='synthetic':
+            item_start = items[:, 0]
+            all_feature = torch.zeros((num_seq, num_node, 3), device=self.device)
+            all_feature[torch.arange(0, num_seq), item_start, 0] += 1
+            all_feature[torch.arange(0, num_seq), item_start, 2] += 1
+            all_feature = all_feature.unsqueeze(-2).tile((1,1,time_step,1))
+        else: 
+            all_feature = stats
+        all_feature = all_feature.float()
+            
+        # all_feature [num_seq/bs, num_node, num_time_step, 3]
+
+        x_pred = []
+        x_pred.append(x0)
+        x_item_pred = []
+        half_lifes = []
+        for i in range(1, time_step):
+            cur_item = items[:, i] # [num_seq, ] 
+            cur_dt = dt[..., i-1] # [bs, num_node]
+            cur_feat = all_feature[:,:,i-1] # [bs, num_node, 3]
+            
+            # half_life = self.base ** (cur_feat @ self.theta)
+            half_life = self.hclip(self.base ** (cur_feat @ self.theta))
+            p_all = torch.sigmoid(self.base ** (-cur_dt/half_life)) # [bs, num_node]
+            p_item = p_all[torch.arange(0,num_seq), cur_item] # [bs, ]
+            
+            # print('hl: ', self.base ** (cur_feat @ self.theta))
+            # print('p power: ', (-cur_dt/half_life))
+            if stats_cal_on_fly or self.mode=='synthetic':
+                success = nn.functional.gumbel_softmax(torch.log(p_item), hard=True) # TODO
+                success = success.unsqueeze(-1)
+                all_feature[torch.arange(num_seq), cur_item, i:, 0] += 1
+                all_feature[torch.arange(num_seq), cur_item, i:, 1] += success
+                all_feature[torch.arange(num_seq), cur_item, i:, 2] += 1-success
+
+            half_lifes.append(half_life)
+            x_item_pred.append(p_item)
+            x_pred.append(p_all)
+        half_lifes = torch.stack(half_lifes, -1)
+        x_pred = torch.stack(x_pred, -1)
+        x_item_pred = torch.stack(x_item_pred, -1)
+        params = {
+            'half_life': half_lifes,
+            'x_item_pred': x_item_pred,
+            'num_history': all_feature[..., 0:1],
+            'num_success': all_feature[..., 1:2],
+            'num_failure': all_feature[..., 2:3],
+        }
+        
+        return x_pred, params
+        
+    def iterate_update(self, inputs, n_iter, learning_rate=1e-3): 
+        t_data, x_data, stats = inputs
+        x0 = x_data[:, :1]
+        x_gt = x_data[:, 1:]
+        
+        LN2 = torch.tensor(math.log(2.), device=t_data.device)
+        l2wt = torch.tensor(0.1, device=t_data.device)
+        sigma = torch.tensor(1.0, device=t_data.device)
+        
+        loss_fn = torch.nn.BCELoss()
+        
+        for _ in range(n_iter):
+            x_pred, params = self.simulate_path(x0=x0, t=t_data, stats=stats)
+            p = params['x_item_pred']
+            h = params['half_life']
+
+            # dlp_dw = 2.*(p-x_gt)*(LN2**2)*p*(torch.log(torch.diff(t_data))/h)
+            dlp_dw = 2.*(p-x_gt)*(LN2**2)*p*((torch.diff(t_data))/60/60/24/h)
+            # print('h: ', h)
+            # print('dlp_dw: ', dlp_dw)
+            
+            bceloss = loss_fn(p, x_gt.float())
+            print('previous theta: ', self.theta)
+            print('previous loss: ', bceloss)
+            
+            fcounts = defaultdict(int)                  
+            for k in range(3):
+                x_k = stats[..., 1:, k]                                                           
+                rate = (1./(1+x_gt)) * learning_rate / torch.sqrt(torch.tensor(1 + fcounts[k], device=self.device))
+                
+                self.theta[k] -= (rate * dlp_dw * x_k).sum()/rate.shape[-1]
+
+                # L2 regularization update
+                self.theta[k] -= (rate * l2wt * self.theta[k]).sum() / sigma**2 /rate.shape[-1]
+
+                # increment feature count for learning rate
+                fcounts[k] += 1
+            self.theta = torch.nn.functional.normalize(self.theta, p=1.0, dim = 0)
+            print(self.theta)
+
+
+
+
+
+    
+    
+    
+    
+    
+    
 
 
 class GraphOU(VanillaOU):
@@ -298,88 +563,87 @@ class ExtendGraphOU(VanillaOU):
         
         return pred
         
-
-##########################################################################################
-# HLR Model
-##########################################################################################
-'''
-https://github.com/duolingo/halflife-regression/blob/0041df0dcd436bf1b4aa7a17a020d9c670db70d8/experiment.py#L29
-'''
-
-import math
-import random
-import sys
-
-from collections import defaultdict
-
-MIN_HALF_LIFE = 15.0 / (24 * 60)    # 15 minutes
-MAX_HALF_LIFE = 274.                # 9 months
-LN2 = math.log(2.)
-def hclip(h):
-    # bound min/max half-life
-    return np.minimum(np.maximum(h, MIN_HALF_LIFE), MAX_HALF_LIFE)
-def pclip(p):
-    # bound min/max model predictions (helps with loss optimization)
-    return np.minimum(np.maximum(p, 0.0001), .9999)
-
-
-class HLR(object):
-    def __init__(self, theta, base=2, num_seq=1):
-        self.theta = theta
-        self.num_seq = num_seq
-        self.base = base
-
-    def simulate_path(self, x0, t, items=None): # TODO x0
-        num_node = len(x0)
-        num_seq, time_step = t.shape
-        dt = np.diff(t).reshape(num_seq, -1)
-
-        x = np.zeros((self.num_seq, time_step, num_node, 1))
-        x[:, 0] += x0
-
-        item_start = items[:, 0]
-        all_feature = np.zeros((self.num_seq, num_node, 3))
-        all_feature[np.arange(num_seq), item_start, 0] += 1
-        all_feature[np.arange(num_seq), item_start, 2] += 1
-
-        # DEBUG
-        all_features = []
-        half_lifes = []
-        for i in range(1, time_step):
-            cur_item = items[:, i] # [num_seq, ] 
-            cur_dt = dt[:, i-1:i]
-
-            half_life = hclip(self.base ** (all_feature @ self.theta))
-            # half_life = self.base ** (all_feature @ self.theta)
-            p_all = pclip(2. ** (-np.log(cur_dt)/half_life)) # TODO how to give the dt the right temperature
-            p_item = p_all[np.arange(num_seq), cur_item]
-
-            success = (p_item>=0.5)*1
-            fail = (p_item<0.5)*1
-
-            all_feature[np.arange(num_seq), cur_item, 0] += 1
-            all_feature[np.arange(num_seq), cur_item, 1] += success
-            all_feature[np.arange(num_seq), cur_item, 2] += fail
-            # ipdb.set_trace()
-            
-            tmp_feature = np.copy(all_feature)
-            all_features.append(tmp_feature)
-            half_lifes.append(half_life)
-            
-            x[:, i, :, 0] += p_all
-            # ipdb.set_trace()
-
-        all_features = np.stack(all_features, 1).astype(int) # [num_seq, time_step-1, num_node, 3]
-        half_lifes = np.stack(half_lifes, 1)
-        params = {
-            'half_life': half_lifes,
-            'num_history': all_features[..., 0:1],
-            'num_success': all_features[..., 1:2],
-            'num_failure': all_features[..., 2:3],
-        }
         
         
-        return x, params
+        
+        
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# class HLR(object):
+#     def __init__(self, theta, base=2, num_seq=1):
+#         self.theta = theta
+#         self.num_seq = num_seq
+#         self.base = base
+
+#     def simulate_path(self, x0, t, items=None): # TODO x0
+#         num_node = len(x0)
+#         num_seq, time_step = t.shape
+#         dt = np.diff(t).reshape(num_seq, -1)
+
+#         x = np.zeros((self.num_seq, time_step, num_node, 1))
+#         x[:, 0] += x0
+
+#         item_start = items[:, 0]
+#         all_feature = np.zeros((self.num_seq, num_node, 3))
+#         all_feature[np.arange(num_seq), item_start, 0] += 1
+#         all_feature[np.arange(num_seq), item_start, 2] += 1
+
+#         # DEBUG
+#         all_features = []
+#         half_lifes = []
+#         for i in range(1, time_step):
+#             cur_item = items[:, i] # [num_seq, ] 
+#             cur_dt = dt[:, i-1:i]
+
+#             half_life = hclip(self.base ** (all_feature @ self.theta))
+#             # half_life = self.base ** (all_feature @ self.theta)
+#             p_all = pclip(2. ** (-np.log(cur_dt)/half_life)) # TODO how to give the dt the right temperature
+#             p_item = p_all[np.arange(num_seq), cur_item]
+
+#             success = (p_item>=0.5)*1
+#             fail = (p_item<0.5)*1
+
+#             all_feature[np.arange(num_seq), cur_item, 0] += 1
+#             all_feature[np.arange(num_seq), cur_item, 1] += success
+#             all_feature[np.arange(num_seq), cur_item, 2] += fail
+#             # ipdb.set_trace()
+            
+#             tmp_feature = np.copy(all_feature)
+#             all_features.append(tmp_feature)
+#             half_lifes.append(half_life)
+            
+#             x[:, i, :, 0] += p_all
+#             # ipdb.set_trace()
+
+#         all_features = np.stack(all_features, 1).astype(int) # [num_seq, time_step-1, num_node, 3]
+#         half_lifes = np.stack(half_lifes, 1)
+#         params = {
+#             'half_life': half_lifes,
+#             'num_history': all_features[..., 0:1],
+#             'num_success': all_features[..., 1:2],
+#             'num_failure': all_features[..., 2:3],
+#         }
+        
+        
+#         return x, params
             
 
 

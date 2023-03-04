@@ -1,118 +1,30 @@
-/var/spool/slurmd/job2957465/slurm_script: /usr/bin/modulecmd: No such file or directory
-/var/spool/slurmd/job2957465/slurm_script: /usr/bin/modulecmd: No such file or directory
-[I 15:33:34.772 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
-[I 15:33:34.774 NotebookApp] Jupyter Notebook 6.4.12 is running at:
-[I 15:33:34.774 NotebookApp] http://slurm-bm-05:8887/?token=6ed8d5caf39f351dc7b70c45bb083fde228a3483030d1160
-[I 15:33:34.774 NotebookApp]  or http://127.0.0.1:8887/?token=6ed8d5caf39f351dc7b70c45bb083fde228a3483030d1160
-[I 15:33:34.774 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
-[C 15:33:34.799 NotebookApp] 
+/var/spool/slurmd/job3050573/slurm_script: /usr/bin/modulecmd: No such file or directory
+/var/spool/slurmd/job3050573/slurm_script: /usr/bin/modulecmd: No such file or directory
+[I 11:15:11.348 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
+[I 11:15:11.350 NotebookApp] Jupyter Notebook 6.4.12 is running at:
+[I 11:15:11.351 NotebookApp] http://slurm-bm-60:8887/?token=13377260e27a9be2aa4fcfecd621ebf0d33c755cb34ce85a
+[I 11:15:11.351 NotebookApp]  or http://127.0.0.1:8887/?token=13377260e27a9be2aa4fcfecd621ebf0d33c755cb34ce85a
+[I 11:15:11.351 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 11:15:11.384 NotebookApp] 
     
     To access the notebook, open this file in a browser:
-        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-34669-open.html
+        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-6756-open.html
     Or copy and paste one of these URLs:
-        http://slurm-bm-05:8887/?token=6ed8d5caf39f351dc7b70c45bb083fde228a3483030d1160
-     or http://127.0.0.1:8887/?token=6ed8d5caf39f351dc7b70c45bb083fde228a3483030d1160
-[I 15:34:58.153 NotebookApp] 302 GET /?token=6ed8d5caf39f351dc7b70c45bb083fde228a3483030d1160 (192.168.212.63) 0.680000ms
-[I 15:35:13.549 NotebookApp] 302 GET /?token=757f3ccaed0553d479f1f6c6dff245aff5d0ad5e04769ec9 (192.168.212.63) 4.070000ms
-[W 15:35:14.497 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[W 15:35:14.525 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 15:35:14.791 NotebookApp] Kernel started: 3cb9c61d-cfa4-4d7b-af44-48e2ee4b0c13, name: python3
-[I 15:35:15.030 NotebookApp] Kernel started: 45da0039-8845-42fa-887c-b9581f002036, name: python3
+        http://slurm-bm-60:8887/?token=13377260e27a9be2aa4fcfecd621ebf0d33c755cb34ce85a
+     or http://127.0.0.1:8887/?token=13377260e27a9be2aa4fcfecd621ebf0d33c755cb34ce85a
+[I 11:23:34.932 NotebookApp] 302 GET /?token=13377260e27a9be2aa4fcfecd621ebf0d33c755cb34ce85a (192.168.212.63) 0.480000ms
+[W 11:23:49.002 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
+[I 11:23:49.698 NotebookApp] Kernel started: 676f7996-4c44-4d52-a8f9-958e43a4f4ca, name: python3
+[W 11:23:49.884 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
+[I 11:23:50.396 NotebookApp] Kernel started: a451c113-a156-4b49-a75c-a1943984e545, name: python3
 [IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 291b3c6a-3b0c-4ede-8e13-8c050e7dda2f
+[IPKernelApp] WARNING | No such comm: 7ebfc338-684b-450e-a17b-7252c99bdd35
 [IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 051999f6-6622-4074-816f-d763dab4329c
-[I 15:37:16.646 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:37:16.648 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:39:15.699 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:39:15.701 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:41:16.440 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:41:16.442 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/nbformat/__init__.py:128: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
-  validate(nb)
-/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/notebook/services/contents/manager.py:353: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
-  validate_nb(model['content'])
-[I 15:44:09.554 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:44:09.556 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:44:11.741 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:44:11.742 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:44:18.249 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:44:18.251 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:44:27.605 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:44:27.605 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:44:31.624 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:44:31.626 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:45:14.722 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:45:14.723 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:53:14.716 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:53:14.719 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:57:15.793 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:57:15.796 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:58:40.555 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:58:40.557 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:58:51.127 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:58:51.128 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:58:56.760 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:58:56.763 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:59:14.687 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:59:14.689 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:59:16.017 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:59:16.018 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 15:59:18.396 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 15:59:18.397 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:05:14.690 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:05:14.697 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:05:17.927 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:05:17.928 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:07:14.699 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:07:14.701 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:09:20.054 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:09:20.059 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:13:15.231 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:13:15.233 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:14:16.032 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:14:16.035 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:15:14.685 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:15:14.687 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:15:22.146 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:15:22.267 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:15:33.670 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:15:33.671 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:15:37.299 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:15:37.301 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:15:47.384 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:15:47.385 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:15:49.464 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:15:49.465 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:17:14.671 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:17:14.673 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:25:20.294 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:25:20.297 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:29:14.658 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:29:14.660 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:29:43.207 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:29:43.209 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:29:44.299 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:29:44.300 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:30:26.941 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:30:26.943 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:31:41.620 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:31:41.622 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:31:47.437 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:31:47.438 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:31:49.489 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:31:49.492 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:31:54.062 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:31:54.063 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:34:22.946 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:34:23.519 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:37:59.541 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:37:59.544 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:38:28.942 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:38:28.945 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:38:33.291 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:38:33.291 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:38:37.823 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:38:37.826 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 16:39:14.637 NotebookApp] Saving file at /exp/Untitled.ipynb
-[W 16:39:14.639 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
+[IPKernelApp] WARNING | No such comm: c66a80b0-e99e-4dad-81ed-e3554e853075
+[I 11:25:49.610 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
+[W 11:25:49.613 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
+[I 11:27:49.623 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
+[W 11:27:49.627 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
+[I 13:24:03.232 NotebookApp] Starting buffering for a451c113-a156-4b49-a75c-a1943984e545:527fa7ac7034450e84f2aca1c3119f5b
+[I 13:25:50.158 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
+[W 13:25:50.167 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted

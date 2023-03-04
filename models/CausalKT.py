@@ -156,6 +156,11 @@ class CausalKT(BaseModel):
 
 
     def get_feed_dict(self, corpus, data, batch_start, batch_size, phase):
+        '''
+        Args:
+            corpus:
+            data: 
+        '''
         batch_end = min(len(data), batch_start + batch_size)
         real_batch_size = batch_end - batch_start
         skill_seqs = data['skill_seq'][batch_start: batch_start + real_batch_size].values

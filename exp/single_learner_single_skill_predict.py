@@ -102,13 +102,14 @@ if __name__ == '__main__':
         global_args.batch_size_multiGPU = global_args.batch_size
     logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
 
-    # Running
-    runner = KTRunner(global_args, logs)
+
     
-    # Model initialization
-    if model_name =='HLR':
+    # ----- Model initialization -----
+    if model_name == 'HLR':
         model = HLR(mode='train', device=global_args.device, logs=logs)
-    else: pass
+    elif model_name == 'OU':
+        model = VanillaOU(mode='train', device=global_args.device, logs=logs)
+        
     if global_args.load > 0:
         model.load_model(model_path=global_args.load_folder)
     logs.write_to_log_file(model)
@@ -122,7 +123,9 @@ if __name__ == '__main__':
             model, _ = utils.distribute_over_GPUs(global_args, model, num_GPU=global_args.num_GPU)
         else: 
             model = model.to(global_args.device)
-
+            
+    # Running
+    runner = KTRunner(global_args, logs)
     runner.train(model, corpus)
     logs.write_to_log_file('\nTest After Training: ' + runner.print_res(model, corpus))
 

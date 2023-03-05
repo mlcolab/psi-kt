@@ -1,6 +1,6 @@
 #!/bin/bash
 
-python learner_predict_junyi.py --dataset junyi \
+python learner_predict_junyi.py --dataset junyi/single_user_single_skill \
 --model_name CausalKT --load 0 \
 --max_step 200 --lr 5e-3 --l2 1e-5 --time_log 5 --gpu 0 \
 --decoder_type graphou_fixedgraph --latent_rep gt_fixedgraph \

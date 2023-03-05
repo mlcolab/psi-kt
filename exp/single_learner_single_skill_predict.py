@@ -92,7 +92,6 @@ if __name__ == '__main__':
         logs.write_to_log_file('Save corpus to {}'.format(corpus_path))
         pickle.dump(data, open(corpus_path, 'wb'))
     # Load data
-    ipdb.set_trace()
     corpus = load_corpus(logs, global_args) 
     
     # ----- logger information -----
@@ -121,10 +120,19 @@ if __name__ == '__main__':
     
     
     # ----- Model initialization -----
-    if model_name == 'HLR':
-        model = HLR(mode='train', device=global_args.device, logs=logs)
-    elif model_name == 'OU':
-        model = VanillaOU(mode='train', device=global_args.device, logs=logs)
+    if global_args.train_mode == 'train_time_split':
+        num_seq = corpus.n_users
+    else: num_seq = 1
+    if global_args.model_name == 'HLR':
+        model = HLR(mode=global_args.train_mode, 
+                    num_seq=num_seq,
+                    device=global_args.device, 
+                    logs=logs)
+    elif global_args.model_name == 'OU':
+        model = VanillaOU(mode=global_args.train_mode, 
+                          num_seq=num_seq,
+                          device=global_args.device, 
+                          logs=logs)
         
     if global_args.load > 0:
         model.load_model(model_path=global_args.load_folder)

@@ -106,6 +106,38 @@ class DataReader(object):
         self.data_df['dev'] = self.user_seq_df.iloc[dev_indices]
         
         self.data_df['train'] = residual_df.drop(dev_indices)
+
+    def gen_time_split_data(self, train_ratio, test_ratio):
+        '''
+        Split the train/test/dev based on time steps. 
+        E.g., for each learner, the first 70% interactions are training data, the next 10% validation data, and final 20% test data.
+        self.user_seq_df.keys(): ['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq',
+                                  'num_history', 'num_success', 'num_failure']
+        Args:
+            
+        '''
+        assert train_ratio + test_ratio <= 1
+        n_time_steps = len(self.user_seq_df['time_seq'][0])
+        self.data_df = {
+            'train': dict(),
+            'dev': dict(),
+            'test': dict(),
+        }
+        
+        train_size = math.ceil(n_time_steps * train_ratio)
+        test_size = math.ceil(n_time_steps * test_ratio)
+        dev_size = n_time_steps-train_size-test_size
+        
+        for key in self.user_seq_df.keys():
+            if key != 'user_id':
+                value = np.stack(self.user_seq_df[key].values)
+                self.data_df['train'][key] = value[:, :train_size].tolist()
+                self.data_df['test'][key] = value[:, -test_size:].tolist()
+                self.data_df['dev'][key] = value[:, train_size:dev_size+train_size].tolist()
+
+        for key in self.data_df.keys():     
+            self.data_df[key] = pd.DataFrame.from_dict(self.data_df[key], orient='columns')   
+            self.data_df[key]['user_id'] = self.user_seq_df['user_id']
         
     def show_columns(self):
         self.logs.write_to_log_file('Data columns:')

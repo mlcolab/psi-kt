@@ -116,7 +116,6 @@ class KTRunner(object):
         assert(corpus.data_df['train'] is not None)
         self._check_time(start=True)
         
-        
         ##### prepare training data (if needs quick test then specify overfit arguments in the args);
         ##### prepare the batches of training data; this is specific to different KT models (different models may require different features)
         if self.overfit > 0:
@@ -125,15 +124,14 @@ class KTRunner(object):
             epoch_train_data = copy.deepcopy(corpus.data_df['train'])
         epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) # Return a random sample of items from an axis of object.
         batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
-                
+
         try:
             for epoch in range(self.epoch):
                 gc.collect()
                 self._check_time()
-
+                
                 loss = self.fit(model, batches, epoch_train_data, epoch=epoch + 1)
-
-                del epoch_train_data
+                
                 training_time = self._check_time()
 
                 ##### output validation and write to logs
@@ -200,13 +198,8 @@ class KTRunner(object):
         """
         if model.module.optimizer is None:
             model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
-        
-        train_losses = defaultdict(list)
-
         model.train()
-        
-        
-        ipdb.set_trace()
+        train_losses = defaultdict(list)
         
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
             # # ipdb.set_trace()
@@ -224,6 +217,7 @@ class KTRunner(object):
                     
             batch = model.module.batch_to_gpu(batch)
             model.module.optimizer.zero_grad()
+            
             output_dict = model(batch)
             loss_dict = model.module.loss(batch, output_dict, metrics = self.metrics)
 

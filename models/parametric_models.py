@@ -1,42 +1,116 @@
-import collections
-import math
-import random
-import sys
+import collections, math, random, sys, os
 import numpy as np
 import pandas as pd
 from collections import defaultdict
 
+from tqdm import tqdm
+
+import scipy
 import scipy.constants
 import scipy.stats
 import scipy.optimize
 # from . import quadratic_variation
 
 import networkx as nx 
-import scipy
-import math
-from scipy import stats
 
 import ipdb
 import torch
 import torch.nn as nn
 
+from utils import utils
+from models.BaseModel import BaseModel
+
 def sigmoid(x):
   return 1 / (1 + np.exp(-x))
 
 
+class BaseLearnerModel(nn.Module):
+    def __init__(self, mode, device='cpu', logs=None):
+        super(BaseLearnerModel, self).__init__()
+        self.mode = mode
+        self.device = device
+        self.logs = logs
+        self.optimizer = None
+        
+        self.pred_evaluate_method = BaseModel.pred_evaluate_method
+        self.batch_to_gpu = BaseModel.batch_to_gpu
+        self.model_path = os.path.join(logs.args.log_path, 'Model/Model_{}.pt')
+        
+    ##### the following functions aim for consistency with KTRunner
+    def load_model(self, model_path=None):
+        if not os.path.exists(model_path):
+            raise Exception('Pre-trained model does not exist')
+        self.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+        self.eval()
+        self.logs.write_to_log_file('Load model from ' + model_path)
+    def actions_before_train(self):
+        total_parameters = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        self.logs.write_to_log_file('#params: %d' % total_parameters)
+    def customize_parameters(self):
+        weight_p, bias_p = [], []
+        # find parameters which require gradient
+        for name, p in filter(lambda x: x[1].requires_grad, self.named_parameters()): 
+            if 'bias' in name:
+                bias_p.append(p)
+            else:
+                weight_p.append(p)
+        optimize_dict = [{'params': weight_p}, {'params': bias_p, 'weight_decay': 0}]
+        return optimize_dict
+    def prepare_batches(self, corpus, data, batch_size, phase):
+        num_example = len(data)
+        total_batch = int((num_example + batch_size - 1) / batch_size)
+        assert(num_example > 0)
+        batches = []
+        for batch in tqdm(range(total_batch), leave=False, ncols=100, mininterval=1, desc='Prepare Batches'):
+            batches.append(self.get_feed_dict(corpus, data, batch * batch_size, batch_size, phase))
+        else: return batches
+    def get_feed_dict(self, corpus, data, batch_start, batch_size, phase):
+        batch_end = min(len(data), batch_start + batch_size)
+        real_batch_size = batch_end - batch_start
+        skill_seqs = data['skill_seq'][batch_start: batch_start + real_batch_size].values
+        label_seqs = data['correct_seq'][batch_start: batch_start + real_batch_size].values
+        time_seqs = data['time_seq'][batch_start: batch_start + real_batch_size].values
+        problem_seqs = data['problem_seq'][batch_start: batch_start + real_batch_size].values
+        num_history = data['num_history'][batch_start: batch_start + real_batch_size].values
+        num_success = data['num_success'][batch_start: batch_start + real_batch_size].values
+        num_failure = data['num_failure'][batch_start: batch_start + real_batch_size].values
+        user_id = data['user_id'][batch_start: batch_start + real_batch_size].values
+        feed_dict = {
+            'skill_seq': torch.from_numpy(utils.pad_lst(skill_seqs)),            # [batch_size, seq_len] # TODO isn't this -1?
+            'label_seq': torch.from_numpy(utils.pad_lst(label_seqs, value=-1)),  # [batch_size, seq_len]
+            'problem_seq': torch.from_numpy(utils.pad_lst(problem_seqs)),        # [batch_size, seq_len]
+            'time_seq': torch.from_numpy(utils.pad_lst(time_seqs)),              # [batch_size, seq_len]
+            'num_history': torch.from_numpy(utils.pad_lst(num_history)), 
+            'num_success': torch.from_numpy(utils.pad_lst(num_success)), 
+            'num_failure': torch.from_numpy(utils.pad_lst(num_failure)), 
+            'user_id': torch.from_numpy(user_id),
+        }
+        return feed_dict
+    def save_model(self, epoch, model_path=None):
+        if model_path is None:
+            model_path = self.model_path
+        model_path = model_path.format(epoch)
+        dir_path = os.path.dirname(model_path)
+        if not os.path.exists(dir_path):
+            os.mkdir(dir_path)
+        torch.save(self.state_dict(), model_path)
+        self.logs.write_to_log_file('Save model to ' + model_path)
+        
+        
 ##########################################################################################
 # OU Process
 ##########################################################################################
 
-class VanillaOU(nn.Module):
+class VanillaOU(BaseLearnerModel):
     def __init__(self, 
                  mean_rev_speed=None, 
                  mean_rev_level=None, 
                  vola=None, 
                  num_seq=1, 
                  num_node=1,
-                 mode='train', 
-                 device='cpu'):
+                 mode='train',
+                 device='cpu', 
+                 logs=None):
         '''
         Modified from 
             https://github.com/jwergieluk/ou_noise/tree/master/ou_noise
@@ -51,35 +125,37 @@ class VanillaOU(nn.Module):
             mode: can be 'training' or 'synthetic'
             device:  
         '''
-        
-        super(VanillaOU, self).__init__()
-        if mode == 'train': # TODO: for now it only considers parameters to optimize
-            speed = torch.rand((num_seq, 1), device=device).double()
-            # speed = torch.tensor(1e-5, device=device).double()
-            self.mean_rev_speed = nn.Parameter(speed, requires_grad=True)
-            
+        super().__init__(mode=mode, device=device, logs=logs)
+        if mode == 'train_split_learner': # TODO: for now it only considers parameters to optimize
+            speed = torch.rand((num_seq, 1), device=device)
             level = torch.rand((num_seq, 1), device=device)
-            self.mean_rev_level = nn.Parameter(level, requires_grad=True)
             vola = torch.rand((num_seq, 1), device=device)
+            
+            self.mean_rev_speed = nn.Parameter(speed, requires_grad=True)
+            self.mean_rev_level = nn.Parameter(level, requires_grad=True)
+            self.vola = nn.Parameter(vola, requires_grad=True)
+        
+        elif mode == 'train_split_time':
+            speed = torch.rand((num_seq, 1), device=device)
+            level = torch.rand((num_seq, 1), device=device)
+            vola = torch.rand((num_seq, 1), device=device)
+            
+            self.mean_rev_speed = nn.Parameter(speed, requires_grad=True)
+            self.mean_rev_level = nn.Parameter(level, requires_grad=True)
             self.vola = nn.Parameter(vola, requires_grad=True)
 
-            # level = torch.tensor(0.64, device=device)
-            # self.mean_rev_level = nn.Parameter(level, requires_grad=False)
-            # vola = torch.tensor(1e-3, device=device).double()
-            # self.vola = torch.relu(nn.Parameter(vola, requires_grad=False))
         elif mode == 'synthetic':
             assert mean_rev_speed is not None
             self.mean_rev_speed = mean_rev_speed
             self.mean_rev_level = mean_rev_level
             self.vola = vola
+            
         else:
             raise Exception('It is not a compatible mode')
             
         self.num_seq = num_seq
-        self.device = device
         assert self.mean_rev_speed >= 0
         assert self.vola >= 0
-        
 
     def variance(self, t, speed=None, vola=None):
         '''
@@ -146,12 +222,16 @@ class VanillaOU(nn.Module):
                 It should be the same for all nodes
             items: 
         Return: 
-            x_pred: [num_seq/bs, num_node, time_step-1]
+            x_pred: [num_seq/bs, num_node, time_step]
         """
+        ipdb.set_trace()
         assert len(t) > 0
         num_seq, time_step = t.shape
         num_node = x0.shape[1]
-
+        
+        if items == None:
+            items = torch.zeros_like(t, device=self.device)
+            
         dt = torch.diff(t).unsqueeze(1) 
         dt = torch.tile(dt, (1, num_node, 1)) # [bs, num_node, time-1]
         dt = torch.log(dt) # TODO to find the right temperature of time difference in different real-world datasets
@@ -162,33 +242,87 @@ class VanillaOU(nn.Module):
         x_last = x0 
         x_pred = []
         x_pred.append(x_last)
+        x_item_pred = []
+        x_item_pred.append(x0[torch.arange(0,num_seq), items[:,0]])
+        
         for i in range(1, time_step):
+            cur_item = items[:, i]
+            
             x_next = self.mean(x_last, dt[..., i-1])  # [bs, num_node]
             x_next = x_next + noise[..., i-1] * scale[..., i-1]
             x_pred.append(x_next)
             
+            x_pred_item = x_next[torch.arange(0,num_seq), cur_item] # [bs, ]
+            x_item_pred.append(x_pred_item)
+            
             x_last = x_next
         x_pred = torch.stack(x_pred, -1)
-        params = None
+        x_item_pred = torch.stack(x_item_pred, -1)
+        # ipdb.set_trace()
+        params = {
+            'x_original_item_pred': x_item_pred,        # [bs, times]
+            'x_original_all_pred': x_pred,              # [bs, num_node, times]
+            'x_item_pred': torch.sigmoid(x_item_pred),
+            'x_all_pred': torch.sigmoid(x_pred),
+        }
         
-        return x_pred, params
-    
+        return params
+            
+    def forward(self, feed_dict):
+        # skills = feed_dict['skill_seq']      # [batch_size, seq_len]
+        # problems = feed_dict['problem_seq']  # [batch_size, seq_len]
+        times = feed_dict['time_seq']        # [batch_size, seq_len]
+        labels = feed_dict['label_seq']      # [batch_size, seq_len]
+
+        bs, _ = labels.shape
+        self.num_seq = bs
+        
+        x0 = labels[:, :1]
+        outdict = self.simulate_path(x0=x0, t=times)
+        
+        outdict['prediction'] = outdict['x_item_pred']
+        outdict['label'] = labels
+        
+        # for p in model.parameters():
+        #     p.data.clamp_(0)
+        return outdict
+        
+    def loss(self, feed_dict, outdict, metrics=None):
+        losses = defaultdict(lambda: torch.zeros((), device=self.device))
+        loss_fn = torch.nn.BCELoss()
+        pred = outdict['prediction']
+        x_gt = outdict['label']
+        
+        bceloss = loss_fn(pred, x_gt.double())
+        losses['loss_total'] = bceloss
+        
+        if metrics != None:
+            pred = pred.detach().cpu().data.numpy()
+            gt = x_gt.detach().cpu().data.numpy()
+            evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
+        for key in evaluations.keys():
+            losses[key] = evaluations[key]
+            
+        losses['mean_rev_speed'] = self.mean_rev_speed.clone()
+        losses['mean_rev_level'] = self.mean_rev_level.clone()
+        losses['vola'] = self.vola.clone()
+        
+        return losses
     
     
 ##########################################################################################
 # HLR Model
 ##########################################################################################
 
-######################################## train HLR learner model
-
-class HLR(nn.Module):
+class HLR(BaseLearnerModel):
     def __init__(self, 
                  theta=None, 
-                 base=2, 
+                 base=2., 
                  num_seq=1, 
                  num_node=1, 
                  mode='train', 
-                 device='cpu'):
+                 device='cpu',
+                 logs=None):
         '''
         TODO:
             multiple nodes have bugs 
@@ -205,7 +339,7 @@ class HLR(nn.Module):
                 train the parameters theta given observed data.
             device: cpu or cuda to put all variables and train the model
         '''
-        super().__init__()
+        super().__init__(mode=mode, device=device, logs=logs)
         if mode == 'train':
             theta = torch.empty(1,3, device=device)
             theta = torch.nn.init.xavier_uniform_(theta)[0]
@@ -214,10 +348,10 @@ class HLR(nn.Module):
             self.theta = torch.tensor(theta, device=device).float()
         else:
             raise Exception('It is not a compatible mode')
-        self.mode = mode
+        
         self.num_seq = num_seq
         self.base = base
-        self.device = device
+        self.num_node = num_node
         
     @staticmethod
     def hclip(h):
@@ -264,27 +398,24 @@ class HLR(nn.Module):
             all_feature[torch.arange(0, num_seq), item_start, 2] += 1
             all_feature = all_feature.unsqueeze(-2).tile((1,1,time_step,1))
         else: 
-            all_feature = stats
-        all_feature = all_feature.float()
-            
-        # all_feature [num_seq/bs, num_node, num_time_step, 3]
+            all_feature = stats.double() # [num_seq/bs, num_node, num_time_step, 3]
 
         x_pred = []
         x_pred.append(x0)
         x_item_pred = []
+        x_item_pred.append(x0[torch.arange(0,num_seq), items[:,0]])
         half_lifes = []
+        half_lifes.append(torch.zeros_like(x0, device=self.device))
+        
         for i in range(1, time_step):
             cur_item = items[:, i] # [num_seq, ] 
             cur_dt = dt[..., i-1] # [bs, num_node]
             cur_feat = all_feature[:,:,i-1] # [bs, num_node, 3]
-            
-            # half_life = self.base ** (cur_feat @ self.theta)
+
             half_life = self.hclip(self.base ** (cur_feat @ self.theta))
             p_all = torch.sigmoid(self.base ** (-cur_dt/half_life)) # [bs, num_node]
             p_item = p_all[torch.arange(0,num_seq), cur_item] # [bs, ]
             
-            # print('hl: ', self.base ** (cur_feat @ self.theta))
-            # print('p power: ', (-cur_dt/half_life))
             if stats_cal_on_fly or self.mode=='synthetic':
                 success = nn.functional.gumbel_softmax(torch.log(p_item), hard=True) # TODO
                 success = success.unsqueeze(-1)
@@ -295,18 +426,22 @@ class HLR(nn.Module):
             half_lifes.append(half_life)
             x_item_pred.append(p_item)
             x_pred.append(p_all)
+            
         half_lifes = torch.stack(half_lifes, -1)
         x_pred = torch.stack(x_pred, -1)
         x_item_pred = torch.stack(x_item_pred, -1)
+
         params = {
-            'half_life': half_lifes,
-            'x_item_pred': x_item_pred,
-            'num_history': all_feature[..., 0:1],
+            # NOTE: the first element of the following values in outdict is not predicted
+            'half_life': half_lifes,               # [bs, num_node, times]
+            'x_item_pred': x_item_pred,            # [bs, times]
+            'x_all_pred': x_pred,                  # [bs, num_node, times]
+            'num_history': all_feature[..., 0:1],  # [bs, num_node, times, 1]
             'num_success': all_feature[..., 1:2],
             'num_failure': all_feature[..., 2:3],
         }
         
-        return x_pred, params
+        return params
         
     def iterate_update(self, inputs, n_iter, learning_rate=1e-3): 
         t_data, x_data, stats = inputs
@@ -326,12 +461,8 @@ class HLR(nn.Module):
 
             # dlp_dw = 2.*(p-x_gt)*(LN2**2)*p*(torch.log(torch.diff(t_data))/h)
             dlp_dw = 2.*(p-x_gt)*(LN2**2)*p*((torch.diff(t_data))/60/60/24/h)
-            # print('h: ', h)
-            # print('dlp_dw: ', dlp_dw)
             
             bceloss = loss_fn(p, x_gt.float())
-            print('previous theta: ', self.theta)
-            print('previous loss: ', bceloss)
             
             fcounts = defaultdict(int)                  
             for k in range(3):
@@ -345,9 +476,51 @@ class HLR(nn.Module):
 
                 # increment feature count for learning rate
                 fcounts[k] += 1
-            self.theta = torch.nn.functional.normalize(self.theta, p=1.0, dim = 0)
-            print(self.theta)
+            # self.theta = torch.nn.functional.normalize(self.theta, p=1.0, dim = 0)
+            # print(self.theta)
+            
+    def forward(self, feed_dict):
+        # skills = feed_dict['skill_seq']      # [batch_size, seq_len]
+        # problems = feed_dict['problem_seq']  # [batch_size, seq_len]
+        times = feed_dict['time_seq']        # [batch_size, seq_len]
+        labels = feed_dict['label_seq']      # [batch_size, seq_len]
 
+        bs, _ = labels.shape
+        self.num_seq = bs
+        
+        stats = torch.stack([feed_dict['num_history'], feed_dict['num_success'], feed_dict['num_failure']], dim=-1)
+        stats = stats.unsqueeze(1)
+        
+        x0 = labels[:, :1]
+        outdict = self.simulate_path(x0=x0, t=times, stats=stats)
+        
+        outdict['prediction'] = outdict['x_item_pred']
+        outdict['label'] = labels
+        
+        return outdict
+        
+    def loss(self, feed_dict, outdict, metrics=None):
+        losses = defaultdict(lambda: torch.zeros((), device=self.device))
+        loss_fn = torch.nn.BCELoss()
+        
+        p = outdict['x_item_pred']
+        x_gt = outdict['label']
+
+        bceloss = loss_fn(p, x_gt.double())
+        losses['loss_total'] = bceloss
+        
+        if metrics != None:
+            pred = outdict['x_item_pred'].detach().cpu().data.numpy()
+            gt = x_gt.detach().cpu().data.numpy()
+            evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
+        for key in evaluations.keys():
+            losses[key] = evaluations[key]
+            
+        losses['theta_0'] = self.theta.clone()[0]
+        losses['theta_1'] = self.theta.clone()[1]
+        losses['theta_2'] = self.theta.clone()[2]
+        
+        return losses
 
 
 

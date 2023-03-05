@@ -27,40 +27,57 @@ import ipdb
 
 def load_corpus(logs, args):
     '''
-    agrs: the global arguments
     Load corupus from the corpus path, and split the data into k folds. 
+    Args:
+        logs:
+        args:
     '''
-
     corpus_path = os.path.join(args.data_dir, args.dataset, 'Corpus_{}.pkl'.format(args.max_step))
     logs.write_to_log_file('Load corpus from {}'.format(corpus_path))
     with open(corpus_path, 'rb') as f:
         corpus = pickle.load(f)
-    corpus.gen_fold_data(args.fold)
-    logs.write_to_log_file('# Train: {}, # Dev: {}, # Test: {}'.format(
-            len(corpus.data_df['train']), len(corpus.data_df['dev']), len(corpus.data_df['test'])
-        ))
+    if args.train_mode == 'train_split_learner':
+        corpus.gen_fold_data(args.fold)
+        logs.write_to_log_file('# Training mode splits LEARNER')
+        logs.write_to_log_file('# Train: {}, # Dev: {}, # Test: {}'.format(
+                len(corpus.data_df['train']), len(corpus.data_df['dev']), len(corpus.data_df['test'])
+            ))
+    if args.train_mode == 'train_split_time':
+        corpus.gen_time_split_data(args.train_time_ratio, args.test_time_ratio)
+        logs.write_to_log_file('# Training mode splits TIME')
+        logs.write_to_log_file('# Train: {}, # Dev: {}, # Test: {}'.format(
+                len(corpus.data_df['train']), len(corpus.data_df['dev']), len(corpus.data_df['test'])
+            ))
+        
+    ipdb.set_trace()
+    
+
     return corpus
 
 
 if __name__ == '__main__':
-    init_parser = argparse.ArgumentParser(description='Model')
-    init_parser.add_argument('--model_name', type=str, default='HLR', help='Choose a model to run.')
-    # 
-    init_parser.add_argument('--num_node', type=int, default=1, help='')
-    init_parser.add_argument('--num_seq', type=int, default=1, help='')
-    
-    init_parser.add_argument('--base', type=float, default=2., help='')
-
-    init_args, init_extras = init_parser.parse_known_args()
-    model_name = init_args.model_name
-    # model = eval('{0}.{0}'.format(model_name))
-
-    # ----- args -----
+    # ----- add aditional arguments for this exp. -----
     parser = argparse.ArgumentParser(description='Global')
+    # init_parser = argparse.ArgumentParser(description='Model')
+    parser.add_argument('--model_name', type=str, help='Choose a model to run.')
+    
+    # Training options
+    parser.add_argument('--train_mode', type=str, default='train_split_time', )
+    parser.add_argument('--train_time_ratio', type=float, default=0.4, help='')
+    parser.add_argument('--test_time_ratio', type=float, default=0.5, help='')
+    
+    # general
+    parser.add_argument('--num_node', type=int, default=1, help='')
+    parser.add_argument('--num_seq', type=int, default=1, help='')
+    
+    # HLR 
+    parser.add_argument('--base', type=float, default=2., help='')
+    # OU 
+    
+
     parser = arg_parser.parse_args(parser)
     
     global_args, extras = parser.parse_known_args() 
-    global_args.model_name = model_name
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -70,28 +87,28 @@ if __name__ == '__main__':
     corpus_path = os.path.join(global_args.data_dir, global_args.dataset, 'Corpus_{}.pkl'.format(global_args.max_step))
     if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
         data = data_loader.DataReader(global_args, logs)
-        data.gen_fold_data(k=0)
+        # data.gen_fold_data(k=0)
         data.show_columns() 
         logs.write_to_log_file('Save corpus to {}'.format(corpus_path))
         pickle.dump(data, open(corpus_path, 'wb'))
-
+    # Load data
+    ipdb.set_trace()
+    corpus = load_corpus(logs, global_args) 
+    
     # ----- logger information -----
-    log_args = [init_args.model_name, global_args.dataset, str(global_args.random_seed)]
+    log_args = [global_args.model_name, global_args.dataset, str(global_args.random_seed)]
 
     logs.write_to_log_file('-' * 45 + ' BEGIN: ' + utils.get_time() + ' ' + '-' * 45)
     exclude = ['check_epoch', 'log_file', 'model_path', 'path', 'pin_memory',
                'regenerate', 'sep', 'train', 'verbose']
     logs.write_to_log_file(utils.format_arg_str(global_args, exclude_lst=exclude))
     
-    # Random seed
+    # ----- random seed -----
     torch.manual_seed(global_args.random_seed)
     torch.cuda.manual_seed(global_args.random_seed)
     np.random.seed(global_args.random_seed)
-
-    # Load data
-    corpus = load_corpus(logs, global_args) 
     
-    # GPU & CUDA
+    # ----- GPU & CUDA -----
     if global_args.device.type != "cpu":
         if global_args.GPU_to_use is not None:
             torch.cuda.set_device(global_args.GPU_to_use)
@@ -101,8 +118,7 @@ if __name__ == '__main__':
         global_args.num_GPU = None
         global_args.batch_size_multiGPU = global_args.batch_size
     logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
-
-
+    
     
     # ----- Model initialization -----
     if model_name == 'HLR':

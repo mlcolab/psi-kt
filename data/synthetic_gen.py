@@ -14,7 +14,7 @@ import argparse
 import datetime
 import torch
 
-from models.parametric_models import *
+from knowledge_tracing.models.learner_model import *
 from utils.visualize import *
 # rom data.data_loader import KTData
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 python single_learner_single_skill_predict.py --dataset junyi/single_user_single_skill \
---model_name OU --load 0 \
+--model_name PPE --load 0 \
 --max_step 200 --lr 5e-3 --l2 1e-5 --time_log 5 --gpu 0 \
 --epoch 200 --overfit 16 --emb_size 16 --time_lag 50 --emb_size 8 \
 --batch_size 64 --validate

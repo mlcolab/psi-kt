@@ -256,14 +256,6 @@ class KTRunner(object):
         model.eval()
         return self.logs.train_results['loss_total'][-1]
 
-
-
-
-
-
-
-
-
     
     
 
@@ -278,6 +270,7 @@ class KTRunner(object):
             prediction, label = outdict['prediction'], outdict['label']
             predictions.extend(prediction.detach().cpu().data.numpy())
             labels.extend(label.detach().cpu().data.numpy())
+        # ipdb.set_trace()
         return np.array(predictions), np.array(labels)
 
     def evaluate(self, model, corpus, set_name):  # evaluate the results for an input set
@@ -289,6 +282,7 @@ class KTRunner(object):
             concat_label.append(label[:length])
         concat_pred = np.concatenate(concat_pred)
         concat_label = np.concatenate(concat_label)
+        # ipdb.set_trace()
         return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics)
 
     def eva_termination(self, model):

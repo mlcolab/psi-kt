@@ -15,7 +15,7 @@ from data import data_loader
 from models import *
 from KTRunner import *
 from utils import utils, arg_parser, logger
-from models.parametric_models import HLR, PPE, VanillaOU
+from knowledge_tracing.models.learner_model import HLR, PPE, VanillaOU
 
 # import torch.distributed as dist
 # import torch.multiprocessing as mp
@@ -48,9 +48,6 @@ def load_corpus(logs, args):
         logs.write_to_log_file('# Train: {}, # Dev: {}, # Test: {}'.format(
                 len(corpus.data_df['train']), len(corpus.data_df['dev']), len(corpus.data_df['test'])
             ))
-        
-    ipdb.set_trace()
-    
 
     return corpus
 
@@ -73,6 +70,8 @@ if __name__ == '__main__':
     # HLR 
     parser.add_argument('--base', type=float, default=2., help='')
     # OU 
+    # PPE
+    parser.add_argument('--ppe_lr', type=float, default=0.2, help='')
     
 
     parser = arg_parser.parse_args(parser)
@@ -120,7 +119,7 @@ if __name__ == '__main__':
     
     
     # ----- Model initialization -----
-    if global_args.train_mode == 'train_time_split':
+    if global_args.train_mode == 'train_split_time':
         num_seq = corpus.n_users
     else: num_seq = 1
     if global_args.model_name == 'HLR':
@@ -133,6 +132,13 @@ if __name__ == '__main__':
                           num_seq=num_seq,
                           device=global_args.device, 
                           logs=logs)
+    elif global_args.model_name == 'PPE':
+        model = PPE(mode=global_args.train_mode, 
+                    lr=global_args.ppe_lr,
+                    num_seq=num_seq,
+                    device=global_args.device, 
+                    logs=logs)
+        
         
     if global_args.load > 0:
         model.load_model(model_path=global_args.load_folder)

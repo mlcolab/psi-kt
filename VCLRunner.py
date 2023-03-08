@@ -6,57 +6,86 @@ import torch.nn.functional as F
 
 import utils
 import ipdb
+from KTRunner import *
 
 
-class Appr(object):
-    """ Class implementing GVCL approach"""
+class VCLRunner(KTRunner):
+    """ 
+    Class implementing GVCL approach
+    """
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=100,lamb = 1, beta = 1, use_film = False,args=None):
-        self.model=model
-        self.model_old=None
-        self.fisher=None
-
-        self.nepochs=nepochs
-        self.sbatch=sbatch
-        self.lr=lr
-        self.lr_min=lr_min
-        self.lr_factor=lr_factor
-        self.lr_patience=lr_patience
-        self.clipgrad=clipgrad
-
-        self.ce=torch.nn.CrossEntropyLoss()
-        self.optimizer=self._get_optimizer()
-
-        self.beta = beta
-        self.lamb = lamb
-        # if len(args.parameter)>=1:
-        #     params=args.parameter.split(',')
-        #     self.beta= float(params[0])
-        #     self.lamb= float(params[1])
-            
+    def __init__(self, args, logs,):
+        '''
+        Args:
+            args:
+            logs
+        '''
+        # model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,
+        # lr_factor=3,lr_patience=5,clipgrad=100,lamb = 1, beta = 1, use_film = False):
+        super().__init__(args=args, logs=logs)
         self.equalize_epochs = True
-        self.exp = args.experiment
-
-        return
-
+        
+        # self.model=model
+        # self.model_old=None
+        # self.fisher=None
+        # self.nepochs=nepochs
+        # self.sbatch=sbatch
+        # self.lr=lr
+        # self.lr_min=lr_min
+        # self.lr_factor=lr_factor
+        # self.lr_patience=lr_patience
+        # self.clipgrad=clipgrad
+        # self.beta = beta
+        # self.lamb = lamb
+        # self.exp = args.experiment
+        
+        # self.ce=torch.nn.CrossEntropyLoss()
+        # self.optimizer=self._get_optimizer()
+            
     def _get_optimizer(self, parameters = None, lr=None):
         if lr is None: lr=self.lr
         if parameters is None: parameters = self.model.parameters()
         return torch.optim.Adam(parameters, lr = self.lr)
 
-    def train(self,t,xtrain,ytrain,xvalid,yvalid):
-        lr=self.lr
+
+    def train(self, model, corpus):
+        '''
+        Args:
+            model: KT model instance with parameters to train
+            corpus: data
+        '''
+        
+        assert(corpus.data_df['train'] is not None)
+        self._check_time(start=True)
+        
         ipdb.set_trace()
 
-        parameters = self.model.get_task_specific_parameters(t)
-        self.optimizer=self._get_optimizer(parameters, lr)
+        ##### prepare training data (if needs quick test then specify overfit arguments in the args);
+        ##### prepare the batches of training data; this is specific to different KT models (different models may require different features)
+        if self.overfit > 0:
+            epoch_train_data = copy.deepcopy(corpus.data_df['train'])[:self.overfit] # Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
+        else:
+            epoch_train_data = copy.deepcopy(corpus.data_df['train'])
+        epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) # Return a random sample of items from an axis of object.
+        batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
 
-        if 'chasy' not in self.exp:
-            #join train and validation sets because gvcl/vcl does not use early stopping
-            #except for chasy experiments where the validation set is very large compared to the test set
-            #this doesn't make a major difference - 1% max
-            xtrain = torch.cat([xtrain, xvalid], dim = 0)
-            ytrain = torch.cat([ytrain, yvalid], dim = 0)
+        ipdb.set_trace()
+        try:
+            for t in range():
+                if t != 0:
+                    #update posterior to prior for everything except the first task
+                    self.model.add_task_body_params([t-1])
+            
+
+
+        except KeyboardInterrupt:
+            self.logs.write_to_log_file("Early stop manually")
+            exit_here = input("Exit completely without evaluation? (y/n) (default n):")
+            if exit_here.lower().startswith('y'):
+                self.logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)
+                exit(1)
+
+
 
 
         if t != 0:

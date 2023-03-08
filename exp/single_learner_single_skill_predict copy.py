@@ -14,10 +14,8 @@ import builtins
 from data import data_loader
 from models import *
 from KTRunner import *
-from VCLRunner import *
 from utils import utils, arg_parser, logger
 from models.learner_model import HLR, PPE, VanillaOU
-from models.new_learner_model import *
 
 # import torch.distributed as dist
 # import torch.multiprocessing as mp
@@ -62,7 +60,7 @@ if __name__ == '__main__':
     
     # Training options
     parser.add_argument('--train_mode', type=str, default='train_split_time', )
-    parser.add_argument('--train_time_ratio', type=float, default=0.2, help='')
+    parser.add_argument('--train_time_ratio', type=float, default=0.4, help='')
     parser.add_argument('--test_time_ratio', type=float, default=0.5, help='')
     
     # general
@@ -74,8 +72,6 @@ if __name__ == '__main__':
     # OU 
     # PPE
     parser.add_argument('--ppe_lr', type=float, default=0.2, help='')
-    # SSSM
-    parser.add_argument('hidden_dim', type=int, default=8, help='')
     
 
     parser = arg_parser.parse_args(parser)
@@ -127,41 +123,27 @@ if __name__ == '__main__':
         num_seq = corpus.n_users
     else: num_seq = 1
     if global_args.model_name == 'HLR':
-        model = HLR(
-            mode=global_args.train_mode, 
-            num_seq=num_seq,
-            device=global_args.device, 
-            logs=logs
-        )
+        model = HLR(mode=global_args.train_mode, 
+                    num_seq=num_seq,
+                    device=global_args.device, 
+                    logs=logs)
     elif global_args.model_name == 'OU':
-        model = VanillaOU(
-            mode=global_args.train_mode, 
-            num_seq=num_seq,
-            device=global_args.device, 
-            logs=logs
-        )
+        model = VanillaOU(mode=global_args.train_mode, 
+                          num_seq=num_seq,
+                          device=global_args.device, 
+                          logs=logs)
     elif global_args.model_name == 'PPE':
-        model = PPE(
-            mode=global_args.train_mode, 
-            lr=global_args.ppe_lr,
-            num_seq=num_seq,
-            device=global_args.device, 
-            logs=logs
-        )
-    elif global_args.model_name == 'SwitchingNLDS':
-        model = create_model(
-            hidden_dim_s=3,
-            hidden_dim_z=1,
-            observation_dim=1,
-            device=global_args.device, 
-            logs=logs,   
-        )
+        model = PPE(mode=global_args.train_mode, 
+                    lr=global_args.ppe_lr,
+                    num_seq=num_seq,
+                    device=global_args.device, 
+                    logs=logs)
         
         
     if global_args.load > 0:
         model.load_model(model_path=global_args.load_folder)
     logs.write_to_log_file(model)
-    # model = model.double() # ??? when to use double
+    model = model.double()
     # model.apply(model.init_weights)
     model.actions_before_train()
    
@@ -174,7 +156,6 @@ if __name__ == '__main__':
             
     # Running
     runner = KTRunner(global_args, logs)
-    # runner = VCLRunner(global_args, logs)
     runner.train(model, corpus)
     logs.write_to_log_file('\nTest After Training: ' + runner.print_res(model, corpus))
 

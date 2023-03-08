@@ -12,6 +12,7 @@ import builtins
 from data import data_loader
 from models import *
 from KTRunner import *
+from VCLRunner import *
 from utils import utils, arg_parser, logger
 
 import torch.distributed as dist
@@ -22,7 +23,10 @@ import ipdb
 # https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
 
 
-def main(args, model, logs, fun=None):
+def main(args, 
+         model, 
+         logs, 
+         fun=None):
     '''
     Args:
         args:
@@ -75,7 +79,8 @@ def main(args, model, logs, fun=None):
     #     builtins.print = print_pass
 
     # Running
-    runner = KTRunner(args, logs)
+    # runner = KTRunner(args, logs)
+    runner = VCLRunner(args, logs)
 
     # if args.distributed:
     #     mp.spawn(fun, nprocs=args.num_GPU, args=(args, corpus, runner, model, logs)) 

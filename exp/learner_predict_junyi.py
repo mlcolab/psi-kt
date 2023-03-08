@@ -14,6 +14,7 @@ import builtins
 from data import data_loader
 from models import *
 from KTRunner import *
+from VCLRunner import *
 from utils import utils, arg_parser, logger
 
 import torch.distributed as dist
@@ -50,7 +51,8 @@ def main(args, model, logs, fun=None):
     logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
 
     # Running
-    runner = KTRunner(args, logs)
+    # runner = KTRunner(args, logs)
+    runner = VCLRunner(args, logs)
     
     if args.load > 0:
         model.load_model()

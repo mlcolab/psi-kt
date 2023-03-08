@@ -102,7 +102,15 @@ class KTRunner(object):
         result = self.evaluate(model, corpus, set_name)
         res_str = utils.format_metric(result)
         return res_str
-    
+
+
+    def _eva_termination(self, model):
+        valid = list(self.logs.valid_results[self.metrics[0]])
+        if len(valid) > 20 and utils.non_increasing(valid[-10:]):
+            return True
+        elif len(valid) - valid.index(max(valid)) > 20:
+            return True
+        return False
     
 
 
@@ -150,7 +158,7 @@ class KTRunner(object):
                                 
                     if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
                         model.module.save_model(epoch=epoch)
-                    if self.eva_termination(model) and self.early_stop:
+                    if self._eva_termination(model) and self.early_stop:
                         self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
                         break
                 self.logs.draw_loss_curves()
@@ -285,10 +293,3 @@ class KTRunner(object):
         # ipdb.set_trace()
         return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics)
 
-    def eva_termination(self, model):
-        valid = list(self.logs.valid_results[self.metrics[0]])
-        if len(valid) > 20 and utils.non_increasing(valid[-10:]):
-            return True
-        elif len(valid) - valid.index(max(valid)) > 20:
-            return True
-        return False

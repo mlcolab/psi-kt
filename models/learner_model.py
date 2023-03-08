@@ -172,6 +172,8 @@ class VanillaOU(BaseLearnerModel):
         vola = vola if vola is not None else self.vola
         speed = speed.unsqueeze(-1)
         vola = vola.unsqueeze(-1)
+        if (vola * vola * (1.0 - torch.exp(- 2.0 * speed * t)) / (2 * speed + 1e-6)).isnan().sum() > 0:
+            ipdb.set_trace()
         return vola * vola * (1.0 - torch.exp(- 2.0 * speed * t)) / (2 * speed + 1e-6)
 
     def std(self, t, speed=None, vola=None):
@@ -241,7 +243,7 @@ class VanillaOU(BaseLearnerModel):
         if self.mode == 'train_split_time':
             batch_speed = torch.relu(self.mean_rev_speed[user_id]) + 1e-6 # TODO 
             batch_level = self.mean_rev_level[user_id]
-            batch_vola = self.vola[user_id]
+            batch_vola = torch.relu(self.vola[user_id]) + 1e-6
         else: 
             batch_speed = None
             batch_level = None
@@ -307,8 +309,8 @@ class VanillaOU(BaseLearnerModel):
         loss_fn = torch.nn.BCELoss()
         pred = outdict['prediction']
         x_gt = outdict['label']
-        ipdb.set_trace()
-        bceloss = loss_fn(pred, x_gt.double())
+        # ipdb.set_trace()
+        bceloss = loss_fn(pred, x_gt.float())
         losses['loss_total'] = bceloss
         
         if metrics != None:
@@ -419,7 +421,7 @@ class HLR(BaseLearnerModel):
             all_feature[torch.arange(0, num_seq), item_start, 2] += 1
             all_feature = all_feature.unsqueeze(-2).tile((1,1,time_step,1))
         else: 
-            all_feature = stats.double() # [num_seq/bs, num_node, num_time_step, 3]
+            all_feature = stats.float() # [num_seq/bs, num_node, num_time_step, 3]
         if self.mode == 'train_split_time':
             batch_theta = self.theta[user_id]
             
@@ -531,7 +533,7 @@ class HLR(BaseLearnerModel):
         p = outdict['x_item_pred']
         x_gt = outdict['label']
 
-        bceloss = loss_fn(p, x_gt.double())
+        bceloss = loss_fn(p, x_gt.float())
         losses['loss_total'] = bceloss
         
         if metrics != None:
@@ -581,55 +583,68 @@ class PPE(BaseLearnerModel):
             self.mean_rev_level = nn.Parameter(level, requires_grad=True)
             self.vola = nn.Parameter(vola, requires_grad=True)
         elif mode == 'train_split_time':
-            speed = torch.rand((num_seq, 1), device=device)
-            level = torch.rand((num_seq, 1), device=device)
-            vola = torch.rand((num_seq, 1), device=device)
-            
-            self.mean_rev_speed = nn.Parameter(speed, requires_grad=True)
-            self.mean_rev_level = nn.Parameter(level, requires_grad=True)
-            self.vola = nn.Parameter(vola, requires_grad=True)
+            x = torch.rand((num_seq, 1), device=device)
+            b = torch.rand((num_seq, 1), device=device)
+            m = torch.rand((num_seq, 1), device=device)
+            tau = torch.rand((num_seq, 1), device=device)
+            s = torch.rand((num_seq, 1), device=device)
+
+            self.variable_x = nn.Parameter(x, requires_grad=True)
+            self.variable_b = nn.Parameter(b, requires_grad=True)
+            self.variable_m = nn.Parameter(m, requires_grad=True)
+            self.variable_tau = nn.Parameter(tau, requires_grad=True)
+            self.variable_s = nn.Parameter(s, requires_grad=True)
         elif mode == 'synthetic':
-            self.lr = lr
-            # self.dr = dr
-            self.num_seq = num_seq
             self.variable_x = variable_x
             self.variable_b = variable_b 
             self.variable_m = variable_m
             self.variable_tau = variable_tau
             self.variable_s = variable_s
         
+        self.lr = lr
+        self.num_seq = num_seq
+        self.num_node = num_node
+        
 
-    def simulate_path(self, x0, t, items=None, stats=None, user_id=None): 
+    def simulate_path(self, x0, t, items=None, stats=None, user_id=None, stats_cal_on_fly=False): 
         '''
         Args:
-            x0:
+            x0: shape[num_seq/bs, num_node]
             t: 
         '''
-        ipdb.set_trace()
         eps = 1e-6
-        num_node = len(x0)
+        num_node = x0.shape[-1]
         num_seq, time_step = t.shape
+        
         dt = torch.diff(t).reshape(num_seq, -1)
+        
+        if items == None:
+            items = torch.zeros_like(t, device=self.device)
+        item_start = items[:, 0]
+        if stats_cal_on_fly or self.mode=='synthetic':
+            all_feature = torch.zeros((num_seq, num_node, 3), device=self.device)
+            all_feature[torch.arange(0, num_seq), item_start, 0] += 1
+            all_feature[torch.arange(0, num_seq), item_start, 2] += 1
+            all_feature = all_feature.unsqueeze(-2).tile((1,1,time_step,1))
+        else: 
+            all_feature = stats.float() # [num_seq/bs, num_node, num_time_step, 3]
 
-        x = np.zeros((self.num_seq, time_step, num_node, 1))
-        x[:, 0] += x0
-
-        init_item = items[:, 0]
-        all_feature = np.zeros((self.num_seq, num_node, 3)) # [all_repeat, num_success, num_failure]
-        all_feature[np.arange(num_seq), init_item, 0] += 1 
-        all_feature[np.arange(num_seq), init_item, 2] += 1
-
-        max_items_repeat = [max(collections.Counter(items[i]).values()) for i in range(num_seq)]
+        x_pred = []
+        x_pred.append(x0)
+        
+        ipdb.set_trace()
+        max_items_repeat = [torch.max(torch.bincount(items[i])) for i in range(num_seq)]
         max_item_repeat = max(max_items_repeat)
 
-        items_time_seq = np.zeros((self.num_seq, num_node, max_item_repeat))
-        items_time_seq[np.arange(num_seq), init_item, 0] += t[:, 0]
+        items_time_seq = torch.zeros((self.num_seq, num_node, max_item_repeat), device=self.device)
+        items_time_seq[torch.arange(0, num_seq), item_start, 0] += t[:, 0]
 
         all_features = []
         drs = []
         for i in range(1, time_step):
+            ipdb.set_trace()
             cur_item = items[:, i] # [num_seq, ] 
-            cur_item_repeat = all_feature[np.arange(num_seq), cur_item, 0].astype(np.int)
+            cur_item_repeat = all_feature[torch.arange(num_seq), cur_item, 0].astype(torch.int)
             
             # put current time t in items_time_seq
             cur_t = t[:, i]
@@ -637,25 +652,24 @@ class PPE(BaseLearnerModel):
             
 
             # for PPE part 
-
             # - small d (decay)
-            cur_item_times = items_time_seq[np.arange(num_seq), cur_item]
-            lags = np.diff(cur_item_times)
+            cur_item_times = items_time_seq[torch.arange(0, num_seq), cur_item]
+            lags = torch.diff(cur_item_times)
             lag_mask = (lags>0)
-            dn = np.sum(1/np.log(abs(lags) + np.e) * lag_mask, -1) * (1/(cur_item_repeat+eps))
+            dn = torch.sum(1/torch.log(abs(lags) + np.e) * lag_mask, -1) * (1/(cur_item_repeat+eps))
             dn = self.variable_b + self.variable_m * dn
             
             
             # - big T
-            small_t = np.expand_dims(cur_t, -1) - cur_item_times
+            small_t = cur_t.unsqueeze(-1) - cur_item_times
             mask1 = (cur_item_times!=0)
             small_t *= mask1
-            big_t = np.power(small_t, self.variable_x)/(np.sum(np.power(small_t, self.variable_x), 1, keepdims=True) + 1e-6)
-            big_t = np.sum(big_t * small_t, 1)
+            big_t = torch.power(small_t, self.variable_x)/(torch.sum(torch.power(small_t, self.variable_x), 1, keepdims=True) + 1e-6)
+            big_t = torch.sum(big_t * small_t, 1)
 
             # ipdb.set_trace()
             big_t_mask = (big_t!=0)
-            mn = np.power((cur_item_repeat+1), self.lr) * np.power(big_t+eps, -dn) * big_t_mask
+            mn = torch.power((cur_item_repeat+1), self.lr) * torch.power(big_t+eps, -dn) * big_t_mask
             pn = 1/(1 + np.exp((self.variable_tau - mn)/self.variable_s))
 
             success = (pn>=0.5)*1
@@ -711,7 +725,7 @@ class PPE(BaseLearnerModel):
         p = outdict['x_item_pred']
         x_gt = outdict['label']
 
-        bceloss = loss_fn(p, x_gt.double())
+        bceloss = loss_fn(p, x_gt.float())
         losses['loss_total'] = bceloss
         
         if metrics != None:

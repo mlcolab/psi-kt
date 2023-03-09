@@ -172,8 +172,7 @@ class VanillaOU(BaseLearnerModel):
         vola = vola if vola is not None else self.vola
         speed = speed.unsqueeze(-1)
         vola = vola.unsqueeze(-1)
-        if (vola * vola * (1.0 - torch.exp(- 2.0 * speed * t)) / (2 * speed + 1e-6)).isnan().sum() > 0:
-            ipdb.set_trace()
+        
         return vola * vola * (1.0 - torch.exp(- 2.0 * speed * t)) / (2 * speed + 1e-6)
 
     def std(self, t, speed=None, vola=None):
@@ -237,20 +236,21 @@ class VanillaOU(BaseLearnerModel):
         assert len(t) > 0
         num_seq, time_step = t.shape
         num_node = x0.shape[1]
+        eps = 1e-6
         
         if items == None:
             items = torch.zeros_like(t, device=self.device)
         if self.mode == 'train_split_time':
-            batch_speed = torch.relu(self.mean_rev_speed[user_id]) + 1e-6 # TODO 
+            batch_speed = torch.relu(self.mean_rev_speed[user_id]) + eps # TODO 
             batch_level = self.mean_rev_level[user_id]
-            batch_vola = torch.relu(self.vola[user_id]) + 1e-6
+            batch_vola = torch.relu(self.vola[user_id]) + eps
         else: 
             batch_speed = None
             batch_level = None
             batch_vola = None
             
         dt = torch.diff(t).unsqueeze(1) 
-        dt = torch.tile(dt, (1, num_node, 1))/60/60/24 # [bs, num_node, time-1]
+        dt = torch.tile(dt, (1, num_node, 1))/60/60/24 + eps # [bs, num_node, time-1]
         # dt = torch.log(dt) # TODO to find the right temperature of time difference in different real-world datasets
 
         scale = self.std(dt, speed=batch_speed, vola=batch_vola) # [bs, num_node, t-1]
@@ -312,7 +312,7 @@ class VanillaOU(BaseLearnerModel):
         # ipdb.set_trace()
         bceloss = loss_fn(pred, x_gt.float())
         losses['loss_total'] = bceloss
-        
+        # ipdb.set_trace()
         if metrics != None:
             pred = pred.detach().cpu().data.numpy()
             gt = x_gt.detach().cpu().data.numpy()

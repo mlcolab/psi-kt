@@ -158,9 +158,9 @@ class KTRunner(object):
                                 
                     if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
                         model.module.save_model(epoch=epoch)
-                    if self._eva_termination(model) and self.early_stop:
-                        self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
-                        break
+                    # if self._eva_termination(model) and self.early_stop:
+                    #     self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
+                    #     break
                 self.logs.draw_loss_curves()
 
         except KeyboardInterrupt:

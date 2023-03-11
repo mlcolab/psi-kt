@@ -48,6 +48,7 @@ import ipdb
 
 from models.learner_model import BaseLearnerModel
 from utils.utils import ConfigDict
+from models.BaseModel import BaseModel
 
 
 def construct_initial_state_distribution(
@@ -84,7 +85,7 @@ def construct_initial_state_distribution(
     z0_mean = torch.empty(1, latent_dim, device=device)
     z0_mean = torch.nn.init.xavier_uniform_(z0_mean)[0]
     z0_mean = Parameter(z0_mean, requires_grad=True)
-    # ipdb.set_trace()
+
     if use_triangular_cov:
         m = torch.empty(int(latent_dim * (latent_dim + 1) / 2), 1, device=device)
         m = torch.nn.init.xavier_uniform_(m)
@@ -196,9 +197,10 @@ class ContinuousStateTransition(nn.Module):
         eps = 1e-6
         if 'OU' in dynamic_model:
             assert(higher_tensor != None)
+            # ipdb.set_trace()
             sampled_s, time_seq = higher_tensor
             time_diff = torch.diff(time_seq, dim=1)/60/60/24 + eps # [bs*n, num_steps, 1]
-            sampled_s = sampled_s[:,1:] # [bs*n, num_steps, 1]
+            sampled_s = sampled_s[:, 1:] if num_steps > 1 else sampled_s# [bs*n, num_steps, 1]
             sampled_alpha = torch.relu(sampled_s[..., 0:1]) + eps 
             sampled_mean = sampled_s[..., 1:2]
             sampled_vola = torch.relu(sampled_s[..., 2:3]) + eps
@@ -221,8 +223,10 @@ class ContinuousStateTransition(nn.Module):
                     loc = mean_tensor, scale_tril=torch.tril(self.cov_mat))
             return output_dist
 
-        elif dynamic_model == 'nonlinear_input':    
-            input_y = higher_tensor[0][:, :-1].float()
+        elif dynamic_model == 'nonlinear_input':  # TODO it should combine the input_tensor (s_t) with higher_tensor (y_t)
+            input_y = higher_tensor[0][:, :-1] if higher_tensor[0].shape[-2] > 1 else higher_tensor[0]
+
+            input_y = input_y.float()
             mean_tensor = self.latent_trans_networks(input_y) 
             mean_tensor = torch.reshape(mean_tensor,
                                     [batch_size, num_steps, dist_dim])
@@ -295,7 +299,7 @@ class GaussianDistributionFromMean(nn.Module):
                                 sigma_min) * sigma_scale)
             
     def forward(self, input_tensor):
-        # ipdb.set_trace()
+        
         mean_tensor = self.y_emission_net(input_tensor) # [bs*n, y_emission_net.out_dim]
         self.mean = mean_tensor
         
@@ -529,7 +533,6 @@ class RnnInferenceNetwork(nn.Module):
 
 """Hierachical non-linear dynamical systems."""
 
-
 class HierachicalSSM(BaseLearnerModel):
     """Hierachical NonLinear Dynamical Systems base model.
 
@@ -555,6 +558,7 @@ class HierachicalSSM(BaseLearnerModel):
         inference_network,
         initial_distribution,
         num_samples=1,
+        args=None,
         device='cpu',
         logs=None,
     ):
@@ -605,210 +609,8 @@ class HierachicalSSM(BaseLearnerModel):
         self.num_samples = num_samples
         self.logs = logs
         self.device = device
+        self.args = args
 
-        # self.log_init = torch.Variable(
-        #     utils.normalize_logprob(
-        #         torch.ones(shape=[self.num_categ], dtype=torch.float32),
-        #         axis=-1)[0],
-        #     name="snlds_logprob_s0")
-
-
-    def forward(self, inputs, temperature=1.0, num_samples=1):
-        """
-        Inference call of SNLDS.
-
-        Args:
-        inputs:      a `float` Tensor of shape `[batch_size, num_steps, event_size]`, containing the observation time series of the model.
-        temperature: a `float` Scalar for temperature used to estimate discrete
-                        state transition `p(s[t] | s[t-1], x[t-1])` as described in Dong et al.
-                        (2019). Increasing temperature increase the uncertainty about each
-                        discrete states.
-                        Default to 1. For ''temperature annealing'', the temperature is set
-                        to large value initially, and decay to a smaller one. A temperature
-                        should be positive, but could be smaller than `1.`.
-        num_samples: an `int` scalar for number of samples per time-step, for
-                        posterior inference networks, `z[i] ~ q(z[1:T] | x[1:T])`.
-
-        Returns:
-        return_dict: a python `dict` contains all the `Tensor`s for inference results. Including the following keys:
-            elbo:   Evidence Lower Bound
-            iwae:   IWAE Bound
-            initial_likelihood:  the likelihood of `p(s[0], z[0], x[0])`.
-            sequence_likelihood: the likelihood of `p(s[1:T], z[1:T], x[0:T])`
-            zt_entropy:     the entropy of posterior distribution `H(q(z[t] | x[1:T])`
-            reconstruction: the reconstructed inputs, returned by `get_reconstruction` function.
-            posterior_llk:  the posterior likelihood, `p(s[t] | x[1:T], z[1:T])`, returned by `forward_backward_algo.forward_backward` function.
-            sampled_z:      the sampled z[1:T] from the approximate posterior.
-            cross_entropy:  batched cross entropy between discrete state posterior likelihood and its prior distribution.
-        """
-        
-        input_y = inputs['label_seq'].unsqueeze(-1)  # [bs, times] -> [bs, times, 1]
-        
-        # ----- Sample continuous hidden variable from `q(s[1:T] | y[1:T])' -----
-        s_sampled, s_entropy, s_log_prob_q, _ = self.s_infer_net(
-            input_y, num_samples=num_samples)
-        
-        _, batch_size, num_steps, s_dim = s_sampled.shape
-
-        s_sampled = torch.reshape(s_sampled,
-                            [num_samples * batch_size, num_steps, s_dim])
-        s_entropy = torch.reshape(s_entropy, [num_samples * batch_size, num_steps])
-        s_log_prob_q = torch.reshape(s_log_prob_q, [num_samples * batch_size, num_steps])
-
-        ipdb.set_trace()
-        # ----- Sample continuous hidden variable from `q(z[1:T] | y[1:T])' -----
-        z_sampled, z_entropy, z_log_prob_q, _ = self.z_infer_net(
-            input_y, num_samples=num_samples)
-        
-        _, _, _, z_dim = z_sampled.shape
-
-        z_sampled = torch.reshape(z_sampled,
-                            [num_samples * batch_size, num_steps, z_dim])
-        z_entropy = torch.reshape(z_entropy, [num_samples * batch_size, num_steps])
-        z_log_prob_q = torch.reshape(z_log_prob_q, [num_samples * batch_size, num_steps])
-
-        ipdb.set_trace()
-        log_prob_yt, log_prob_zt, log_prob_st = self.calculate_likelihoods( 
-            inputs, s_sampled, z_sampled, temperature=temperature)
-
-        # # Forward-backward algorithm will return the posterior marginal of
-        # # discrete states `log_gamma2 = p(s[t]=k, s[t-1]=j | x[1:T], z[1:T])'
-        # # and `log_gamma1 = p(s[t]=k | x[1:T], z[1:T])'.
-        # _, _, log_gamma1, log_gamma2 = forward_backward_algo.forward_backward(
-        #     log_a, log_b, self.log_init)
-
-        recon_inputs = self.get_reconstruction(
-            z_sampled,
-            observation_shape=input_y.shape,
-            sample_for_reconstruction=False)
-
-        # Calculate Evidence Lower Bound with components.
-        # The return_dict currently support the following items:
-        #   elbo: Evidence Lower Bound.
-        #   iwae: IWAE Lower Bound.
-        #   initial_likelihood: likelihood of p(s[0], z[0], x[0]).
-        #   sequence_likelihood: likelihood of p(s[1:T], z[1:T], x[0:T]).
-        #   zt_entropy: the entropy of posterior distribution.
-        return_dict = self.get_objective_values([log_prob_st, log_prob_zt, log_prob_yt], 
-                                                # self.log_init, log_gamma1, log_gamma2, 
-                                                [s_log_prob_q, z_log_prob_q],
-                                                [s_entropy, z_entropy], num_samples)
-
-        # TODO do we need this consistency?
-        # # Estimate the cross entropy between state prior and posterior likelihoods.
-        # state_crossentropy = utils.get_posterior_crossentropy(
-        #     log_gamma1,
-        #     prior_probs=self.discrete_prior)
-        # state_crossentropy = torch.reduce_mean(state_crossentropy, axis=0)
-
-        recon_inputs = torch.reshape(recon_inputs,
-                                [num_samples, batch_size, num_steps, -1])
-        z_sampled = torch.reshape(z_sampled,
-                            [num_samples, batch_size, num_steps, z_dim])
-        s_sampled = torch.reshape(s_sampled,
-                            [num_samples, batch_size, num_steps, s_dim])
-        
-        return_dict["input_y"] = input_y
-        return_dict["reconstructions"] = recon_inputs[0]
-        return_dict["sampled_z"] = z_sampled[0]
-        return_dict["sampled_z"] = s_sampled[0]
-        # return_dict["cross_entropy"] = state_crossentropy
-
-        return return_dict
-    
-    
-    def loss(self, feed_dict, outdict, metrics=None):
-        losses = defaultdict(lambda: torch.zeros((), device=self.device))
-        
-        input_y = outdict["input_y"] 
-        recon_inputs = outdict["reconstructions"]
-        elbo = outdict['elbo']
-
-        losses['loss_total'] = -elbo
-        return losses
-
-
-    def _get_log_likelihood(self, log_a, log_b, log_init, log_gamma1, log_gamma2):
-        """
-        Computes the log-likelihood based on pre-computed log-probabilities.
-
-        Computes E_s[log p(x[1:T], z[1:T], s[1:T])] decomposed into two terms.
-
-        Args:
-        log_a: Transition tensor:
-            log_a[t, i, j] = log p(s[t] = i|x[t-1], s[t-1]=j),
-            size [batch_size, num_steps, num_cat, num_cat]
-        log_b: Emission tensor:
-            log_b[t, i] = log p(x[t], z[t] | s[t]=i, z[t-1]),
-            size [batch_size, num_steps, num_cat]
-        log_init: Initial tensor,
-            log_init[i] = log p(s[0]=i)
-            size [batch_size, num_cat]
-        log_gamma1: computed by forward-backward algorithm.
-            log_gamma1[t, i] = log p(s[t] = i | v[1:T]),
-            size [batch_size, num_steps, num_cat]
-        log_gamma2: computed by forward-backward algorithm.
-            log_gamma2[t, i, j] = log p(s[t]= i, s[t-1]= j| v[1:T]),
-            size [batch_size, num_steps, num_cat, num_cat]
-
-        Returns:
-        tuple (t1, t2)
-            t1: sequence likelihood, E_s[log p(s[1:T], v[1:T]| s[0], v[0])], size
-            [batch_size]
-            t2: initial likelihood, E_s[log p(s[0], v[0])], size
-            [batch_size]
-        """
-        gamma1 = torch.exp(log_gamma1)
-        gamma2 = torch.exp(log_gamma2)
-        t1 = torch.reduce_sum(gamma2[:, 1:, :, :]
-                        * (log_b[:, 1:, torch.newaxis, :]
-                            + log_a[:, 1:, :, :]),
-                        axis=[1, 2, 3])
-
-        gamma1_1, log_b1 = gamma1[:, 0, :], log_b[:, 0, :]
-        t2 = torch.reduce_sum(gamma1_1 * (log_b1 +  log_init[torch.newaxis, :]),
-                        axis=-1)
-        return t1, t2
-
-    def get_objective_values(self,
-                            log_probs, 
-                            #log_init, log_gamma1, log_gamma2,
-                            log_prob_q,
-                            posterior_entropies,
-                            num_samples):
-        """Given all precalculated probabilities, return ELBO.
-        Args:
-            log_a: [bs, times]
-        """
-        # All the sequences should be of the shape
-        # [batch_size, num_steps, (data_dim)]
-        [log_prob_st, log_prob_zt, log_prob_yt] = log_probs
-        ipdb.set_trace()
-        sequence_likelihood = (log_prob_st[:, 1:] + log_prob_zt[:, 1:] + log_prob_yt[:, 1:]).sum(-1) # [bs,]
-        initial_likelihood = log_prob_st[:, 0] + log_prob_zt[:, 0] + log_prob_yt[:, 0]
-
-        t1_mean = torch.mean(sequence_likelihood, dim=0)
-        t2_mean = torch.mean(initial_likelihood, dim=0)
-        
-        t3 = torch.sum(posterior_entropies[0], dim=-1) # no gradient now  TODO
-        t3_mean = torch.mean(t3, dim=0)
-        
-        t4 = torch.sum(posterior_entropies[1], dim=-1) # no gradient now  TODO
-        t4_mean = torch.mean(t4, dim=0)
-        
-        elbo = t1_mean + t2_mean + t3_mean + t4_mean
-        
-        iwae = None # TODO ???
-        # iwae = self._get_iwae(sequence_likelihood, initial_likelihood, log_prob_q,
-        #                     num_samples)
-        return dict(
-            elbo=elbo,
-            iwae=iwae,
-            initial_likelihood=t2_mean,
-            sequence_likelihood=t1_mean,
-            st_entropy=t3_mean,
-            zt_entropy=t4_mean)
-        
 
     # TODO
     def _get_iwae(self, sequence_likelihood, initial_likelihood, log_prob_q,
@@ -847,7 +649,84 @@ class HierachicalSSM(BaseLearnerModel):
             axis=0) - torch.math.log(torch.cast(num_samples, torch.float32))
         iwae_bound_mean = torch.reduce_mean(iwae_bound)
         return iwae_bound_mean
+    
+    
+    def _get_log_likelihood(self, log_a, log_b, log_init, log_gamma1, log_gamma2):
+        """
+        Computes the log-likelihood based on pre-computed log-probabilities.
 
+        Computes E_s[log p(x[1:T], z[1:T], s[1:T])] decomposed into two terms.
+
+        Args:
+        log_a: Transition tensor: log_a[t, i, j] = log p(s[t] = i|x[t-1], s[t-1]=j),
+                size [batch_size, num_steps, num_cat, num_cat]
+        log_b: Emission tensor: log_b[t, i] = log p(x[t], z[t] | s[t]=i, z[t-1]),
+                size [batch_size, num_steps, num_cat]
+        log_init: Initial tensor, log_init[i] = log p(s[0]=i)
+                    size [batch_size, num_cat]
+        log_gamma1: computed by forward-backward algorithm. log_gamma1[t, i] = log p(s[t] = i | v[1:T]),
+                        size [batch_size, num_steps, num_cat]
+        log_gamma2: computed by forward-backward algorithm. log_gamma2[t, i, j] = log p(s[t]= i, s[t-1]= j| v[1:T]),
+                        size [batch_size, num_steps, num_cat, num_cat]
+
+        Returns:
+        tuple (t1, t2)
+            t1: sequence likelihood, E_s[log p(s[1:T], v[1:T]| s[0], v[0])], size [batch_size]
+            t2: initial likelihood, E_s[log p(s[0], v[0])], size [batch_size]
+        """
+        gamma1 = torch.exp(log_gamma1)
+        gamma2 = torch.exp(log_gamma2)
+        t1 = torch.reduce_sum(gamma2[:, 1:, :, :]
+                        * (log_b[:, 1:, torch.newaxis, :]
+                            + log_a[:, 1:, :, :]),
+                        axis=[1, 2, 3])
+
+        gamma1_1, log_b1 = gamma1[:, 0, :], log_b[:, 0, :]
+        t2 = torch.reduce_sum(gamma1_1 * (log_b1 +  log_init[torch.newaxis, :]),
+                        axis=-1)
+        return t1, t2
+
+
+    def get_objective_values(self,
+                            log_probs, 
+                            #log_init, log_gamma1, log_gamma2,
+                            log_prob_q,
+                            posterior_entropies,
+                            num_samples):
+        """Given all precalculated probabilities, return ELBO.
+        Args:
+            log_a: [bs, times]
+        """
+        # All the sequences should be of the shape
+        # [batch_size, num_steps, (data_dim)]
+        [log_prob_st, log_prob_zt, log_prob_yt] = log_probs
+        
+        # ipdb.set_trace()
+        sequence_likelihood = (log_prob_st[:, 1:] + log_prob_zt[:, 1:] + log_prob_yt[:, 1:]).sum(-1) # [bs,]
+        initial_likelihood = log_prob_st[:, 0] + log_prob_zt[:, 0] + log_prob_yt[:, 0]
+
+        t1_mean = torch.mean(sequence_likelihood, dim=0)
+        t2_mean = torch.mean(initial_likelihood, dim=0)
+        
+        t3 = torch.sum(posterior_entropies[0], dim=-1) # no gradient now  TODO
+        t3_mean = torch.mean(t3, dim=0)
+        
+        t4 = torch.sum(posterior_entropies[1], dim=-1) # no gradient now  TODO
+        t4_mean = torch.mean(t4, dim=0)
+        
+        elbo = t1_mean + t2_mean + t3_mean + t4_mean
+        
+        iwae = None # TODO ???
+        # iwae = self._get_iwae(sequence_likelihood, initial_likelihood, log_prob_q,
+        #                     num_samples)
+        return dict(
+            elbo=elbo,
+            iwae=iwae,
+            initial_likelihood=t2_mean,
+            sequence_likelihood=t1_mean,
+            st_entropy=t3_mean,
+            zt_entropy=t4_mean)
+        
 
     def calculate_likelihoods(self,
                                 inputs,
@@ -939,32 +818,28 @@ class HierachicalSSM(BaseLearnerModel):
         # log_xt_zt = log_prob_yt + log_prob_zt
         return log_prob_yt, log_prob_zt, log_prob_st
 
+
     def get_reconstruction(self,
                             hidden_state_sequence,
                             observation_shape=None,
-                            sample_for_reconstruction=False,
-                            sample_hard=True):
+                            sample_for_reconstruction=True,
+                            sample_hard=False,
+                            sample_num=1): # TODO
         """Generate reconstructed inputs from emission distribution, `p(x[t]|z[t])`.
 
         Args:
         hidden_state_sequence: a `float` `Tensor` of the shape [batch_size, num_steps, hidden_dims], 
                                 containing batched continuous hidden variable `z[t]`.
-        observation_shape: a `TensorShape` object or `int` list, containing the
-            shape of sampled `x[t]` to reshape reconstructed inputs.
-            Default to `None`, in which case the output of `mean` or `sample`
-            function for emission distribution will be returned directly, without
-            reshape.
-        sample_for_reconstruction: a `bool` scalar. When `True`, it will will use
-            `emission_distribution.sample()` to generate reconstructions.
-            Default to `False`, in which case the mean of distribution will be used
-            as reconstructed observations.
+        observation_shape: the shape of sampled `y[t]` to reshape reconstructed inputs. Default to `None`, 
+                            in which case the output of `mean` or `sample` function for emission distribution 
+                            will be returned directly, without reshape.
+        sample_for_reconstruction: a `bool` scalar. When `True`, it will will use `emission_distribution.sample()` 
+                                    to generate reconstructions.
 
         Returns:
         reconstructed_obs: a `float` `Tensor` of the shape [batch_size, num_steps,
             observation_dims], containing reconstructed observations.
         """
-        # get the distribution for p(x[t] | z[t])
-        
         eps = 1e-6
         emission_dist = self.y_emit(hidden_state_sequence)
 
@@ -981,6 +856,7 @@ class HierachicalSSM(BaseLearnerModel):
 
         return reconstructed_obs
 
+
     def get_s_prior(self, sampled_s, additional_input, log_prob_s0):
         """
         p(s[t] | s[t-1]) transition.
@@ -994,6 +870,7 @@ class HierachicalSSM(BaseLearnerModel):
         log_prob_st = torch.concat([log_prob_s0, log_prob_st], dim=-1)
         return log_prob_st
     
+    
     def get_z_prior(self, sampled_z, additional_input, log_prob_z0):
         """
         p(z[t] | z[t-1], s[t]) transition.
@@ -1006,6 +883,193 @@ class HierachicalSSM(BaseLearnerModel):
         log_prob_zt = torch.concat([log_prob_z0, log_prob_zt], dim=-1)
         return log_prob_zt
     
+
+    def forward(self, inputs, temperature=1.0, num_samples=1):
+        """
+        Inference call of SNLDS.
+
+        Args:
+        inputs:      a `float` Tensor of shape `[batch_size, num_steps, event_size]`, containing the observation time series of the model.
+        temperature: a `float` Scalar for temperature used to estimate discrete
+                        state transition `p(s[t] | s[t-1], x[t-1])` as described in Dong et al.
+                        (2019). Increasing temperature increase the uncertainty about each
+                        discrete states.
+                        Default to 1. For ''temperature annealing'', the temperature is set
+                        to large value initially, and decay to a smaller one. A temperature
+                        should be positive, but could be smaller than `1.`.
+        num_samples: an `int` scalar for number of samples per time-step, for
+                        posterior inference networks, `z[i] ~ q(z[1:T] | x[1:T])`.
+
+        Returns:
+        return_dict: a python `dict` contains all the `Tensor`s for inference results. Including the following keys:
+            elbo:   Evidence Lower Bound
+            iwae:   IWAE Bound
+            initial_likelihood:  the likelihood of `p(s[0], z[0], x[0])`.
+            sequence_likelihood: the likelihood of `p(s[1:T], z[1:T], x[0:T])`
+            zt_entropy:     the entropy of posterior distribution `H(q(z[t] | x[1:T])`
+            reconstruction: the reconstructed inputs, returned by `get_reconstruction` function.
+            posterior_llk:  the posterior likelihood, `p(s[t] | x[1:T], z[1:T])`, returned by `forward_backward_algo.forward_backward` function.
+            sampled_z:      the sampled z[1:T] from the approximate posterior.
+            cross_entropy:  batched cross entropy between discrete state posterior likelihood and its prior distribution.
+        """
+        
+        input_y = inputs['label_seq'].unsqueeze(-1)  # [bs, times] -> [bs, times, 1]
+        
+        # ----- Sample continuous hidden variable from `q(s[1:T] | y[1:T])' -----
+        s_sampled, s_entropy, s_log_prob_q, _ = self.s_infer_net(
+            input_y, num_samples=num_samples)
+        
+        _, batch_size, num_steps, s_dim = s_sampled.shape
+
+        s_sampled = torch.reshape(s_sampled,
+                            [num_samples * batch_size, num_steps, s_dim])
+        s_entropy = torch.reshape(s_entropy, [num_samples * batch_size, num_steps])
+        s_log_prob_q = torch.reshape(s_log_prob_q, [num_samples * batch_size, num_steps])
+
+        
+        # ----- Sample continuous hidden variable from `q(z[1:T] | y[1:T])' -----
+        z_sampled, z_entropy, z_log_prob_q, _ = self.z_infer_net(
+            input_y, num_samples=num_samples)
+        
+        _, _, _, z_dim = z_sampled.shape
+
+        z_sampled = torch.reshape(z_sampled,
+                            [num_samples * batch_size, num_steps, z_dim])
+        z_entropy = torch.reshape(z_entropy, [num_samples * batch_size, num_steps])
+        z_log_prob_q = torch.reshape(z_log_prob_q, [num_samples * batch_size, num_steps])
+
+
+        # ----- joint log likelihood -----
+        log_prob_yt, log_prob_zt, log_prob_st = self.calculate_likelihoods( 
+            inputs, s_sampled, z_sampled, temperature=temperature)
+
+        # # Forward-backward algorithm will return the posterior marginal of
+        # # discrete states `log_gamma2 = p(s[t]=k, s[t-1]=j | x[1:T], z[1:T])'
+        # # and `log_gamma1 = p(s[t]=k | x[1:T], z[1:T])'.
+        # _, _, log_gamma1, log_gamma2 = forward_backward_algo.forward_backward(
+        #     log_a, log_b, self.log_init)
+
+        recon_inputs = self.get_reconstruction(
+            z_sampled,
+            observation_shape=input_y.shape,
+            sample_for_reconstruction=False)
+
+        # Calculate Evidence Lower Bound with components.
+        # The return_dict currently support the following items:
+        #   elbo: Evidence Lower Bound.
+        #   iwae: IWAE Lower Bound.
+        #   initial_likelihood: likelihood of p(s[0], z[0], x[0]).
+        #   sequence_likelihood: likelihood of p(s[1:T], z[1:T], x[0:T]).
+        #   zt_entropy: the entropy of posterior distribution.
+        return_dict = self.get_objective_values([log_prob_st, log_prob_zt, log_prob_yt], 
+                                                # self.log_init, log_gamma1, log_gamma2, 
+                                                [s_log_prob_q, z_log_prob_q],
+                                                [s_entropy, z_entropy], num_samples)
+
+        # TODO do we need this consistency?
+        # # Estimate the cross entropy between state prior and posterior likelihoods.
+        # state_crossentropy = utils.get_posterior_crossentropy(
+        #     log_gamma1,
+        #     prior_probs=self.discrete_prior)
+        # state_crossentropy = torch.reduce_mean(state_crossentropy, axis=0)
+
+        recon_inputs = torch.reshape(recon_inputs,
+                                [num_samples, batch_size, num_steps, -1])
+        z_sampled = torch.reshape(z_sampled,
+                            [num_samples, batch_size, num_steps, z_dim])
+        s_sampled = torch.reshape(s_sampled,
+                            [num_samples, batch_size, num_steps, s_dim])
+        
+        return_dict["label"] = input_y
+        return_dict["prediction"] = recon_inputs[0]
+        return_dict["sampled_z"] = z_sampled[0]
+        return_dict["sampled_z"] = s_sampled[0]
+        # return_dict["cross_entropy"] = state_crossentropy
+
+        return return_dict
+    
+    
+    def inference(self):
+        pass
+    
+    
+    def prediction(self, inputs, num_samples=1):
+        # TODO it depends on the training mode, for now, it is only for splitting time 
+        time_step = int(inputs['skill_seq'].shape[-1])
+        train_step = int(time_step * self.args.train_time_ratio)
+        test_step = int(time_step * self.args.test_time_ratio)
+        test_timestamps = inputs['time_seq'][:, train_step-1:].unsqueeze(-1)
+    
+        past_y = inputs['label_seq'][:, :train_step].unsqueeze(-1)
+        # TODO which way to sample? from q(z) or from q(s)? or prior distribution?
+        # ideally they should be the same, but currently because the 
+        s_sampled, _, _, _ = self.s_infer_net(past_y, num_samples)
+        z_sampled, _, _, _ = self.z_infer_net(past_y, num_samples)
+        
+        # TODO multiple samples
+        s_last = s_sampled[0][:, -1:] # [n_samples, train_total, train_time, 3]
+        z_last = z_sampled[0][:, -1:]
+        y_last = past_y[:, -1:]
+    
+        # TODO for the s_tran, it needs the input of label p(s_t | s_t-1, x_t-1)
+        # two ways: 
+        # 1. we make the x_t-1 as hat(x_t-1) which is the prediction -> easier to compare with others, but will the gradient be accumulated?
+        # 2. use the ground truth x_t-1 when it is observed -> it is online learning, but it makes difficult to compare with other methods  
+
+        outputs = []
+        for t in range(0, self.args.max_step-train_step):
+            s_next = self.s_tran(s_last, [y_last], 'nonlinear_input').mean # or sample  # [bs, 1, 3]
+            z_next = self.z_tran(z_last, [s_next, test_timestamps[:, t:t+2]], 'OU_vola').mean
+            y_next = self.y_emit(z_next).mean
+
+            y_last = y_next
+            z_last = z_next
+            s_last = s_next
+            
+            outputs.append((s_next, z_next, y_next))
+            
+        pred_y = torch.cat([outputs[i][2] for i in range(len(outputs))], 1) # [n, pred_step, 1]
+        pred_z = torch.cat([outputs[i][1] for i in range(len(outputs))], 1)
+        pred_s = torch.cat([outputs[i][0] for i in range(len(outputs))], 1)
+        
+        pred_dict = defaultdict(lambda: torch.zeros((), device=self.device))
+        pred_dict = {
+            'prediction': pred_y[:, -test_step:], 
+            'label': inputs['label_seq'][:, -test_step:],
+            'pred_y': pred_y, 
+            'pred_z': pred_z,
+            'pred_s': pred_s
+        }
+        # recon_inputs = self.get_reconstruction(
+        #     z_sampled,
+        #     observation_shape=input_y.shape,
+        #     sample_for_reconstruction=False)
+        # ipdb.set_trace()
+        return pred_dict
+    
+    
+    def loss(self, feed_dict, outdict, metrics=None):
+        losses = defaultdict(lambda: torch.zeros((), device=self.device))
+
+        elbo = outdict['elbo']
+        losses['loss_total'] = -elbo
+        
+        loss_fn = torch.nn.BCELoss()
+        gt = outdict["label"] 
+        pred = outdict["prediction"]
+        bceloss = loss_fn(pred, gt.float())
+        losses['loss_bce'] = bceloss
+
+        if metrics != None:
+            pred = pred.detach().cpu().data.numpy()
+            gt = gt.detach().cpu().data.numpy()
+            evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
+        for key in evaluations.keys():
+            losses[key] = evaluations[key]
+            
+        # losses['prediction'] = recon_inputs
+        # losses['label'] = input_y
+        return losses
 
 
 
@@ -1069,6 +1133,7 @@ def create_model(hidden_dim_s,
                  config_z_transition=get_default_distribution_config(),
                  
                  hidden_dim_rnn=8, # args TODO
+                 args=None, # TODO figure out *args means
                  device='cpu',
                  logs=None,
         ):
@@ -1251,6 +1316,7 @@ def create_model(hidden_dim_s,
         inference_network=[posterior_network_s, posterior_network_z],
         initial_distribution=[initial_distribution_s, initial_distribution_z],
         num_samples=1,
+        args=args,
         device=device,
         logs=logs,)
 

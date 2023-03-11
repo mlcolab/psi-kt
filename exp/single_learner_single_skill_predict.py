@@ -83,7 +83,8 @@ if __name__ == '__main__':
     global_args, extras = parser.parse_known_args() 
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+    # global_args.device = torch.device('cpu')
+    
     logs = logger.Logger(global_args)
     
     # ----- data part -----
@@ -154,6 +155,7 @@ if __name__ == '__main__':
             hidden_dim_z=1,
             observation_dim=1,
             device=global_args.device, 
+            args=global_args,
             logs=logs,   
         )
         
@@ -164,7 +166,8 @@ if __name__ == '__main__':
     # model = model.double() # ??? when to use double
     # model.apply(model.init_weights)
     model.actions_before_train()
-   
+    
+    
     # Move to current device
     if torch.cuda.is_available():
         if global_args.distributed:
@@ -176,7 +179,7 @@ if __name__ == '__main__':
     runner = KTRunner(global_args, logs)
     # runner = VCLRunner(global_args, logs)
     runner.train(model, corpus)
-    logs.write_to_log_file('\nTest After Training: ' + runner._print_res(model, corpus))
+    # logs.write_to_log_file('\nTest After Training: ' + runner._print_res(model, corpus))
 
-    model.actions_after_train()
+    model.module.actions_after_train()
     logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)

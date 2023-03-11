@@ -1,225 +1,40 @@
-/var/spool/slurmd/job3050573/slurm_script: /usr/bin/modulecmd: No such file or directory
-/var/spool/slurmd/job3050573/slurm_script: /usr/bin/modulecmd: No such file or directory
-[I 11:15:11.348 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
-[I 11:15:11.350 NotebookApp] Jupyter Notebook 6.4.12 is running at:
-[I 11:15:11.351 NotebookApp] http://slurm-bm-60:8887/?token=13377260e27a9be2aa4fcfecd621ebf0d33c755cb34ce85a
-[I 11:15:11.351 NotebookApp]  or http://127.0.0.1:8887/?token=13377260e27a9be2aa4fcfecd621ebf0d33c755cb34ce85a
-[I 11:15:11.351 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
-[C 11:15:11.384 NotebookApp] 
+ModuleCmd_Load.c(213):ERROR:105: Unable to locate a modulefile for 'cuda'
+ModuleCmd_Load.c(213):ERROR:105: Unable to locate a modulefile for 'nvhpc'
+[I 21:22:45.261 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
+[I 21:22:45.263 NotebookApp] Jupyter Notebook 6.4.12 is running at:
+[I 21:22:45.264 NotebookApp] http://slurm-v100-4:8887/?token=a8541b58076ce4cb40aa90d1479c1fcc12a0e7df3c2a1c17
+[I 21:22:45.264 NotebookApp]  or http://127.0.0.1:8887/?token=a8541b58076ce4cb40aa90d1479c1fcc12a0e7df3c2a1c17
+[I 21:22:45.264 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 21:22:45.306 NotebookApp] 
     
     To access the notebook, open this file in a browser:
-        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-6756-open.html
+        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-26397-open.html
     Or copy and paste one of these URLs:
-        http://slurm-bm-60:8887/?token=13377260e27a9be2aa4fcfecd621ebf0d33c755cb34ce85a
-     or http://127.0.0.1:8887/?token=13377260e27a9be2aa4fcfecd621ebf0d33c755cb34ce85a
-[I 11:23:34.932 NotebookApp] 302 GET /?token=13377260e27a9be2aa4fcfecd621ebf0d33c755cb34ce85a (192.168.212.63) 0.480000ms
-[W 11:23:49.002 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 11:23:49.698 NotebookApp] Kernel started: 676f7996-4c44-4d52-a8f9-958e43a4f4ca, name: python3
-[W 11:23:49.884 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[I 11:23:50.396 NotebookApp] Kernel started: a451c113-a156-4b49-a75c-a1943984e545, name: python3
+        http://slurm-v100-4:8887/?token=a8541b58076ce4cb40aa90d1479c1fcc12a0e7df3c2a1c17
+     or http://127.0.0.1:8887/?token=a8541b58076ce4cb40aa90d1479c1fcc12a0e7df3c2a1c17
+[I 21:25:09.807 NotebookApp] 302 GET /?token=a8541b58076ce4cb40aa90d1479c1fcc12a0e7df3c2a1c17 (192.168.212.63) 1.350000ms
+[I 21:31:14.693 NotebookApp] Kernel started: f46f911d-9bda-4c2f-a2a2-188885dbd0cf, name: python3
 [IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 7ebfc338-684b-450e-a17b-7252c99bdd35
-[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: c66a80b0-e99e-4dad-81ed-e3554e853075
-[I 11:25:49.610 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 11:25:49.613 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 11:27:49.623 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 11:27:49.627 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 13:24:03.232 NotebookApp] Starting buffering for a451c113-a156-4b49-a75c-a1943984e545:527fa7ac7034450e84f2aca1c3119f5b
-[I 13:25:50.158 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 13:25:50.167 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[W 15:39:46.344 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:39:46.850 NotebookApp] Kernel started: f1e60d7f-ffa6-4d7e-b1bc-2698b20da3f5, name: python3
-[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 5afe84ba-fbfe-45b5-8fe7-811d6b4323e9
-[W 15:40:01.831 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
-[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 398e4af4-182d-47ab-8a0a-1910034722a9
-[I 15:40:03.148 NotebookApp] Starting buffering for a451c113-a156-4b49-a75c-a1943984e545:8e854ecfdd2646899709495fc8e36c98
-[I 15:40:34.169 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 15:40:34.171 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/nbformat/__init__.py:128: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
-  validate(nb)
-/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/notebook/services/contents/manager.py:353: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
-  validate_nb(model['content'])
-[I 15:40:38.260 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 15:40:38.262 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 15:40:43.683 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 15:40:43.689 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 15:41:49.946 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 15:41:49.949 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 15:43:50.800 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 15:43:50.803 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:01:50.705 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:01:50.759 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:09:50.174 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:09:50.184 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:13:49.943 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:13:49.946 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:15:55.412 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:15:55.415 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:17:49.908 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:17:49.911 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:17:57.195 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:17:57.198 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:18:12.686 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:18:12.689 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:19:49.944 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:19:49.947 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:23:50.151 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:23:50.154 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:24:34.686 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:24:34.689 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:24:34.863 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:24:34.865 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:25:05.752 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:25:05.755 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:25:22.139 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:25:22.142 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:25:49.179 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:25:49.182 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:25:59.541 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:25:59.542 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:26:08.986 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:26:08.987 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:26:57.984 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:26:57.986 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:27:03.413 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:27:03.414 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:27:25.663 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:27:25.666 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:27:49.268 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:27:49.270 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:29:49.186 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:29:49.189 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:31:41.657 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:31:41.659 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:33:50.088 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:33:50.091 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:35:49.164 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:35:49.167 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:36:10.456 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:36:10.459 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:36:28.407 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:36:28.410 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:36:36.435 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:36:36.438 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:37:49.170 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:37:49.173 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:39:49.158 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:39:49.161 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:42:36.867 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:42:36.870 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:42:55.090 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:42:55.093 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:43:49.139 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:43:49.142 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:45:49.138 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:45:49.140 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:47:59.545 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:47:59.551 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:49:06.069 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:49:06.072 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:49:32.232 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:49:32.236 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:49:49.124 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:49:49.127 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:51:49.145 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:51:49.147 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:53:53.181 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:53:53.183 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:55:51.186 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:55:51.189 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 16:58:06.532 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 16:58:07.401 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:00:02.858 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:00:02.861 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:02:10.340 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:02:10.343 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:03:59.877 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:03:59.880 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:05:49.944 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:05:49.947 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:08:09.552 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:08:09.555 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:10:04.694 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:10:04.697 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:12:04.676 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:12:04.679 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:14:07.015 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:14:07.019 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:16:11.033 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:16:11.036 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:18:05.784 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:18:05.787 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:20:05.143 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:20:05.146 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:21:50.016 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:21:50.018 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:23:50.097 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:23:50.101 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:26:00.825 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:26:00.829 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:28:00.820 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:28:01.254 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:30:01.017 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:30:01.020 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:32:00.830 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:32:00.833 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:34:00.835 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:34:00.838 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:36:00.840 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:36:00.843 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:37:50.126 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:37:50.129 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:39:50.314 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:39:50.318 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:41:49.108 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:41:49.111 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:43:49.112 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:43:49.115 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:45:49.108 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:45:49.111 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:48:00.307 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:48:00.310 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:50:00.134 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:50:00.137 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:51:59.842 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:51:59.845 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:53:51.783 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:53:51.786 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:55:54.189 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:55:54.192 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:57:51.722 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:57:51.724 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 17:59:59.379 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 17:59:59.382 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:01:57.995 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:01:57.998 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:03:50.322 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:03:50.590 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:05:49.113 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:05:49.116 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:13:51.037 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:13:51.046 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:15:49.327 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:15:49.329 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:17:49.248 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:17:49.250 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:21:01.187 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:21:01.190 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:21:49.032 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:21:49.035 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:23:02.638 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:23:02.641 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:23:49.012 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:23:49.182 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:25:49.009 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:25:49.012 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:27:49.011 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:27:49.014 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:28:41.944 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:28:41.947 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[I 18:29:56.497 NotebookApp] Saving file at /exp/Overfit_to_three_models.ipynb
-[W 18:29:56.500 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-slurmstepd: error: *** JOB 3050573 ON slurm-bm-60 CANCELLED AT 2023-03-04T18:30:40 ***
+[IPKernelApp] WARNING | No such comm: 37a86ce0-6bb2-4daa-a38c-622957b1700d
+[I 21:33:15.828 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 21:35:16.173 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 21:41:14.991 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 21:43:16.223 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 21:45:14.971 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 22:25:14.867 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 22:27:14.859 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 22:31:14.892 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 22:33:14.971 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 22:39:14.973 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 22:41:15.066 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 22:43:15.176 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 22:45:14.855 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 23:09:15.016 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 23:11:15.032 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 23:13:15.286 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 23:15:14.994 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 23:17:15.185 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 23:19:14.816 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 23:21:14.899 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
+[I 23:26:55.933 NotebookApp] Starting buffering for f46f911d-9bda-4c2f-a2a2-188885dbd0cf:9d41546f0e1e4f8f8efdd230a37145e5
+slurmstepd: error: *** JOB 3117867 ON slurm-v100-4 CANCELLED AT 2023-03-10T23:27:02 ***

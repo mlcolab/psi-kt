@@ -24,6 +24,7 @@ class BaseModel(torch.nn.Module):
 
     @staticmethod
     def pred_evaluate_method(p, l, metrics):
+        # ipdb.set_trace()
         if p.ndim != 1:
             p = p.reshape((-1))
         if l.ndim != 1:

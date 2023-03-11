@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=jupyter
-#SBATCH --partition=gpu-2080ti
+#SBATCH --partition=gpu-v100
 #SBATCH --gres=gpu:1
 #SBATCH --time=2-00:00:00
-#SBATCH --mem=16GB
+#SBATCH --mem=32GB
 #SBATCH --output=jupyter.log
 #SBATCH --error=jupyter.err
 

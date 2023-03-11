@@ -122,6 +122,7 @@ class DataReader(object):
             'train': dict(),
             'dev': dict(),
             'test': dict(),
+            'whole': dict(),
         }
         
         train_size = math.ceil(n_time_steps * train_ratio)
@@ -134,6 +135,7 @@ class DataReader(object):
                 self.data_df['train'][key] = value[:, :train_size].tolist()
                 self.data_df['test'][key] = value[:, -test_size:].tolist()
                 self.data_df['dev'][key] = value[:, train_size:dev_size+train_size].tolist()
+                self.data_df['whole'][key] = value[:, :].tolist()
 
         for key in self.data_df.keys():     
             self.data_df[key] = pd.DataFrame.from_dict(self.data_df[key], orient='columns')   

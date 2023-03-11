@@ -436,7 +436,7 @@ class HLR(BaseLearnerModel):
         for i in range(1, time_step):
             cur_item = items[:, i] # [num_seq, ] 
             cur_dt = dt[..., i-1] # [bs, num_node]
-            cur_feat = all_feature[:,:,i-1] # [bs, num_node, 3]
+            cur_feat = all_feature[:,:,i] # [bs, num_node, 3] # TODO it is changed Mar 10th
 
             feat = torch.einsum('bij,bj->bi', cur_feat, batch_theta)
             half_life = self.hclip(self.base ** (feat))
@@ -567,7 +567,7 @@ class PPE(BaseLearnerModel):
                  num_node=1,
                  mode='train',
                  device='cpu',
-                 logs=None
+                 logs=None,
                  ):
         '''
         Args:
@@ -583,25 +583,28 @@ class PPE(BaseLearnerModel):
             self.mean_rev_level = nn.Parameter(level, requires_grad=True)
             self.vola = nn.Parameter(vola, requires_grad=True)
         elif mode == 'train_split_time':
+            lr = torch.rand((num_seq, 1), device=device)
             x = torch.rand((num_seq, 1), device=device)
             b = torch.rand((num_seq, 1), device=device)
             m = torch.rand((num_seq, 1), device=device)
-            tau = torch.rand((num_seq, 1), device=device)
-            s = torch.rand((num_seq, 1), device=device)
 
+            self.lr = nn.Parameter(lr, requires_grad=True)
             self.variable_x = nn.Parameter(x, requires_grad=True)
             self.variable_b = nn.Parameter(b, requires_grad=True)
             self.variable_m = nn.Parameter(m, requires_grad=True)
-            self.variable_tau = nn.Parameter(tau, requires_grad=True)
-            self.variable_s = nn.Parameter(s, requires_grad=True)
+            
+            tau = torch.ones((num_seq, 1), device=device) * 0.9
+            s = torch.ones((num_seq, 1), device=device) * 0.04
+            self.variable_tau = nn.Parameter(tau, requires_grad=False)
+            self.variable_s = nn.Parameter(s, requires_grad=False)
         elif mode == 'synthetic':
             self.variable_x = variable_x
             self.variable_b = variable_b 
             self.variable_m = variable_m
             self.variable_tau = variable_tau
             self.variable_s = variable_s
+            self.lr = lr
         
-        self.lr = lr
         self.num_seq = num_seq
         self.num_node = num_node
         
@@ -609,18 +612,29 @@ class PPE(BaseLearnerModel):
     def simulate_path(self, x0, t, items=None, stats=None, user_id=None, stats_cal_on_fly=False): 
         '''
         Args:
-            x0: shape[num_seq/bs, num_node]
-            t: 
+            x0: shape[num_seq/bs, num_node]; the initial state of the learner model
+            t: shape[num_seq/bs, num_time_step]
+            items: [num_seq/bs, num_time_step]; 
+                ** it cannot be None when mode=synthetic
+            stats_cal_on_fly: whether calculate the stats of history based on the prediction 
+                ** TODO test. it causes gradient error now
+            stats: [num_seq/bs, num_node, num_time_step, 3]; it contains [N_total, N_success, N_failure]
         '''
+        
         eps = 1e-6
         num_node = x0.shape[-1]
         num_seq, time_step = t.shape
         
-        dt = torch.diff(t).reshape(num_seq, -1)
+        scale_factor = 1000
+        t = t/60/60/24 + eps # TODO
+        t = t/scale_factor + eps
+        # dt = torch.diff(t).reshape(num_seq, -1)/60/60/24 + eps
         
         if items == None:
             items = torch.zeros_like(t, device=self.device)
+        items = items.long()
         item_start = items[:, 0]
+        
         if stats_cal_on_fly or self.mode=='synthetic':
             all_feature = torch.zeros((num_seq, num_node, 3), device=self.device)
             all_feature[torch.arange(0, num_seq), item_start, 0] += 1
@@ -631,72 +645,95 @@ class PPE(BaseLearnerModel):
 
         x_pred = []
         x_pred.append(x0)
-        
-        ipdb.set_trace()
+
+        # ipdb.set_trace()
         max_items_repeat = [torch.max(torch.bincount(items[i])) for i in range(num_seq)]
         max_item_repeat = max(max_items_repeat)
+        actuall_max_item_repeat = torch.max(all_feature)
+        drift_repeat = int(actuall_max_item_repeat - max_item_repeat + 1)
 
         items_time_seq = torch.zeros((self.num_seq, num_node, max_item_repeat), device=self.device)
         items_time_seq[torch.arange(0, num_seq), item_start, 0] += t[:, 0]
 
-        all_features = []
+        # all_features = []
         drs = []
+        pns = []
+        pns.append(x0)
+        # ipdb.set_trace()
         for i in range(1, time_step):
-            ipdb.set_trace()
+            # print(i)
+            # if i == 80: ipdb.set_trace()
             cur_item = items[:, i] # [num_seq, ] 
-            cur_item_repeat = all_feature[torch.arange(num_seq), cur_item, 0].astype(torch.int)
+            cur_item_repeat = all_feature[torch.arange(num_seq), cur_item, i, 0].long()
             
             # put current time t in items_time_seq
+            # TODO not sure about multiple nodes
             cur_t = t[:, i]
-            items_time_seq[np.arange(num_seq), cur_item, cur_item_repeat] += cur_t
             
+            items_time_seq[torch.arange(num_seq), cur_item, cur_item_repeat-drift_repeat] += cur_t # [bs, num_node, times]
 
             # for PPE part 
             # - small d (decay)
-            cur_item_times = items_time_seq[torch.arange(0, num_seq), cur_item]
+            cur_item_times = items_time_seq[torch.arange(0, num_seq), cur_item] # [bs, times]
             lags = torch.diff(cur_item_times)
-            lag_mask = (lags>0)
-            dn = torch.sum(1/torch.log(abs(lags) + np.e) * lag_mask, -1) * (1/(cur_item_repeat+eps))
-            dn = self.variable_b + self.variable_m * dn
-            
+            lag_mask = (lags>0) # TODO is log here ? yes - in paper
+            dn = torch.sum(1/torch.log(abs(lags + eps) + np.e) * lag_mask, -1) * (1/(cur_item_repeat+eps)) # [bs, ]
+            dn = self.variable_b[user_id] + self.variable_m[user_id] * dn[:, None] # [bs, 1]
             
             # - big T
-            small_t = cur_t.unsqueeze(-1) - cur_item_times
+            small_t = cur_t.unsqueeze(-1) - cur_item_times # [bs, times]
             mask1 = (cur_item_times!=0)
             small_t *= mask1
-            big_t = torch.power(small_t, self.variable_x)/(torch.sum(torch.power(small_t, self.variable_x), 1, keepdims=True) + 1e-6)
-            big_t = torch.sum(big_t * small_t, 1)
+            
+            small_t = torch.minimum(small_t, (1e+3)*torch.ones_like(small_t))
+            big_t = torch.pow(small_t+eps, self.variable_x[user_id])/(torch.sum(torch.pow(small_t+eps, self.variable_x[user_id]), 1, keepdims=True) + eps)
+            big_t = torch.sum(big_t * small_t, 1) # [bs,]
 
             # ipdb.set_trace()
+            test2 = torch.pow((big_t + eps)[:, None], -dn)
+            test = torch.pow(small_t+eps, self.variable_x[user_id])
+            test1 = torch.pow((cur_item_repeat+1)[:, None], self.lr[user_id])
+            
+            # ipdb.set_trace()
+            if test.isinf().sum() + test1.isinf().sum() + test2.isinf().sum() > 0:
+                ipdb.set_trace()
+            
             big_t_mask = (big_t!=0)
-            mn = torch.power((cur_item_repeat+1), self.lr) * torch.power(big_t+eps, -dn) * big_t_mask
-            pn = 1/(1 + np.exp((self.variable_tau - mn)/self.variable_s))
-
-            success = (pn>=0.5)*1
-            fail = (pn<0.5)*1
-
-            all_feature[np.arange(num_seq), cur_item, 0] += 1
-            all_feature[np.arange(num_seq), cur_item, 1] += success
-            all_feature[np.arange(num_seq), cur_item, 2] += fail
+            mn = torch.pow((cur_item_repeat+1)[:, None], self.lr[user_id]) * \
+                        torch.pow((big_t + eps)[:, None], -dn) * big_t_mask[:, None]
             
-            tmp_feature = np.copy(all_feature)
-            all_features.append(tmp_feature)
+            pn = 1/(1 + torch.exp((self.variable_tau[user_id] - mn)/(self.variable_s[user_id] + eps) + eps) + eps)
+            
+            test = torch.exp((self.variable_tau[user_id] - mn)/(self.variable_s[user_id] + eps))
+            if test.isinf().sum() > 0: 
+                ipdb.set_trace()
+            # success = (pn>=0.5)*1
+            # fail = (pn<0.5)*1
+
+            # all_feature[np.arange(num_seq), cur_item, 0] += 1
+            # all_feature[np.arange(num_seq), cur_item, 1] += success
+            # all_feature[np.arange(num_seq), cur_item, 2] += fail
+            
+            # tmp_feature = np.copy(all_feature)
+            # all_features.append(tmp_feature)
             drs.append(dn)
-            
-            x[:, i, cur_item, 0] += pn
+            pns.append(pn)
             
             
         # ipdb.set_trace()
-        all_features = np.repeat(np.stack(all_features, 1).astype(int), num_node, -1) # [num_seq, time_step-1, num_node, 3]
-        drs = np.repeat(np.stack(drs, 1).reshape(num_seq, -1, 1), num_node, -1)
+        # all_features = np.repeat(np.stack(all_features, 1).astype(int), num_node, -1) # [num_seq, time_step-1, num_node, 3]
+        drs = torch.tile(torch.stack(drs, 1).reshape(num_seq, -1, 1), (1,1,num_node))
+        pns = torch.tile(torch.stack(pns, 1).reshape(num_seq, -1, 1), (1,1,num_node))
         params = {
             'decay_rate': drs,
-            'num_history': all_features[..., 0:1],
-            'num_success': all_features[..., 1:2],
-            'num_failure': all_features[..., 2:3],
+            'x_item_pred': pns[..., 0],
+            'num_history': stats[..., 0:1],
+            'num_success': stats[..., 1:2],
+            'num_failure': stats[..., 2:3],
         }
         
-        return x, params
+        return params
+
 
     def forward(self, feed_dict):
         # skills = feed_dict['skill_seq']      # [batch_size, seq_len]
@@ -712,11 +749,12 @@ class PPE(BaseLearnerModel):
         
         x0 = labels[:, :1]
         outdict = self.simulate_path(x0=x0, t=times, stats=stats, user_id=feed_dict['user_id'])
-        
+        # ipdb.set_trace()
         outdict['prediction'] = outdict['x_item_pred']
         outdict['label'] = labels
         
         return outdict
+        
         
     def loss(self, feed_dict, outdict, metrics=None):
         losses = defaultdict(lambda: torch.zeros((), device=self.device))
@@ -735,10 +773,14 @@ class PPE(BaseLearnerModel):
         for key in evaluations.keys():
             losses[key] = evaluations[key]
             
-        losses['theta_0'] = self.theta.clone()[0, 0]
-        losses['theta_1'] = self.theta.clone()[0, 1]
-        losses['theta_2'] = self.theta.clone()[0, 2]
-        
+        losses['lr'] = self.lr.clone()[0]
+        losses['variable_x'] = self.variable_x.clone()[0]
+        losses['variable_b'] = self.variable_b.clone()[0]
+        losses['variable_m'] = self.variable_m.clone()[0]
+        losses['variable_tau'] = self.variable_tau.clone()[0]
+        losses['variable_s'] = self.variable_s.clone()[0]
+        losses['variable_b'] = self.variable_b.clone()[0]
+            
         return losses
     
     

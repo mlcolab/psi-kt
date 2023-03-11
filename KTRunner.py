@@ -131,21 +131,36 @@ class KTRunner(object):
         else:
             epoch_train_data = copy.deepcopy(corpus.data_df['train'])
         epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) # Return a random sample of items from an axis of object.
-        batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
 
+        train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
+        if self.args.validate:
+            val_batches = model.module.prepare_batches(corpus, corpus.data_df['dev'], self.eval_batch_size, phase='dev')
+            test_batches = model.module.prepare_batches(corpus, corpus.data_df['test'], self.eval_batch_size, phase='test')
+            from models.new_learner_model import HierachicalSSM
+            if isinstance(model.module, HierachicalSSM):
+                whole_batches = model.module.prepare_batches(corpus, corpus.data_df['whole'], self.eval_batch_size, phase='whole')
+            else: whole_batches = None
+
+            
         try:
             for epoch in range(self.epoch):
                 gc.collect()
                 self._check_time()
                 
-                loss = self.fit(model, batches, epoch_train_data, epoch=epoch + 1)
+                model.train()
+                # valid_result = self.evaluate(model, corpus, 'dev', val_batches, whole_batches)
+                # test_result = self.evaluate(model, corpus, 'test', test_batches, whole_batches)
                 
+                loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch + 1)
+
                 training_time = self._check_time()
 
                 ##### output validation and write to logs
                 if self.args.validate:
-                    valid_result = self.evaluate(model, corpus, 'dev')
-                    test_result = self.evaluate(model, corpus, 'test')
+                    
+                    with torch.no_grad():
+                        valid_result = self.evaluate(model, corpus, 'dev', val_batches, whole_batches)
+                        test_result = self.evaluate(model, corpus, 'test', test_batches, whole_batches)
 
                     self.logs.append_test_loss(test_result)
                     self.logs.append_val_loss(valid_result)
@@ -158,9 +173,9 @@ class KTRunner(object):
                                 
                     if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
                         model.module.save_model(epoch=epoch)
-                    # if self._eva_termination(model) and self.early_stop:
-                    #     self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
-                    #     break
+                    if self._eva_termination(model) and self.early_stop:
+                        self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
+                        break
                 self.logs.draw_loss_curves()
 
         except KeyboardInterrupt:
@@ -196,7 +211,6 @@ class KTRunner(object):
         # model.load_model() #???
 
 
-
     def fit(self, model, batches, epoch_train_data, epoch=-1): 
         """
         Args: 
@@ -206,6 +220,7 @@ class KTRunner(object):
         """
         if model.module.optimizer is None:
             model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
+            
         model.train()
         train_losses = defaultdict(list)
         
@@ -235,7 +250,7 @@ class KTRunner(object):
             
             train_losses = utils.append_losses(train_losses, loss_dict)
             
-        # ipdb.set_trace()
+            
         # TODO DEBUG: to visualize the difference of synthetic data adj
         if 'synthetic' in self.args.dataset and epoch%2 == 0:
             import matplotlib.patches as mpatches
@@ -268,28 +283,50 @@ class KTRunner(object):
     
 
 
-    def predict(self, model, corpus, set_name):
+    def predict(self, model, corpus, set_name, data_batches=None, whole_batches=None):
+        '''
+        Args:
+            model: 
+        '''
         model.eval()
         predictions, labels = [], []
-        batches = model.module.prepare_batches(corpus, corpus.data_df[set_name], self.eval_batch_size, phase=set_name)
-        for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
-            batch = model.module.batch_to_gpu(batch)
-            outdict = model(batch)
-            prediction, label = outdict['prediction'], outdict['label']
-            predictions.extend(prediction.detach().cpu().data.numpy())
-            labels.extend(label.detach().cpu().data.numpy())
-        # ipdb.set_trace()
+    
+        from models.new_learner_model import HierachicalSSM
+        
+        if isinstance(model.module, HierachicalSSM):
+            for batch in tqdm(whole_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
+                batch = model.module.batch_to_gpu(batch)
+                outdict = model.module.prediction(batch)
+                prediction, label = outdict['prediction'], outdict['label']
+                predictions.extend(prediction.detach().cpu().data.numpy())
+                labels.extend(label.detach().cpu().data.numpy())
+        
+        else:
+            for batch in tqdm(data_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
+                batch = model.module.batch_to_gpu(batch)
+                # ipdb.set_trace()
+                outdict = model(batch)
+                prediction, label = outdict['prediction'], outdict['label']
+                predictions.extend(prediction.detach().cpu().data.numpy())
+                labels.extend(label.detach().cpu().data.numpy())
+        
         return np.array(predictions), np.array(labels)
 
-    def evaluate(self, model, corpus, set_name):  # evaluate the results for an input set
-        predictions, labels = self.predict(model, corpus, set_name)
+
+    def evaluate(self, model, corpus, set_name, data_batches=None, whole_batches=None):  # evaluate the results for an input set
+        '''
+        Args:
+            model: 
+        '''
+        predictions, labels = self.predict(model, corpus, set_name, data_batches, whole_batches)
         lengths = np.array(list(map(lambda lst: len(lst) - 1, corpus.data_df[set_name]['skill_seq'])))
+        
         concat_pred, concat_label = list(), list()
         for pred, label, length in zip(predictions, labels, lengths):
             concat_pred.append(pred[:length])
             concat_label.append(label[:length])
         concat_pred = np.concatenate(concat_pred)
         concat_label = np.concatenate(concat_label)
-        # ipdb.set_trace()
+        
         return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics)
 

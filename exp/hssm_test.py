@@ -3,23 +3,17 @@ import sys
 sys.path.append('..')
 
 import os 
-import time
 import pickle
 import argparse
 import numpy as np
 import torch
 import datetime
-import builtins
 
 from data import data_loader
-from models import *
+# from models import *
 from KTRunner import *
 from utils import utils, arg_parser, logger
-from models.learner_model import HLR, PPE, VanillaOU
-
-# import torch.distributed as dist
-# import torch.multiprocessing as mp
-# from torch.nn.parallel import DistributedDataParallel as DDP
+from models.new_learner_model_test import *
 
 import ipdb
 # https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
@@ -36,13 +30,14 @@ def load_corpus(logs, args):
     logs.write_to_log_file('Load corpus from {}'.format(corpus_path))
     with open(corpus_path, 'rb') as f:
         corpus = pickle.load(f)
-    if args.train_mode == 'train_split_learner':
+    
+    if 'split_learner' in args.train_mode:
         corpus.gen_fold_data(args.fold)
         logs.write_to_log_file('# Training mode splits LEARNER')
         logs.write_to_log_file('# Train: {}, # Dev: {}, # Test: {}'.format(
                 len(corpus.data_df['train']), len(corpus.data_df['dev']), len(corpus.data_df['test'])
             ))
-    if args.train_mode == 'train_split_time':
+    if 'split_time' in args.train_mode:
         corpus.gen_time_split_data(args.train_time_ratio, args.test_time_ratio)
         logs.write_to_log_file('# Training mode splits TIME')
         logs.write_to_log_file('# Train: {}, # Dev: {}, # Test: {}'.format(
@@ -59,27 +54,33 @@ if __name__ == '__main__':
     parser.add_argument('--model_name', type=str, help='Choose a model to run.')
     
     # Training options
-    parser.add_argument('--train_mode', type=str, default='train_split_time', )
-    parser.add_argument('--train_time_ratio', type=float, default=0.4, help='')
+    parser.add_argument(
+        '--train_mode', type=str, default='train_split_time', 
+        help= 'simple_split_time' + 'simple_split_learner' 
+        + 'ls_split_time' 
+        + 'ns_split_time' + 'ns_split_learner'
+        + 'ln_split_time', # ln can be split to time+learner
+    )
+    parser.add_argument('--multi_node', type=int, default=0)
+    parser.add_argument('--train_time_ratio', type=float, default=0.2, help='')
     parser.add_argument('--test_time_ratio', type=float, default=0.5, help='')
     
     # general
     parser.add_argument('--num_node', type=int, default=1, help='')
     parser.add_argument('--num_seq', type=int, default=1, help='')
     
-    # HLR 
-    parser.add_argument('--base', type=float, default=2., help='')
-    # OU 
-    # PPE
-    parser.add_argument('--ppe_lr', type=float, default=0.2, help='')
+    # SSSM
+    parser.add_argument('--hidden_dim', type=int, default=8, help='')
+    parser.add_argument('--graph_path', type=str, default='/mnt/qb/work/mlcolab/hzhou52/kt/junyi/adj.npy')
     
-
+    
     parser = arg_parser.parse_args(parser)
     
     global_args, extras = parser.parse_known_args() 
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+    # global_args.device = torch.device('cpu')
+    
     logs = logger.Logger(global_args)
     
     # ----- data part -----
@@ -119,34 +120,27 @@ if __name__ == '__main__':
     
     
     # ----- Model initialization -----
-    if global_args.train_mode == 'train_split_time':
+    if 'ls_' or 'ln_' in global_args.train_mode:
         num_seq = corpus.n_users
     else: num_seq = 1
-    if global_args.model_name == 'HLR':
-        model = HLR(mode=global_args.train_mode, 
-                    num_seq=num_seq,
-                    device=global_args.device, 
-                    logs=logs)
-    elif global_args.model_name == 'OU':
-        model = VanillaOU(mode=global_args.train_mode, 
-                          num_seq=num_seq,
-                          device=global_args.device, 
-                          logs=logs)
-    elif global_args.model_name == 'PPE':
-        model = PPE(mode=global_args.train_mode, 
-                    lr=global_args.ppe_lr,
-                    num_seq=num_seq,
-                    device=global_args.device, 
-                    logs=logs)
-        
+    
+    adj = np.load(global_args.graph_path)
+    
+    model = TestHierachicalSSM(
+        device=global_args.device, 
+        args=global_args,
+        logs=logs,   
+    )
+
         
     if global_args.load > 0:
         model.load_model(model_path=global_args.load_folder)
     logs.write_to_log_file(model)
-    model = model.double()
+    # model = model.double() # ??? when to use double
     # model.apply(model.init_weights)
     model.actions_before_train()
-   
+    
+    
     # Move to current device
     if torch.cuda.is_available():
         if global_args.distributed:
@@ -156,8 +150,9 @@ if __name__ == '__main__':
             
     # Running
     runner = KTRunner(global_args, logs)
+    # runner = VCLRunner(global_args, logs)
     runner.train(model, corpus)
-    logs.write_to_log_file('\nTest After Training: ' + runner.print_res(model, corpus))
+    # logs.write_to_log_file('\nTest After Training: ' + runner._print_res(model, corpus))
 
-    model.actions_after_train()
+    # model.module.actions_after_train()
     logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)

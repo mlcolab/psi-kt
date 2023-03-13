@@ -16,7 +16,7 @@ from models import *
 from KTRunner import *
 from VCLRunner import *
 from utils import utils, arg_parser, logger
-from models.learner_model import HLR, PPE, VanillaOU
+from models.learner_model import HLR, PPE, VanillaOU, GraphOU
 from models.new_learner_model import *
 
 # import torch.distributed as dist
@@ -38,13 +38,14 @@ def load_corpus(logs, args):
     logs.write_to_log_file('Load corpus from {}'.format(corpus_path))
     with open(corpus_path, 'rb') as f:
         corpus = pickle.load(f)
-    if args.train_mode == 'train_split_learner':
+    
+    if 'split_learner' in args.train_mode:
         corpus.gen_fold_data(args.fold)
         logs.write_to_log_file('# Training mode splits LEARNER')
         logs.write_to_log_file('# Train: {}, # Dev: {}, # Test: {}'.format(
                 len(corpus.data_df['train']), len(corpus.data_df['dev']), len(corpus.data_df['test'])
             ))
-    if args.train_mode == 'train_split_time':
+    if 'split_time' in args.train_mode:
         corpus.gen_time_split_data(args.train_time_ratio, args.test_time_ratio)
         logs.write_to_log_file('# Training mode splits TIME')
         logs.write_to_log_file('# Train: {}, # Dev: {}, # Test: {}'.format(
@@ -61,9 +62,16 @@ if __name__ == '__main__':
     parser.add_argument('--model_name', type=str, help='Choose a model to run.')
     
     # Training options
-    parser.add_argument('--train_mode', type=str, default='train_split_time', )
-    parser.add_argument('--train_time_ratio', type=float, default=0.2, help='')
-    parser.add_argument('--test_time_ratio', type=float, default=0.5, help='')
+    parser.add_argument(
+        '--train_mode', type=str, default='train_split_time', 
+        help= 'simple_split_time' + 'simple_split_learner' 
+        + 'ls_split_time' 
+        + 'ns_split_time' + 'ns_split_learner'
+        + 'ln_split_time', # ln can be split to time+learner
+    )
+    parser.add_argument('--multi_node', type=int, default=0)
+    parser.add_argument('--train_time_ratio', type=float, default=0.5, help='')
+    parser.add_argument('--test_time_ratio', type=float, default=0.4, help='')
     
     # general
     parser.add_argument('--num_node', type=int, default=1, help='')
@@ -75,9 +83,10 @@ if __name__ == '__main__':
     # PPE
     parser.add_argument('--ppe_lr', type=float, default=0.2, help='')
     # SSSM
-    parser.add_argument('hidden_dim', type=int, default=8, help='')
+    parser.add_argument('--hidden_dim', type=int, default=8, help='')
     
-
+    parser.add_argument('--graph_path', type=str, default='/mnt/qb/work/mlcolab/hzhou52/kt/junyi/adj.npy')
+    
     parser = arg_parser.parse_args(parser)
     
     global_args, extras = parser.parse_known_args() 
@@ -124,23 +133,42 @@ if __name__ == '__main__':
     
     
     # ----- Model initialization -----
-    if global_args.train_mode == 'train_split_time':
+    if 'ls_' or 'ln_' in global_args.train_mode:
         num_seq = corpus.n_users
     else: num_seq = 1
+    
+    adj = np.load(global_args.graph_path)
+    
     if global_args.model_name == 'HLR':
         model = HLR(
             mode=global_args.train_mode, 
             num_seq=num_seq,
+            num_node=1 if not global_args.multi_node else corpus.n_skills,
+            nx_graph=None if not global_args.multi_node else adj,
             device=global_args.device, 
-            logs=logs
+            logs=logs,
         )
-    elif global_args.model_name == 'OU':
+        
+    elif global_args.model_name == 'VanillaOU':
         model = VanillaOU(
             mode=global_args.train_mode, 
             num_seq=num_seq,
+            num_node=1 if not global_args.multi_node else corpus.n_skills,
+            nx_graph=None if not global_args.multi_node else adj,
             device=global_args.device, 
             logs=logs
         )
+        
+    elif global_args.model_name == 'GraphOU':
+        model = GraphOU(
+            mode=global_args.train_mode, 
+            num_seq=num_seq,
+            num_node=1 if not global_args.multi_node else corpus.n_skills,
+            nx_graph=None if not global_args.multi_node else adj,
+            device=global_args.device, 
+            logs=logs
+        )
+        
     elif global_args.model_name == 'PPE':
         model = PPE(
             mode=global_args.train_mode, 
@@ -151,14 +179,14 @@ if __name__ == '__main__':
         )
     elif global_args.model_name == 'SwitchingNLDS':
         model = create_model(
-            hidden_dim_s=3,
-            hidden_dim_z=1,
-            observation_dim=1,
+            dim_s=3,
+            dim_z=1,
+            dim_y=1,
             device=global_args.device, 
             args=global_args,
             logs=logs,   
         )
-        
+
         
     if global_args.load > 0:
         model.load_model(model_path=global_args.load_folder)
@@ -181,5 +209,5 @@ if __name__ == '__main__':
     runner.train(model, corpus)
     # logs.write_to_log_file('\nTest After Training: ' + runner._print_res(model, corpus))
 
-    model.module.actions_after_train()
+    # model.module.actions_after_train()
     logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)

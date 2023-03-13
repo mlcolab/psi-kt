@@ -1,0 +1,253 @@
+Namespace(model_name='VanillaOU', train_mode='ls_split_time', multi_node=1, train_time_ratio=0.5, test_time_ratio=0.4, num_node=1, num_seq=1, base=2.0, ppe_lr=0.2, hidden_dim=8, graph_path='/mnt/qb/work/mlcolab/hzhou52/kt/junyi/adj.npy', overfit=0, gt_adj_path=None, world_size=-1, rank=-1, dist_url='env://', dist_backend='nccl', local_rank=-1, distributed=1, random_seed=2022, GPU_to_use=None, gpu='0', data_dir='/mnt/qb/work/mlcolab/hzhou52/kt', dataset='junyi/single_user_multi_skill', sep='\t', kfold=5, max_step=200, regenerate_corpus=False, save_folder='/mnt/qb/work/mlcolab/hzhou52/kt/logs', expername='', train=1, validate=True, epoch=100, early_stop=1, lr=0.005, batch_size=512, eval_batch_size=512, dropout=0.0, l2=0.0, optimizer='Adam', metric='F1, AUC, Accuracy, Recall, Precision', fold=0, load=0, load_folder='', lr_decay=5000, gamma=0.5, var=0.05, time='2023-03-13T15:56:49.662145', device=device(type='cuda', index=0), log_path='/mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0')
+Load corpus from /mnt/qb/work/mlcolab/hzhou52/kt/junyi/single_user_multi_skill/Corpus_200.pkl
+# Training mode splits TIME
+# Train: 26629, # Dev: 26629, # Test: 26629
+--------------------------------------------- BEGIN: 2023-03-13 15:57:03 ---------------------------------------------
+
+==========================================
+ Arguments         | Values               
+==========================================
+ base              | 2.0                 
+ batch_size        | 512                 
+ data_dir          | /mnt/qb/work/mlco...
+ dataset           | junyi/single_user...
+ decoder_file      | /mnt/qb/work/mlco...
+ device            | cuda:0              
+ dist_backend      | nccl                
+ dist_url          | env://              
+ distributed       | 1                   
+ dropout           | 0.0                 
+ early_stop        | 1                   
+ epoch             | 100                 
+ eval_batch_size   | 512                 
+ expername         |                     
+ fold              | 0                   
+ gamma             | 0.5                 
+ gpu               | 0                   
+ graph_path        | /mnt/qb/work/mlco...
+ hidden_dim        | 8                   
+ kfold             | 5                   
+ l2                | 0.0                 
+ load              | 0                   
+ load_folder       |                     
+ local_rank        | -1                  
+ log_path          | /mnt/qb/work/mlco...
+ lr                | 0.005               
+ lr_decay          | 5000                
+ max_step          | 200                 
+ metric            | F1, AUC, Accuracy...
+ model_name        | VanillaOU           
+ multi_node        | 1                   
+ num_node          | 1                   
+ num_seq           | 1                   
+ optimizer         | Adam                
+ optimizer_file    | /mnt/qb/work/mlco...
+ overfit           | 0                   
+ plotdir           | /mnt/qb/work/mlco...
+ ppe_lr            | 0.2                 
+ random_seed       | 2022                
+ rank              | -1                  
+ regenerate_corpus | False               
+ save_folder       | /mnt/qb/work/mlco...
+ test_time_ratio   | 0.4                 
+ time              | 2023-03-13T15:56:...
+ train_mode        | ls_split_time       
+ train_time_ratio  | 0.5                 
+ validate          | True                
+ var               | 0.05                
+ world_size        | -1                  
+==========================================
+# cuda devices: 1
+VanillaOU()
+#params: 79887
+Optimizer: Adam
+1 train	 	loss_total 0.7744370811 	f1 0.7921067584 	auc 0.5086789603 	accuracy 0.6687076946 	recall 0.7385773414 	precision 0.8545404404 	mean_rev_speed 0.1211150589 	mean_rev_level 0.1081147236 	vola 0.1470037294 	time: 1678719687.1394s 	
+Epoch 1   loss=0.7744 [249.9 s]	 valid=(accuracy:0.7057,auc:0.5442,f1:0.8189,precision:0.8559,recall:0.7849) test=(accuracy:0.6753,auc:0.5114,f1:0.7970,precision:0.8413,recall:0.7571) [13.3 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_0.pt
+2 train	 	loss_total 0.7037944108 	f1 0.8056047268 	auc 0.5107743215 	accuracy 0.6856266215 	recall 0.7622599887 	precision 0.8547895789 	mean_rev_speed 0.1509901465 	mean_rev_level 0.1402419711 	vola 0.1137655362 	time: 1678719921.0461s 	
+Epoch 2   loss=0.7038 [217.6 s]	 valid=(accuracy:0.7205,auc:0.5461,f1:0.8302,precision:0.8557,recall:0.8062) test=(accuracy:0.6903,auc:0.5121,f1:0.8090,precision:0.8413,recall:0.7791) [13.4 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_1.pt
+3 train	 	loss_total 0.6699234326 	f1 0.8182160188 	auc 0.5146009980 	accuracy 0.7019709611 	recall 0.7848450864 	precision 0.8552483316 	mean_rev_speed 0.1624206830 	mean_rev_level 0.1724845756 	vola 0.0970855223 	time: 1678720166.6702s 	
+Epoch 3   loss=0.6699 [226.0 s]	 valid=(accuracy:0.7328,auc:0.5481,f1:0.8395,precision:0.8552,recall:0.8243) test=(accuracy:0.7047,auc:0.5141,f1:0.8201,precision:0.8414,recall:0.7999) [13.3 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_2.pt
+4 train	 	loss_total 0.6452427608 	f1 0.8294661675 	auc 0.5173474367 	accuracy 0.7170006633 	recall 0.8054430300 	precision 0.8555837523 	mean_rev_speed 0.1660023947 	mean_rev_level 0.2037291839 	vola 0.0897776181 	time: 1678720401.0961s 	
+Epoch 4   loss=0.6452 [212.0 s]	 valid=(accuracy:0.7444,auc:0.5500,f1:0.8479,precision:0.8551,recall:0.8409) test=(accuracy:0.7189,auc:0.5163,f1:0.8308,precision:0.8417,recall:0.8202) [13.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_3.pt
+5 train	 	loss_total 0.6233266884 	f1 0.8399897488 	auc 0.5217259765 	accuracy 0.7313396226 	recall 0.8252156619 	precision 0.8559617890 	mean_rev_speed 0.1640928700 	mean_rev_level 0.2320050125 	vola 0.0943496469 	time: 1678720621.3918s 	
+Epoch 5   loss=0.6233 [203.1 s]	 valid=(accuracy:0.7564,auc:0.5534,f1:0.8565,precision:0.8552,recall:0.8578) test=(accuracy:0.7314,auc:0.5184,f1:0.8401,precision:0.8419,recall:0.8384) [13.6 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_4.pt
+6 train	 	loss_total 0.6035939163 	f1 0.8496891341 	auc 0.5264559083 	accuracy 0.7450207105 	recall 0.8435452757 	precision 0.8564838291 	mean_rev_speed 0.1738376505 	mean_rev_level 0.2649415844 	vola 0.0747035733 	time: 1678720871.0633s 	
+Epoch 6   loss=0.6036 [230.0 s]	 valid=(accuracy:0.7652,auc:0.5544,f1:0.8627,precision:0.8550,recall:0.8705) test=(accuracy:0.7429,auc:0.5202,f1:0.8485,precision:0.8421,recall:0.8549) [12.8 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_5.pt
+7 train	 	loss_total 0.5875365925 	f1 0.8576584209 	auc 0.5287688120 	accuracy 0.7563099204 	recall 0.8592924656 	precision 0.8565926118 	mean_rev_speed 0.1840959450 	mean_rev_level 0.2977558335 	vola 0.0474139430 	time: 1678721154.1569s 	
+Epoch 7   loss=0.5875 [249.2 s]	 valid=(accuracy:0.7750,auc:0.5568,f1:0.8694,precision:0.8552,recall:0.8842) test=(accuracy:0.7525,auc:0.5210,f1:0.8553,precision:0.8421,recall:0.8688) [13.5 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_6.pt
+8 train	 	loss_total 0.5737199817 	f1 0.8650069137 	auc 0.5318141445 	accuracy 0.7669758992 	recall 0.8738582363 	precision 0.8569650051 	mean_rev_speed 0.1909944036 	mean_rev_level 0.3293258047 	vola 0.0183379572 	time: 1678721461.8955s 	
+Epoch 8   loss=0.5737 [292.0 s]	 valid=(accuracy:0.7831,auc:0.5587,f1:0.8750,precision:0.8551,recall:0.8960) test=(accuracy:0.7619,auc:0.5231,f1:0.8619,precision:0.8424,recall:0.8823) [13.6 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_7.pt
+9 train	 	loss_total 0.5578079679 	f1 0.8723186966 	auc 0.5360754281 	accuracy 0.7778996167 	recall 0.8882813158 	precision 0.8573766518 	mean_rev_speed 0.1921515066 	mean_rev_level 0.3596385616 	vola 0.0132870311 	time: 1678721747.3755s 	
+Epoch 9   loss=0.5578 [268.0 s]	 valid=(accuracy:0.7925,auc:0.5607,f1:0.8812,precision:0.8555,recall:0.9086) test=(accuracy:0.7708,auc:0.5253,f1:0.8679,precision:0.8427,recall:0.8948) [15.8 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_8.pt
+10 train	 	loss_total 0.5456087308 	f1 0.8788020560 	auc 0.5411273716 	accuracy 0.7877037883 	recall 0.9014079989 	precision 0.8576820223 	mean_rev_speed 0.1925740903 	mean_rev_level 0.3896728850 	vola 0.0068707547 	time: 1678722027.6327s 	
+Epoch 10  loss=0.5456 [260.6 s]	 valid=(accuracy:0.7978,auc:0.5630,f1:0.8848,precision:0.8555,recall:0.9161) test=(accuracy:0.7787,auc:0.5275,f1:0.8733,precision:0.8429,recall:0.9061) [13.5 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_9.pt
+11 train	 	loss_total 0.5348038403 	f1 0.8840713732 	auc 0.5465410688 	accuracy 0.7957323113 	recall 0.9120395574 	precision 0.8581828075 	mean_rev_speed 0.1928580004 	mean_rev_level 0.4191087214 	vola -0.0016876250 	time: 1678722305.7568s 	
+Epoch 11  loss=0.5348 [259.9 s]	 valid=(accuracy:0.8054,auc:0.5656,f1:0.8897,precision:0.8557,recall:0.9266) test=(accuracy:0.7863,auc:0.5301,f1:0.8783,precision:0.8432,recall:0.9165) [13.3 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_10.pt
+12 train	 	loss_total 0.5236817908 	f1 0.8887707582 	auc 0.5493256914 	accuracy 0.8029570313 	recall 0.9218782863 	precision 0.8583767173 	mean_rev_speed 0.1929014322 	mean_rev_level 0.4481315658 	vola -0.0033365187 	time: 1678722601.0589s 	
+Epoch 12  loss=0.5237 [280.1 s]	 valid=(accuracy:0.8101,auc:0.5658,f1:0.8928,precision:0.8557,recall:0.9334) test=(accuracy:0.7927,auc:0.5317,f1:0.8826,precision:0.8434,recall:0.9256) [13.2 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_11.pt
+13 train	 	loss_total 0.5145128077 	f1 0.8929485193 	auc 0.5555594886 	accuracy 0.8094653597 	recall 0.9305645357 	precision 0.8586971955 	mean_rev_speed 0.1929015666 	mean_rev_level 0.4767018562 	vola -0.0033431014 	time: 1678722923.9109s 	
+Epoch 13  loss=0.5145 [297.9 s]	 valid=(accuracy:0.8161,auc:0.5678,f1:0.8967,precision:0.8561,recall:0.9412) test=(accuracy:0.7986,auc:0.5335,f1:0.8865,precision:0.8436,recall:0.9340) [13.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_12.pt
+14 train	 	loss_total 0.5071339141 	f1 0.8963849362 	auc 0.5593799811 	accuracy 0.8148599646 	recall 0.9378833190 	precision 0.8588374672 	mean_rev_speed 0.1929015666 	mean_rev_level 0.5047983218 	vola -0.0033431270 	time: 1678723157.7573s 	
+Epoch 14  loss=0.5071 [218.5 s]	 valid=(accuracy:0.8210,auc:0.5713,f1:0.8998,precision:0.8561,recall:0.9482) test=(accuracy:0.8038,auc:0.5352,f1:0.8898,precision:0.8437,recall:0.9412) [13.3 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_13.pt
+15 train	 	loss_total 0.4978042132 	f1 0.9004885415 	auc 0.5635014545 	accuracy 0.8214485554 	recall 0.9463757783 	precision 0.8592025118 	mean_rev_speed 0.1929015666 	mean_rev_level 0.5323973208 	vola -0.0033431270 	time: 1678723336.6064s 	
+Epoch 15  loss=0.4978 [163.1 s]	 valid=(accuracy:0.8240,auc:0.5691,f1:0.9017,precision:0.8560,recall:0.9524) test=(accuracy:0.8090,auc:0.5375,f1:0.8932,precision:0.8440,recall:0.9484) [13.2 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_14.pt
+16 train	 	loss_total 0.4908558749 	f1 0.9032724388 	auc 0.5694144884 	accuracy 0.8258836969 	recall 0.9522817782 	precision 0.8594525607 	mean_rev_speed 0.1929015666 	mean_rev_level 0.5595252154 	vola -0.0033431270 	time: 1678723526.4022s 	
+Epoch 16  loss=0.4909 [172.4 s]	 valid=(accuracy:0.8282,auc:0.5719,f1:0.9043,precision:0.8563,recall:0.9580) test=(accuracy:0.8128,auc:0.5397,f1:0.8956,precision:0.8442,recall:0.9536) [12.8 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_15.pt
+17 train	 	loss_total 0.4825032899 	f1 0.9065211850 	auc 0.5733440389 	accuracy 0.8312090949 	recall 0.9589705509 	precision 0.8598387065 	mean_rev_speed 0.1929015666 	mean_rev_level 0.5861581384 	vola -0.0033431270 	time: 1678723750.8499s 	
+Epoch 17  loss=0.4825 [209.0 s]	 valid=(accuracy:0.8309,auc:0.5728,f1:0.9060,precision:0.8563,recall:0.9618) test=(accuracy:0.8165,auc:0.5412,f1:0.8979,precision:0.8443,recall:0.9588) [13.4 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_16.pt
+18 train	 	loss_total 0.4761074798 	f1 0.9089524527 	auc 0.5776821022 	accuracy 0.8351768131 	recall 0.9641277546 	precision 0.8600649678 	mean_rev_speed 0.1929015666 	mean_rev_level 0.6122866284 	vola -0.0033431270 	time: 1678723952.8283s 	
+Epoch 18  loss=0.4761 [184.4 s]	 valid=(accuracy:0.8345,auc:0.5745,f1:0.9082,precision:0.8567,recall:0.9663) test=(accuracy:0.8202,auc:0.5425,f1:0.9003,precision:0.8446,recall:0.9638) [13.9 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_17.pt
+19 train	 	loss_total 0.4699559656 	f1 0.9110063911 	auc 0.5817619119 	accuracy 0.8385394310 	recall 0.9684521026 	precision 0.8603065331 	mean_rev_speed 0.1929015666 	mean_rev_level 0.6378758246 	vola -0.0033431270 	time: 1678724155.1734s 	
+Epoch 19  loss=0.4700 [185.7 s]	 valid=(accuracy:0.8371,auc:0.5743,f1:0.9098,precision:0.8567,recall:0.9700) test=(accuracy:0.8232,auc:0.5438,f1:0.9021,precision:0.8448,recall:0.9678) [13.6 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_18.pt
+20 train	 	loss_total 0.4648499399 	f1 0.9127191039 	auc 0.5858442606 	accuracy 0.8413607754 	recall 0.9720597731 	precision 0.8605203230 	mean_rev_speed 0.1929015666 	mean_rev_level 0.6629492967 	vola -0.0033431270 	time: 1678724333.7970s 	
+Epoch 20  loss=0.4648 [160.7 s]	 valid=(accuracy:0.8388,auc:0.5747,f1:0.9109,precision:0.8570,recall:0.9720) test=(accuracy:0.8256,auc:0.5457,f1:0.9036,precision:0.8449,recall:0.9710) [13.6 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_19.pt
+21 train	 	loss_total 0.4593344567 	f1 0.9145248427 	auc 0.5901613965 	accuracy 0.8444181899 	recall 0.9756271044 	precision 0.8609026931 	mean_rev_speed 0.1929015666 	mean_rev_level 0.6875110449 	vola -0.0033431270 	time: 1678724524.4116s 	
+Epoch 21  loss=0.4593 [170.2 s]	 valid=(accuracy:0.8409,auc:0.5749,f1:0.9121,precision:0.8570,recall:0.9748) test=(accuracy:0.8280,auc:0.5464,f1:0.9051,precision:0.8451,recall:0.9743) [13.5 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_20.pt
+22 train	 	loss_total 0.4545982593 	f1 0.9158229798 	auc 0.5933272748 	accuracy 0.8465625000 	recall 0.9783925147 	precision 0.8610611204 	mean_rev_speed 0.1929015666 	mean_rev_level 0.7115943196 	vola -0.0033431270 	time: 1678724704.5739s 	
+Epoch 22  loss=0.4546 [162.9 s]	 valid=(accuracy:0.8429,auc:0.5759,f1:0.9134,precision:0.8572,recall:0.9774) test=(accuracy:0.8300,auc:0.5481,f1:0.9063,precision:0.8453,recall:0.9768) [13.6 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_21.pt
+23 train	 	loss_total 0.4503065696 	f1 0.9170604231 	auc 0.5971375551 	accuracy 0.8486154923 	recall 0.9810190321 	precision 0.8612187483 	mean_rev_speed 0.1929015666 	mean_rev_level 0.7351293541 	vola -0.0033431270 	time: 1678724890.1322s 	
+Epoch 23  loss=0.4503 [164.4 s]	 valid=(accuracy:0.8435,auc:0.5756,f1:0.9138,precision:0.8570,recall:0.9786) test=(accuracy:0.8317,auc:0.5499,f1:0.9073,precision:0.8455,recall:0.9789) [13.4 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_22.pt
+24 train	 	loss_total 0.4458936262 	f1 0.9180920543 	auc 0.6002345749 	accuracy 0.8503771374 	recall 0.9830157358 	precision 0.8614913586 	mean_rev_speed 0.1929015666 	mean_rev_level 0.7581521374 	vola -0.0033431270 	time: 1678725089.0066s 	
+Epoch 24  loss=0.4459 [154.8 s]	 valid=(accuracy:0.8451,auc:0.5752,f1:0.9147,precision:0.8574,recall:0.9803) test=(accuracy:0.8332,auc:0.5517,f1:0.9083,precision:0.8456,recall:0.9810) [13.3 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_23.pt
+25 train	 	loss_total 0.4418976751 	f1 0.9189668302 	auc 0.6061423102 	accuracy 0.8518620283 	recall 0.9848692395 	precision 0.8615890943 	mean_rev_speed 0.1929015666 	mean_rev_level 0.7806763570 	vola -0.0033431270 	time: 1678725260.9449s 	
+Epoch 25  loss=0.4419 [155.1 s]	 valid=(accuracy:0.8461,auc:0.5752,f1:0.9153,precision:0.8576,recall:0.9814) test=(accuracy:0.8344,auc:0.5519,f1:0.9090,precision:0.8457,recall:0.9825) [13.5 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_24.pt
+26 train	 	loss_total 0.4380539959 	f1 0.9200782660 	auc 0.6077508210 	accuracy 0.8538055719 	recall 0.9868227334 	precision 0.8620277196 	mean_rev_speed 0.1929015666 	mean_rev_level 0.8026855037 	vola -0.0033431270 	time: 1678725434.3921s 	
+Epoch 26  loss=0.4381 [157.5 s]	 valid=(accuracy:0.8473,auc:0.5761,f1:0.9160,precision:0.8577,recall:0.9829) test=(accuracy:0.8358,auc:0.5539,f1:0.9098,precision:0.8460,recall:0.9841) [13.4 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_25.pt
+27 train	 	loss_total 0.4347566304 	f1 0.9206515053 	auc 0.6110452549 	accuracy 0.8547559699 	recall 0.9879913352 	precision 0.8621565393 	mean_rev_speed 0.1929015666 	mean_rev_level 0.8241678881 	vola -0.0033431270 	time: 1678725614.3474s 	
+Epoch 27  loss=0.4348 [159.8 s]	 valid=(accuracy:0.8482,auc:0.5760,f1:0.9166,precision:0.8578,recall:0.9839) test=(accuracy:0.8367,auc:0.5550,f1:0.9104,precision:0.8461,recall:0.9852) [13.5 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_26.pt
+28 train	 	loss_total 0.4315033555 	f1 0.9212495508 	auc 0.6146951671 	accuracy 0.8557839033 	recall 0.9891935518 	precision 0.8622812776 	mean_rev_speed 0.1929015666 	mean_rev_level 0.8450690238 	vola -0.0033431270 	time: 1678725795.2563s 	
+Epoch 28  loss=0.4315 [162.0 s]	 valid=(accuracy:0.8487,auc:0.5751,f1:0.9169,precision:0.8580,recall:0.9845) test=(accuracy:0.8377,auc:0.5565,f1:0.9110,precision:0.8462,recall:0.9864) [13.5 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_27.pt
+29 train	 	loss_total 0.4284117227 	f1 0.9216659371 	auc 0.6190087296 	accuracy 0.8564985996 	recall 0.9899725022 	precision 0.8624162686 	mean_rev_speed 0.1929015666 	mean_rev_level 0.8654853072 	vola -0.0033431270 	time: 1678725967.3776s 	
+Epoch 29  loss=0.4284 [155.8 s]	 valid=(accuracy:0.8491,auc:0.5751,f1:0.9171,precision:0.8579,recall:0.9850) test=(accuracy:0.8383,auc:0.5573,f1:0.9113,precision:0.8463,recall:0.9872) [13.6 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_28.pt
+30 train	 	loss_total 0.4255833896 	f1 0.9221387353 	auc 0.6198168855 	accuracy 0.8573204599 	recall 0.9908641429 	precision 0.8625616194 	mean_rev_speed 0.1929015666 	mean_rev_level 0.8854032834 	vola -0.0033431270 	time: 1678726145.9101s 	
+Epoch 30  loss=0.4256 [161.7 s]	 valid=(accuracy:0.8497,auc:0.5755,f1:0.9175,precision:0.8580,recall:0.9857) test=(accuracy:0.8389,auc:0.5587,f1:0.9117,precision:0.8463,recall:0.9879) [13.5 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_29.pt
+31 train	 	loss_total 0.4228386654 	f1 0.9223763425 	auc 0.6261317356 	accuracy 0.8577337854 	recall 0.9913011142 	precision 0.8626433227 	mean_rev_speed 0.1929015666 	mean_rev_level 0.9047685693 	vola -0.0033431270 	time: 1678726323.9192s 	
+Epoch 31  loss=0.4228 [159.5 s]	 valid=(accuracy:0.8503,auc:0.5745,f1:0.9178,precision:0.8582,recall:0.9864) test=(accuracy:0.8392,auc:0.5596,f1:0.9119,precision:0.8465,recall:0.9883) [13.2 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_30.pt
+32 train	 	loss_total 0.4207891164 	f1 0.9224757208 	auc 0.6277102492 	accuracy 0.8578988797 	recall 0.9913240012 	precision 0.8628307255 	mean_rev_speed 0.1929015666 	mean_rev_level 0.9236256345 	vola -0.0033431270 	time: 1678726498.6591s 	
+Epoch 32  loss=0.4208 [156.7 s]	 valid=(accuracy:0.8505,auc:0.5746,f1:0.9179,precision:0.8582,recall:0.9865) test=(accuracy:0.8395,auc:0.5605,f1:0.9121,precision:0.8466,recall:0.9885) [13.4 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_31.pt
+33 train	 	loss_total 0.4177419566 	f1 0.9230080746 	auc 0.6318443972 	accuracy 0.8588646816 	recall 0.9922664807 	precision 0.8630067027 	mean_rev_speed 0.1929015666 	mean_rev_level 0.9420178994 	vola -0.0033431270 	time: 1678726670.7246s 	
+Epoch 33  loss=0.4177 [154.1 s]	 valid=(accuracy:0.8507,auc:0.5737,f1:0.9180,precision:0.8582,recall:0.9868) test=(accuracy:0.8398,auc:0.5616,f1:0.9122,precision:0.8466,recall:0.9888) [14.4 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_32.pt
+34 train	 	loss_total 0.4154649990 	f1 0.9231431323 	auc 0.6355163708 	accuracy 0.8591025943 	recall 0.9924640695 	precision 0.8630968782 	mean_rev_speed 0.1929015666 	mean_rev_level 0.9598857052 	vola -0.0033431270 	time: 1678726848.7689s 	
+Epoch 34  loss=0.4155 [159.2 s]	 valid=(accuracy:0.8510,auc:0.5748,f1:0.9182,precision:0.8583,recall:0.9871) test=(accuracy:0.8402,auc:0.5629,f1:0.9125,precision:0.8467,recall:0.9892) [13.6 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_33.pt
+35 train	 	loss_total 0.4137327148 	f1 0.9232824070 	auc 0.6375512393 	accuracy 0.8593301887 	recall 0.9927695354 	precision 0.8631145739 	mean_rev_speed 0.1929015666 	mean_rev_level 0.9771934703 	vola -0.0033431270 	time: 1678727022.5385s 	
+Epoch 35  loss=0.4137 [151.1 s]	 valid=(accuracy:0.8509,auc:0.5738,f1:0.9182,precision:0.8583,recall:0.9871) test=(accuracy:0.8404,auc:0.5637,f1:0.9126,precision:0.8468,recall:0.9895) [12.9 s] 
+36 train	 	loss_total 0.4119819212 	f1 0.9231459011 	auc 0.6403391781 	accuracy 0.8591000147 	recall 0.9923234460 	precision 0.8632350332 	mean_rev_speed 0.1929015666 	mean_rev_level 0.9940326045 	vola -0.0033431270 	time: 1678727195.8665s 	
+Epoch 36  loss=0.4120 [156.2 s]	 valid=(accuracy:0.8510,auc:0.5744,f1:0.9182,precision:0.8582,recall:0.9872) test=(accuracy:0.8404,auc:0.5640,f1:0.9126,precision:0.8468,recall:0.9895) [13.5 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_35.pt
+37 train	 	loss_total 0.4094913006 	f1 0.9235571241 	auc 0.6425495314 	accuracy 0.8598494988 	recall 0.9930927602 	precision 0.8633345189 	mean_rev_speed 0.1929015666 	mean_rev_level 1.0103577859 	vola -0.0033431270 	time: 1678727374.8696s 	
+Epoch 37  loss=0.4095 [156.9 s]	 valid=(accuracy:0.8513,auc:0.5739,f1:0.9184,precision:0.8584,recall:0.9874) test=(accuracy:0.8407,auc:0.5657,f1:0.9127,precision:0.8468,recall:0.9898) [13.3 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_36.pt
+38 train	 	loss_total 0.4080392600 	f1 0.9234955189 	auc 0.6458456765 	accuracy 0.8597188974 	recall 0.9929706214 	precision 0.8633394343 	mean_rev_speed 0.1929015666 	mean_rev_level 1.0261580112 	vola -0.0033431270 	time: 1678727551.3386s 	
+Epoch 38  loss=0.4080 [158.7 s]	 valid=(accuracy:0.8511,auc:0.5748,f1:0.9183,precision:0.8583,recall:0.9873) test=(accuracy:0.8407,auc:0.5665,f1:0.9127,precision:0.8469,recall:0.9897) [13.2 s] 
+39 train	 	loss_total 0.4060928647 	f1 0.9236488203 	auc 0.6490776641 	accuracy 0.8600105395 	recall 0.9932143931 	precision 0.8634053563 	mean_rev_speed 0.1929015666 	mean_rev_level 1.0414848575 	vola -0.0033431270 	time: 1678727722.7000s 	
+Epoch 39  loss=0.4061 [153.4 s]	 valid=(accuracy:0.8513,auc:0.5755,f1:0.9184,precision:0.8584,recall:0.9875) test=(accuracy:0.8409,auc:0.5677,f1:0.9128,precision:0.8469,recall:0.9899) [13.7 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_38.pt
+40 train	 	loss_total 0.4046489349 	f1 0.9237032393 	auc 0.6503332271 	accuracy 0.8601122494 	recall 0.9932671283 	precision 0.8634606467 	mean_rev_speed 0.1929015666 	mean_rev_level 1.0563076172 	vola -0.0033431270 	time: 1678727896.2691s 	
+Epoch 40  loss=0.4046 [156.9 s]	 valid=(accuracy:0.8512,auc:0.5759,f1:0.9183,precision:0.8584,recall:0.9872) test=(accuracy:0.8409,auc:0.5688,f1:0.9129,precision:0.8469,recall:0.9900) [13.2 s] 
+41 train	 	loss_total 0.4031246018 	f1 0.9236931667 	auc 0.6523866250 	accuracy 0.8600982459 	recall 0.9932477801 	precision 0.8634546030 	mean_rev_speed 0.1929015666 	mean_rev_level 1.0706268616 	vola -0.0033431270 	time: 1678728074.7743s 	
+Epoch 41  loss=0.4031 [157.6 s]	 valid=(accuracy:0.8512,auc:0.5765,f1:0.9183,precision:0.8584,recall:0.9873) test=(accuracy:0.8410,auc:0.5699,f1:0.9129,precision:0.8469,recall:0.9900) [13.7 s] 
+42 train	 	loss_total 0.4017014728 	f1 0.9237898063 	auc 0.6549403036 	accuracy 0.8602581810 	recall 0.9934574829 	precision 0.8634664293 	mean_rev_speed 0.1929015666 	mean_rev_level 1.0844174174 	vola -0.0033431270 	time: 1678728259.8428s 	
+Epoch 42  loss=0.4017 [165.2 s]	 valid=(accuracy:0.8513,auc:0.5775,f1:0.9184,precision:0.8584,recall:0.9873) test=(accuracy:0.8410,auc:0.5710,f1:0.9129,precision:0.8469,recall:0.9901) [13.6 s] 
+43 train	 	loss_total 0.4005159550 	f1 0.9238029898 	auc 0.6558840174 	accuracy 0.8602757223 	recall 0.9934802357 	precision 0.8634770787 	mean_rev_speed 0.1929015666 	mean_rev_level 1.0977288462 	vola -0.0033431270 	time: 1678728435.6924s 	
+Epoch 43  loss=0.4005 [156.6 s]	 valid=(accuracy:0.8516,auc:0.5778,f1:0.9186,precision:0.8584,recall:0.9878) test=(accuracy:0.8410,auc:0.5720,f1:0.9129,precision:0.8469,recall:0.9901) [13.9 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_42.pt
+44 train	 	loss_total 0.3989831715 	f1 0.9238636722 	auc 0.6600916390 	accuracy 0.8603816333 	recall 0.9936178639 	precision 0.8634756926 	mean_rev_speed 0.1929015666 	mean_rev_level 1.1105920144 	vola -0.0033431270 	time: 1678728610.2993s 	
+Epoch 44  loss=0.3990 [155.9 s]	 valid=(accuracy:0.8518,auc:0.5780,f1:0.9187,precision:0.8585,recall:0.9880) test=(accuracy:0.8410,auc:0.5733,f1:0.9129,precision:0.8469,recall:0.9901) [13.6 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_43.pt
+45 train	 	loss_total 0.3976698602 	f1 0.9238290289 	auc 0.6634586960 	accuracy 0.8603245136 	recall 0.9935457770 	precision 0.8634688296 	mean_rev_speed 0.1929015666 	mean_rev_level 1.1229353828 	vola -0.0033431270 	time: 1678728784.1824s 	
+Epoch 45  loss=0.3977 [155.5 s]	 valid=(accuracy:0.8516,auc:0.5792,f1:0.9186,precision:0.8584,recall:0.9878) test=(accuracy:0.8410,auc:0.5739,f1:0.9129,precision:0.8469,recall:0.9901) [13.4 s] 
+46 train	 	loss_total 0.3965393063 	f1 0.9238705441 	auc 0.6644980672 	accuracy 0.8604007960 	recall 0.9935836791 	precision 0.8635121136 	mean_rev_speed 0.1929015666 	mean_rev_level 1.1347432361 	vola -0.0033431270 	time: 1678728955.3619s 	
+Epoch 46  loss=0.3965 [153.6 s]	 valid=(accuracy:0.8516,auc:0.5794,f1:0.9185,precision:0.8586,recall:0.9875) test=(accuracy:0.8411,auc:0.5747,f1:0.9130,precision:0.8469,recall:0.9901) [13.2 s] 
+47 train	 	loss_total 0.3955947425 	f1 0.9238231777 	auc 0.6668688744 	accuracy 0.8603186173 	recall 0.9935028928 	precision 0.8634895750 	mean_rev_speed 0.1929015666 	mean_rev_level 1.1460724619 	vola -0.0033431270 	time: 1678729134.3944s 	
+Epoch 47  loss=0.3956 [159.2 s]	 valid=(accuracy:0.8516,auc:0.5801,f1:0.9186,precision:0.8585,recall:0.9877) test=(accuracy:0.8411,auc:0.5756,f1:0.9130,precision:0.8469,recall:0.9902) [14.5 s] 
+48 train	 	loss_total 0.3943838916 	f1 0.9238717238 	auc 0.6685691050 	accuracy 0.8604081663 	recall 0.9935635029 	precision 0.8635281958 	mean_rev_speed 0.1929015666 	mean_rev_level 1.1569496258 	vola -0.0033431270 	time: 1678729309.9998s 	
+Epoch 48  loss=0.3944 [157.2 s]	 valid=(accuracy:0.8519,auc:0.5811,f1:0.9187,precision:0.8585,recall:0.9881) test=(accuracy:0.8410,auc:0.5762,f1:0.9129,precision:0.8469,recall:0.9901) [13.2 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_47.pt
+49 train	 	loss_total 0.3933247291 	f1 0.9238848376 	auc 0.6726516679 	accuracy 0.8604240124 	recall 0.9936283112 	precision 0.8635024709 	mean_rev_speed 0.1929015666 	mean_rev_level 1.1673871099 	vola -0.0033431270 	time: 1678729491.6899s 	
+Epoch 49  loss=0.3933 [160.3 s]	 valid=(accuracy:0.8517,auc:0.5815,f1:0.9187,precision:0.8585,recall:0.9879) test=(accuracy:0.8412,auc:0.5769,f1:0.9130,precision:0.8470,recall:0.9903) [13.5 s] 
+50 train	 	loss_total 0.3924449753 	f1 0.9238678509 	auc 0.6738014192 	accuracy 0.8603941627 	recall 0.9936061452 	precision 0.8634900735 	mean_rev_speed 0.1929015666 	mean_rev_level 1.1773084020 	vola -0.0033431270 	time: 1678729666.6575s 	
+Epoch 50  loss=0.3924 [156.6 s]	 valid=(accuracy:0.8516,auc:0.5822,f1:0.9186,precision:0.8585,recall:0.9876) test=(accuracy:0.8411,auc:0.5780,f1:0.9130,precision:0.8469,recall:0.9902) [13.2 s] 
+51 train	 	loss_total 0.3916124952 	f1 0.9238728093 	auc 0.6759335795 	accuracy 0.8604074292 	recall 0.9935741808 	precision 0.8635228438 	mean_rev_speed 0.1929015666 	mean_rev_level 1.1867640851 	vola -0.0033431270 	time: 1678729847.3251s 	
+Epoch 51  loss=0.3916 [163.2 s]	 valid=(accuracy:0.8517,auc:0.5831,f1:0.9186,precision:0.8585,recall:0.9879) test=(accuracy:0.8412,auc:0.5784,f1:0.9131,precision:0.8469,recall:0.9904) [13.5 s] 
+52 train	 	loss_total 0.3906598274 	f1 0.9238631318 	auc 0.6779736343 	accuracy 0.8603908461 	recall 0.9935566397 	precision 0.8635197425 	mean_rev_speed 0.1929015666 	mean_rev_level 1.1957608057 	vola -0.0033431270 	time: 1678730020.6695s 	
+Epoch 52  loss=0.3907 [155.8 s]	 valid=(accuracy:0.8517,auc:0.5835,f1:0.9186,precision:0.8585,recall:0.9878) test=(accuracy:0.8411,auc:0.5792,f1:0.9130,precision:0.8469,recall:0.9902) [13.4 s] 
+53 train	 	loss_total 0.3898559491 	f1 0.9238730793 	auc 0.6791397936 	accuracy 0.8604092718 	recall 0.9935725333 	precision 0.8635234067 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2043549160 	vola -0.0033431270 	time: 1678730197.2748s 	
+Epoch 53  loss=0.3899 [159.2 s]	 valid=(accuracy:0.8516,auc:0.5840,f1:0.9185,precision:0.8585,recall:0.9876) test=(accuracy:0.8412,auc:0.5801,f1:0.9130,precision:0.8469,recall:0.9903) [13.5 s] 
+54 train	 	loss_total 0.3890551981 	f1 0.9239047555 	auc 0.6805362883 	accuracy 0.8604564416 	recall 0.9936745523 	precision 0.8635031337 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2125003023 	vola -0.0033431270 	time: 1678730379.1835s 	
+Epoch 54  loss=0.3891 [161.9 s]	 valid=(accuracy:0.8515,auc:0.5846,f1:0.9185,precision:0.8585,recall:0.9876) test=(accuracy:0.8411,auc:0.5805,f1:0.9130,precision:0.8469,recall:0.9903) [12.8 s] 
+55 train	 	loss_total 0.3883170657 	f1 0.9238807067 	auc 0.6820450887 	accuracy 0.8604240124 	recall 0.9935827407 	precision 0.8635292505 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2202366950 	vola -0.0033431270 	time: 1678730558.4146s 	
+Epoch 55  loss=0.3883 [158.8 s]	 valid=(accuracy:0.8518,auc:0.5851,f1:0.9187,precision:0.8585,recall:0.9880) test=(accuracy:0.8412,auc:0.5810,f1:0.9130,precision:0.8469,recall:0.9903) [13.3 s] 
+56 train	 	loss_total 0.3875918484 	f1 0.9238702831 	auc 0.6834729861 	accuracy 0.8603941627 	recall 0.9936298412 	precision 0.8634780440 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2275082975 	vola -0.0033431270 	time: 1678730737.1856s 	
+Epoch 56  loss=0.3876 [158.7 s]	 valid=(accuracy:0.8520,auc:0.5855,f1:0.9188,precision:0.8586,recall:0.9881) test=(accuracy:0.8411,auc:0.5817,f1:0.9130,precision:0.8469,recall:0.9903) [13.2 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_55.pt
+57 train	 	loss_total 0.3869460793 	f1 0.9238590168 	auc 0.6831620937 	accuracy 0.8603831073 	recall 0.9935548153 	precision 0.8635135517 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2344097169 	vola -0.0033431270 	time: 1678730914.4162s 	
+Epoch 57  loss=0.3869 [159.0 s]	 valid=(accuracy:0.8517,auc:0.5859,f1:0.9186,precision:0.8585,recall:0.9879) test=(accuracy:0.8411,auc:0.5822,f1:0.9130,precision:0.8469,recall:0.9903) [13.5 s] 
+58 train	 	loss_total 0.3862289497 	f1 0.9238661921 	auc 0.6860076382 	accuracy 0.8603838443 	recall 0.9936378538 	precision 0.8634654923 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2408824079 	vola -0.0033431270 	time: 1678731092.7219s 	
+Epoch 58  loss=0.3862 [156.8 s]	 valid=(accuracy:0.8517,auc:0.5864,f1:0.9187,precision:0.8584,recall:0.9879) test=(accuracy:0.8412,auc:0.5827,f1:0.9131,precision:0.8469,recall:0.9904) [13.4 s] 
+59 train	 	loss_total 0.3856383649 	f1 0.9238844913 	auc 0.6867465190 	accuracy 0.8604203272 	recall 0.9936493619 	precision 0.8634888292 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2469135680 	vola -0.0033431270 	time: 1678731273.6290s 	
+Epoch 59  loss=0.3856 [162.0 s]	 valid=(accuracy:0.8515,auc:0.5870,f1:0.9185,precision:0.8584,recall:0.9878) test=(accuracy:0.8412,auc:0.5833,f1:0.9130,precision:0.8469,recall:0.9903) [13.7 s] 
+60 train	 	loss_total 0.3850600978 	f1 0.9238898093 	auc 0.6882061850 	accuracy 0.8604284346 	recall 0.9936656312 	precision 0.8634851800 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2526165112 	vola -0.0033431270 	time: 1678731447.2871s 	
+Epoch 60  loss=0.3851 [155.6 s]	 valid=(accuracy:0.8519,auc:0.5875,f1:0.9187,precision:0.8586,recall:0.9880) test=(accuracy:0.8412,auc:0.5838,f1:0.9130,precision:0.8469,recall:0.9903) [13.4 s] 
+61 train	 	loss_total 0.3844937901 	f1 0.9239009458 	auc 0.6894257432 	accuracy 0.8604442807 	recall 0.9936907659 	precision 0.8634881248 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2580046226 	vola -0.0033431270 	time: 1678731628.1931s 	
+Epoch 61  loss=0.3845 [162.3 s]	 valid=(accuracy:0.8517,auc:0.5876,f1:0.9186,precision:0.8585,recall:0.9878) test=(accuracy:0.8412,auc:0.5841,f1:0.9130,precision:0.8469,recall:0.9903) [13.6 s] 
+62 train	 	loss_total 0.3839618032 	f1 0.9239022219 	auc 0.6901601128 	accuracy 0.8604527565 	recall 0.9936575587 	precision 0.8635138802 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2630720656 	vola -0.0033431270 	time: 1678731802.7737s 	
+Epoch 62  loss=0.3840 [156.7 s]	 valid=(accuracy:0.8519,auc:0.5881,f1:0.9187,precision:0.8585,recall:0.9881) test=(accuracy:0.8412,auc:0.5846,f1:0.9130,precision:0.8469,recall:0.9904) [13.4 s] 
+63 train	 	loss_total 0.3834380488 	f1 0.9238979275 	auc 0.6913602477 	accuracy 0.8604431751 	recall 0.9936648966 	precision 0.8635013395 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2677197996 	vola -0.0033431270 	time: 1678731977.9603s 	
+Epoch 63  loss=0.3834 [157.2 s]	 valid=(accuracy:0.8517,auc:0.5884,f1:0.9186,precision:0.8584,recall:0.9879) test=(accuracy:0.8411,auc:0.5849,f1:0.9130,precision:0.8469,recall:0.9903) [13.3 s] 
+64 train	 	loss_total 0.3829098231 	f1 0.9238732016 	auc 0.6926077126 	accuracy 0.8604011645 	recall 0.9936183012 	precision 0.8634928505 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2719953038 	vola -0.0033431270 	time: 1678732154.8889s 	
+Epoch 64  loss=0.3829 [155.0 s]	 valid=(accuracy:0.8515,auc:0.5888,f1:0.9185,precision:0.8584,recall:0.9878) test=(accuracy:0.8412,auc:0.5854,f1:0.9130,precision:0.8470,recall:0.9903) [13.4 s] 
+65 train	 	loss_total 0.3824739422 	f1 0.9238781993 	auc 0.6933265023 	accuracy 0.8604114829 	recall 0.9936140941 	precision 0.8635053223 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2760101849 	vola -0.0033431270 	time: 1678732334.1135s 	
+Epoch 65  loss=0.3825 [159.2 s]	 valid=(accuracy:0.8516,auc:0.5890,f1:0.9186,precision:0.8585,recall:0.9877) test=(accuracy:0.8412,auc:0.5857,f1:0.9130,precision:0.8469,recall:0.9903) [13.3 s] 
+66 train	 	loss_total 0.3820281391 	f1 0.9238919316 	auc 0.6938209835 	accuracy 0.8604321197 	recall 0.9936605526 	precision 0.8634931669 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2797512626 	vola -0.0033431270 	time: 1678732509.3337s 	
+Epoch 66  loss=0.3820 [159.6 s]	 valid=(accuracy:0.8514,auc:0.5893,f1:0.9185,precision:0.8584,recall:0.9877) test=(accuracy:0.8412,auc:0.5860,f1:0.9130,precision:0.8469,recall:0.9904) [13.4 s] 
+67 train	 	loss_total 0.3815942955 	f1 0.9238803814 	auc 0.6938055563 	accuracy 0.8604111144 	recall 0.9936392521 	precision 0.8634903055 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2830589785 	vola -0.0033431270 	time: 1678732691.7820s 	
+Epoch 67  loss=0.3816 [159.4 s]	 valid=(accuracy:0.8517,auc:0.5895,f1:0.9187,precision:0.8584,recall:0.9880) test=(accuracy:0.8413,auc:0.5863,f1:0.9131,precision:0.8469,recall:0.9904) [13.5 s] 
+68 train	 	loss_total 0.3811707201 	f1 0.9238635501 	auc 0.6950761662 	accuracy 0.8603750000 	recall 0.9936530540 	precision 0.8634504360 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2861749721 	vola -0.0033431270 	time: 1678732869.5296s 	
+Epoch 68  loss=0.3812 [155.8 s]	 valid=(accuracy:0.8519,auc:0.5899,f1:0.9187,precision:0.8586,recall:0.9880) test=(accuracy:0.8412,auc:0.5866,f1:0.9130,precision:0.8469,recall:0.9903) [13.3 s] 
+69 train	 	loss_total 0.3807652320 	f1 0.9238989673 	auc 0.6958395273 	accuracy 0.8604435436 	recall 0.9936651068 	precision 0.8635037582 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2890153381 	vola -0.0033431270 	time: 1678733048.5607s 	
+Epoch 69  loss=0.3808 [161.1 s]	 valid=(accuracy:0.8517,auc:0.5901,f1:0.9187,precision:0.8585,recall:0.9879) test=(accuracy:0.8412,auc:0.5869,f1:0.9130,precision:0.8469,recall:0.9904) [13.4 s] 
+70 train	 	loss_total 0.3804123590 	f1 0.9238924961 	auc 0.6965199140 	accuracy 0.8604317512 	recall 0.9936711277 	precision 0.8634863651 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2916408215 	vola -0.0033431270 	time: 1678733231.0319s 	
+Epoch 70  loss=0.3804 [156.0 s]	 valid=(accuracy:0.8518,auc:0.5906,f1:0.9187,precision:0.8585,recall:0.9878) test=(accuracy:0.8412,auc:0.5872,f1:0.9130,precision:0.8469,recall:0.9903) [13.3 s] 
+71 train	 	loss_total 0.3800443461 	f1 0.9239131980 	auc 0.6970546514 	accuracy 0.8604689711 	recall 0.9936954826 	precision 0.8635048754 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2940934312 	vola -0.0033431270 	time: 1678733411.2675s 	
+Epoch 71  loss=0.3800 [161.7 s]	 valid=(accuracy:0.8520,auc:0.5907,f1:0.9188,precision:0.8586,recall:0.9882) test=(accuracy:0.8412,auc:0.5874,f1:0.9130,precision:0.8469,recall:0.9904) [13.5 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-13T15:56:49.662145__overfit_0/Model/Model_70.pt
+72 train	 	loss_total 0.3796991737 	f1 0.9238948192 	auc 0.6974162059 	accuracy 0.8604328567 	recall 0.9936935020 	precision 0.8634738366 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2962823769 	vola -0.0033431270 	time: 1678733587.6547s 	
+Epoch 72  loss=0.3797 [156.8 s]	 valid=(accuracy:0.8517,auc:0.5910,f1:0.9186,precision:0.8584,recall:0.9879) test=(accuracy:0.8412,auc:0.5878,f1:0.9130,precision:0.8469,recall:0.9904) [13.5 s] 
+73 train	 	loss_total 0.3793938213 	f1 0.9238823719 	auc 0.6982142455 	accuracy 0.8604210643 	recall 0.9936064449 	precision 0.8635173155 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2981821883 	vola -0.0033431270 	time: 1678733778.5520s 	
+Epoch 73  loss=0.3794 [169.5 s]	 valid=(accuracy:0.8520,auc:0.5911,f1:0.9188,precision:0.8585,recall:0.9882) test=(accuracy:0.8411,auc:0.5879,f1:0.9130,precision:0.8469,recall:0.9902) [13.6 s] 
+74 train	 	loss_total 0.3790669458 	f1 0.9239047718 	auc 0.6984953100 	accuracy 0.8604545991 	recall 0.9936847399 	precision 0.8634980223 	mean_rev_speed 0.1929015666 	mean_rev_level 1.2999303948 	vola -0.0033431270 	time: 1678733958.7216s 	
+Epoch 74  loss=0.3791 [158.9 s]	 valid=(accuracy:0.8517,auc:0.5914,f1:0.9186,precision:0.8584,recall:0.9879) test=(accuracy:0.8412,auc:0.5882,f1:0.9130,precision:0.8469,recall:0.9903) [13.2 s] 

@@ -1,0 +1,133 @@
+Namespace(model_name='HLR', train_mode='simple_split_time', multi_node=1, train_time_ratio=0.5, test_time_ratio=0.4, num_node=1, num_seq=1, base=2.0, ppe_lr=0.2, hidden_dim=8, graph_path='/mnt/qb/work/mlcolab/hzhou52/kt/junyi/adj.npy', overfit=0, gt_adj_path=None, world_size=-1, rank=-1, dist_url='env://', dist_backend='nccl', local_rank=-1, distributed=1, random_seed=2022, GPU_to_use=None, gpu='0', data_dir='/mnt/qb/work/mlcolab/hzhou52/kt', dataset='junyi/single_user_single_skill', sep='\t', kfold=5, max_step=200, regenerate_corpus=False, save_folder='/mnt/qb/work/mlcolab/hzhou52/kt/logs', expername='', train=1, validate=True, epoch=100, early_stop=1, lr=0.005, batch_size=512, eval_batch_size=512, dropout=0.0, l2=0.0, optimizer='Adam', metric='F1, AUC, Accuracy, Recall, Precision', fold=0, load=0, load_folder='', lr_decay=5000, gamma=0.5, var=0.05, time='2023-03-13T16:58:22.604474', device=device(type='cuda', index=0), log_path='/mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0')
+Load corpus from /mnt/qb/work/mlcolab/hzhou52/kt/junyi/single_user_single_skill/Corpus_200.pkl
+# Training mode splits TIME
+# Train: 3696, # Dev: 3696, # Test: 3696
+--------------------------------------------- BEGIN: 2023-03-13 16:58:25 ---------------------------------------------
+
+==========================================
+ Arguments         | Values               
+==========================================
+ base              | 2.0                 
+ batch_size        | 512                 
+ data_dir          | /mnt/qb/work/mlco...
+ dataset           | junyi/single_user...
+ decoder_file      | /mnt/qb/work/mlco...
+ device            | cuda:0              
+ dist_backend      | nccl                
+ dist_url          | env://              
+ distributed       | 1                   
+ dropout           | 0.0                 
+ early_stop        | 1                   
+ epoch             | 100                 
+ eval_batch_size   | 512                 
+ expername         |                     
+ fold              | 0                   
+ gamma             | 0.5                 
+ gpu               | 0                   
+ graph_path        | /mnt/qb/work/mlco...
+ hidden_dim        | 8                   
+ kfold             | 5                   
+ l2                | 0.0                 
+ load              | 0                   
+ load_folder       |                     
+ local_rank        | -1                  
+ log_path          | /mnt/qb/work/mlco...
+ lr                | 0.005               
+ lr_decay          | 5000                
+ max_step          | 200                 
+ metric            | F1, AUC, Accuracy...
+ model_name        | HLR                 
+ multi_node        | 1                   
+ num_node          | 1                   
+ num_seq           | 1                   
+ optimizer         | Adam                
+ optimizer_file    | /mnt/qb/work/mlco...
+ overfit           | 0                   
+ plotdir           | /mnt/qb/work/mlco...
+ ppe_lr            | 0.2                 
+ random_seed       | 2022                
+ rank              | -1                  
+ regenerate_corpus | False               
+ save_folder       | /mnt/qb/work/mlco...
+ test_time_ratio   | 0.4                 
+ time              | 2023-03-13T16:58:...
+ train_mode        | simple_split_time   
+ train_time_ratio  | 0.5                 
+ validate          | True                
+ var               | 0.05                
+ world_size        | -1                  
+==========================================
+# cuda devices: 1
+HLR()
+#params: 3
+Optimizer: Adam
+1 train	 	loss_total 0.4893180579 	f1 0.8694967139 	auc 0.5288272178 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -0.8238451257 	theta_1 -0.6139635816 	theta_2 0.8471394703 	time: 1678723130.0593s 	
+Epoch 1   loss=0.4893 [18.6 s]	 valid=(accuracy:0.8156,auc:0.5846,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5477,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_0.pt
+2 train	 	loss_total 0.4893180095 	f1 0.8694967139 	auc 0.5320315959 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -0.8593214676 	theta_1 -0.6332990378 	theta_2 0.8110965788 	time: 1678723150.8129s 	
+Epoch 2   loss=0.4893 [18.3 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_1.pt
+3 train	 	loss_total 0.4893179350 	f1 0.8694967139 	auc 0.5373515764 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -0.8944762126 	theta_1 -0.6357844397 	theta_2 0.7748305649 	time: 1678723173.8345s 	
+Epoch 3   loss=0.4893 [19.9 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_2.pt
+4 train	 	loss_total 0.4893179163 	f1 0.8694967139 	auc 0.5402685784 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -0.9255664051 	theta_1 -0.6140385717 	theta_2 0.7413331643 	time: 1678723199.1230s 	
+Epoch 4   loss=0.4893 [20.3 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_3.pt
+5 train	 	loss_total 0.4893178865 	f1 0.8694967139 	auc 0.5422146444 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -0.9510478005 	theta_1 -0.5795773640 	theta_2 0.7119001672 	time: 1678723218.8785s 	
+Epoch 5   loss=0.4893 [17.0 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_4.pt
+6 train	 	loss_total 0.4893178605 	f1 0.8694967139 	auc 0.5433810337 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -0.9721269310 	theta_1 -0.5407655314 	theta_2 0.6857555881 	time: 1678723239.9405s 	
+Epoch 6   loss=0.4893 [17.8 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [1.9 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_5.pt
+7 train	 	loss_total 0.4893178344 	f1 0.8694967139 	auc 0.5442493749 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -0.9903863072 	theta_1 -0.5010536425 	theta_2 0.6617417261 	time: 1678723260.7862s 	
+Epoch 7   loss=0.4893 [17.8 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_6.pt
+8 train	 	loss_total 0.4893178269 	f1 0.8694967139 	auc 0.5451589060 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.0069971904 	theta_1 -0.4623864256 	theta_2 0.6391078606 	time: 1678723283.6502s 	
+Epoch 8   loss=0.4893 [18.8 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [1.9 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_7.pt
+9 train	 	loss_total 0.4893178232 	f1 0.8694967139 	auc 0.5458435123 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.0219305903 	theta_1 -0.4244689792 	theta_2 0.6178584993 	time: 1678723304.5825s 	
+Epoch 9   loss=0.4893 [17.5 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [1.9 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_8.pt
+10 train	 	loss_total 0.4893178083 	f1 0.8694967139 	auc 0.5459630096 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.0355158001 	theta_1 -0.3875623457 	theta_2 0.5977766812 	time: 1678723324.3825s 	
+Epoch 10  loss=0.4893 [17.2 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [1.9 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_9.pt
+11 train	 	loss_total 0.4893177859 	f1 0.8694967139 	auc 0.5464924548 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.0487757474 	theta_1 -0.3527152129 	theta_2 0.5782086998 	time: 1678723345.3213s 	
+Epoch 11  loss=0.4893 [18.4 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_10.pt
+12 train	 	loss_total 0.4893177673 	f1 0.8694967139 	auc 0.5470695975 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.0615896583 	theta_1 -0.3195369430 	theta_2 0.5592445731 	time: 1678723371.0924s 	
+Epoch 12  loss=0.4893 [20.9 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_11.pt
+13 train	 	loss_total 0.4893177524 	f1 0.8694967139 	auc 0.5473733984 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.0737571418 	theta_1 -0.2874852046 	theta_2 0.5409764498 	time: 1678723392.4061s 	
+Epoch 13  loss=0.4893 [17.8 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [1.9 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_12.pt
+14 train	 	loss_total 0.4893177524 	f1 0.8694967139 	auc 0.5477810542 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.0858219266 	theta_1 -0.2571319733 	theta_2 0.5230710506 	time: 1678723413.6418s 	
+Epoch 14  loss=0.4893 [18.4 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [5.3 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_13.pt
+15 train	 	loss_total 0.4893177487 	f1 0.8694967139 	auc 0.5481136177 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.0975981653 	theta_1 -0.2282116599 	theta_2 0.5056643039 	time: 1678723438.9963s 	
+Epoch 15  loss=0.4893 [18.2 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_14.pt
+16 train	 	loss_total 0.4893177487 	f1 0.8694967139 	auc 0.5494244503 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.1068159044 	theta_1 -0.1933888476 	theta_2 0.4886619970 	time: 1678723465.1849s 	
+Epoch 16  loss=0.4893 [23.4 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.1 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_15.pt
+17 train	 	loss_total 0.4893177487 	f1 0.8694967139 	auc 0.5497019805 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.1082302630 	theta_1 -0.1383703388 	theta_2 0.4717463255 	time: 1678723490.1214s 	
+Epoch 17  loss=0.4893 [17.5 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_16.pt
+18 train	 	loss_total 0.4893177338 	f1 0.8694967139 	auc 0.5498294134 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.1074496359 	theta_1 -0.0801134384 	theta_2 0.4543410577 	time: 1678723510.6819s 	
+Epoch 18  loss=0.4893 [17.7 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_17.pt
+19 train	 	loss_total 0.4893177040 	f1 0.8694967139 	auc 0.5496341416 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.1065893769 	theta_1 -0.0244056766 	theta_2 0.4366552308 	time: 1678723532.8016s 	
+Epoch 19  loss=0.4893 [19.2 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_18.pt
+20 train	 	loss_total 0.4893176742 	f1 0.8694967139 	auc 0.5507915063 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.1053498536 	theta_1 0.0294916810 	theta_2 0.4186997637 	time: 1678723555.2017s 	
+Epoch 20  loss=0.4893 [18.5 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_19.pt
+21 train	 	loss_total 0.4893176667 	f1 0.8694967139 	auc 0.5508158940 	accuracy 0.7781086077 	recall 0.8908591993 	precision 0.8491829969 	theta_0 -1.0976128280 	theta_1 0.0932883415 	theta_2 0.4002916813 	time: 1678723634.7418s 	
+Epoch 21  loss=0.4893 [72.6 s]	 valid=(accuracy:0.8156,auc:0.5887,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5523,f1:0.8918,precision:0.8776,recall:0.9064) [2.0 s] 
+Save model to /mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_single_skill/2023-03-13T16:58:22.604474__overfit_0/Model/Model_20.pt
+Early stop at 21 based on validation result.
+
+Best Iter(dev)=      1	 valid=(accuracy:0.8156,auc:0.5846,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5477,f1:0.8918,precision:0.8776,recall:0.9064) [546.9 s] 
+Best Iter(test)=     1	 valid=(accuracy:0.8156,auc:0.5846,f1:0.8948,precision:0.8761,recall:0.9143) test=(accuracy:0.8096,auc:0.5477,f1:0.8918,precision:0.8776,recall:0.9064) [546.9 s] 
+
+
+--------------------------------------------- END: 2023-03-13 17:07:37 ---------------------------------------------

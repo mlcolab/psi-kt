@@ -11,22 +11,9 @@
 #SBATCH --mail-type=END           # Type of email notification- BEGIN,END,FAIL,ALL
 #SBATCH --array=0
 
-A=({200,400})
-
-
 python single_learner_single_skill_predict.py \
---dataset junyi/single_user_single_skill \
---model_name HLR --max_step ${A[$SLURM_ARRAY_TASK_ID]} --gpu 0 \
+--dataset junyi/single_user_multi_skill \
+--model_name GraphOU --max_step 200 --gpu 0 \
 --epoch 100 --overfit 0 \
 --batch_size 512 --validate --train_time_ratio 0.5 --test_time_ratio 0.4 \
---train_mode simple_split_time --multi_node 1
-
-
-
-# #!/bin/bash
-# python single_learner_single_skill_predict.py \
-# --dataset junyi/single_user_multi_skill --multi_node 1 \
-# --model_name HLR --max_step 200 --gpu 0 \
-# --epoch 100 --overfit 32 \
-# --batch_size 512 --validate --train_time_ratio 0.5 --test_time_ratio 0.4 \
-# --train_mode ln_split_time --multi_node 1
+--train_mode ls_split_time --multi_node 1 \

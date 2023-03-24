@@ -50,88 +50,17 @@ from models.learner_model import BaseLearnerModel
 from utils.utils import ConfigDict
 from models.BaseModel import BaseModel
 
+torch.autograd.set_detect_anomaly(True)
 
-def construct_initial_state_distribution(
-        latent_dim,
-        use_trainable_cov=False,
-        use_triangular_cov=False,
-        raw_sigma_bias=0.0,
-        sigma_min=1e-5,
-        sigma_scale=0.05,
-        device='cpu'):
-    """
-    Construct the initial state distribution, `p(s_0) or p(z_0)`.
-    Args:
-        latent_dim:  an `int` scalar for dimension of continuous hidden states, `z`.
-        num_categ:   an `int` scalar for number of discrete states, `s`.
-        
-        use_trainable_cov:  a `bool` scalar indicating whether the scale of `p(z[0])` is trainable. Default to False.
-        use_triangular_cov: a `bool` scalar indicating whether to use triangular covariance matrices and 
-                                `tfp.distributions.MultivariateNormalTriL` for distribution. Otherwise, a diagonal 
-                                covariance matrices and `tfp.distributions.MultivariateNormalDiag` will be used.
-        raw_sigma_bias:     a `float` scalar to be added to the raw sigma, which is standard deviation of the 
-                                distribution. Default to `0.`.
-        sigma_min:          a `float` scalar for minimal level of sigma to prevent underflow. Default to `1e-5`.
-        sigma_scale:        a `float` scalar for scaling the sigma. Default to `0.05`. The above three arguments 
-                                are used as `sigma_scale * max(softmax(raw_sigma + raw_sigma_bias), sigma_min))`.
-                                
-        dtype: data type for variables within the scope. Default to `torch.float32`.
-        name: a `str` to construct names of variables.
 
-    Returns:
-        return_dist: a `tfp.distributions` instance for the initial state
-        distribution, `p(z[0])`.
-    """
-    z0_mean = torch.empty(1, latent_dim, device=device)
-    z0_mean = torch.nn.init.xavier_uniform_(z0_mean)[0]
-    z0_mean = Parameter(z0_mean, requires_grad=True)
-
-    if use_triangular_cov:
-        m = torch.empty(int(latent_dim * (latent_dim + 1) / 2), 1, device=device)
-        m = torch.nn.init.xavier_uniform_(m)
-        m = Parameter(m, requires_grad=use_trainable_cov)
-        z0_scale = torch.zeros((latent_dim, latent_dim), device=device)
-        tril_indices = torch.tril_indices(row=latent_dim, col=latent_dim, offset=0)
-
-        z0_scale[tril_indices[0], tril_indices[1]] += m[:, 0]
-        
-        if latent_dim == 1:
-            z0_scale = (torch.maximum((z0_scale + raw_sigma_bias), # TODO is this correct?
-                                torch.tensor(sigma_min)) * sigma_scale)
-            dist = distributions.multivariate_normal.MultivariateNormal(
-                loc = z0_mean, covariance_matrix=z0_scale)
-        else: 
-            z0_scale = (torch.maximum(F.softmax(z0_scale + raw_sigma_bias, dim=-1),
-                                torch.tensor(sigma_min)) * sigma_scale)
-            dist = distributions.multivariate_normal.MultivariateNormal(
-                loc = z0_mean, scale_tril=torch.tril(z0_scale)
-            )
-    
-    else:
-        z0_scale = torch.empty(latent_dim, 1, device=device)
-        z0_scale = torch.nn.init.xavier_uniform_(z0_scale)
-        z0_scale = Parameter(z0_scale, requires_grad=use_trainable_cov)
-        
-        z0_scale = (torch.maximum(F.softmax(z0_scale + raw_sigma_bias, dim=-1),
-                            sigma_min) * sigma_scale)
-        # TODO debug
-        dist = distributions.multivariate_normal.MultivariateNormal(
-            loc = z0_mean, covariance_matrix=z0_scale
-        )
-
-    return dist
 
 
 class ContinuousStateTransition(nn.Module):
     def __init__(self,
                 transition_mean_networks,
                 distribution_dim,
-                cov_mat=None,
-                use_triangular_cov=False,
-                use_trainable_cov=True,
-                raw_sigma_bias=0.0,
-                sigma_min=1e-5,
-                sigma_scale=0.05,
+                transition_cov_networks=None,
+                config=None,
                 device='cpu',):
         """Construct a `ContinuousStateTransition` instance.
 
@@ -143,8 +72,6 @@ class ContinuousStateTransition(nn.Module):
         distribution_dim: an `int` scalar for dimension of continuous hidden states, `z`.
         cov_mat:          an optional `float` Tensor for predefined covariance matrix. Default to `None`, in which c
                             ase, a `cov` variable will be created.
-        use_triangular_cov: a `bool` scalar indicating whether to use triangular covariance matrices and 
-                                `tfp.distributions.MultivariateNormalTriL` for distribution. 
                                 Otherwise, a diagonal covariance matrices and `tfp.distributions.MultivariateNormalDiag` will be used.
         use_trainable_cov:  a `bool` scalar indicating whether the scale of the distribution is trainable. 
                                 Default to False.
@@ -155,58 +82,59 @@ class ContinuousStateTransition(nn.Module):
                                 `sigma_scale * max(softmax(raw_sigma + raw_sigma_bias), sigma_min))`.
         """
         super(ContinuousStateTransition, self).__init__()
+
+        cov_mat=config['cov_mat'],
+        use_trainable_cov=config['use_trainable_cov'],
+        raw_sigma_bias=config['raw_sigma_bias'],
+        sigma_min=config['sigma_min'],
+        sigma_scale=config['sigma_scale'],
         
-        self.latent_trans_networks = transition_mean_networks
-        self.use_triangular_cov = use_triangular_cov
+        self.latent_trans_mean = transition_mean_networks
+        self.latent_trans_cov = transition_cov_networks
+        
         self.dist_dim = distribution_dim
         self.device = device
+        self.use_trainable_cov = use_trainable_cov[0]
 
-        if cov_mat:
+        if cov_mat[0]:
             self.cov_mat = cov_mat
-        elif self.use_triangular_cov:
+        else:
             m = torch.empty(1, int(self.dist_dim * (self.dist_dim + 1) / 2), device=device)
             m = torch.nn.init.uniform_(m)[0]
-            m = Parameter(m, requires_grad=use_trainable_cov)
             cov_mat = torch.zeros((self.dist_dim, self.dist_dim), device=device)
             tril_indices = torch.tril_indices(row=self.dist_dim, col=self.dist_dim, offset=0)
             cov_mat[tril_indices[0], tril_indices[1]] += m
+            cov_mat = Parameter(cov_mat, requires_grad=use_trainable_cov[0])
             
             if self.dist_dim == 1:
-                self.cov_mat = (torch.maximum((cov_mat + raw_sigma_bias), 
-                                    torch.tensor(sigma_min)) * sigma_scale)
+                self.cov_mat = (torch.maximum((cov_mat + raw_sigma_bias[0]), 
+                                    torch.tensor(sigma_min[0])) * sigma_scale[0])
             else: 
-                self.cov_mat = (torch.maximum(F.softmax(cov_mat + raw_sigma_bias, dim=-1),
-                                    torch.tensor(sigma_min)) * sigma_scale)
-        else: # TODO
-            cov_mat = torch.empty(1, self.dist_dim, device=device)
-            cov_mat = torch.nn.init.uniform_(cov_mat)[0]
-            cov_mat = Parameter(cov_mat, requires_grad=use_trainable_cov)
-            
-            self.cov_mat = (torch.maximum(F.softmax(cov_mat + raw_sigma_bias, dim=-1),
-                                sigma_min) * sigma_scale)
+                self.cov_mat = (torch.maximum(F.softmax(cov_mat + raw_sigma_bias[0], dim=-1),
+                                    torch.tensor(sigma_min[0])) * sigma_scale[0])
         
-    def forward(self, input_tensor, higher_tensor=None, dynamic_model='Gaussian'):
+    def forward(self, inputs, additions=None, dynamic_model='Gaussian'):
         '''
         Args:
-            input_tensor:
-            higher_tensor: 
+            inputs: [bs, num_steps, dist_dim]
+            additions: 
             dynamic_model: ['Gaussian', 'nonlinear_input', 'OU']
         '''
         
-        batch_size, num_steps, dist_dim = input_tensor.shape
+        bs, num_steps, dist_dim = inputs.shape
         eps = 1e-6
         if 'OU' in dynamic_model:
-            assert(higher_tensor != None)
-            # ipdb.set_trace()
-            sampled_s, time_seq = higher_tensor
+            assert(additions != None)
+            sampled_s, time_seq = additions
             time_diff = torch.diff(time_seq, dim=1)/60/60/24 + eps # [bs*n, num_steps, 1]
             sampled_s = sampled_s[:, 1:] if num_steps > 1 else sampled_s# [bs*n, num_steps, 1]
             sampled_alpha = torch.relu(sampled_s[..., 0:1]) + eps 
             sampled_mean = sampled_s[..., 1:2]
             sampled_vola = torch.relu(sampled_s[..., 2:3]) + eps
           
-            mean_tensor = input_tensor * torch.exp(- sampled_alpha * time_diff) + \
+            mean_tensor = inputs * torch.exp(- sampled_alpha * time_diff) + \
                                 (1.0 - torch.exp(- sampled_alpha * time_diff)) * sampled_mean
+            self.mean = mean_tensor
                                 
             if 'vola' in dynamic_model:
                 # if the mean_tensor has shape [bs, time_steps], variance matrix has shape [bs, t, t]
@@ -223,22 +151,27 @@ class ContinuousStateTransition(nn.Module):
                     loc = mean_tensor, scale_tril=torch.tril(self.cov_mat))
             return output_dist
 
-        elif dynamic_model == 'nonlinear_input':  # TODO it should combine the input_tensor (s_t) with higher_tensor (y_t)
-            input_y = higher_tensor[0][:, :-1] if higher_tensor[0].shape[-2] > 1 else higher_tensor[0]
-
+        elif dynamic_model == 'nonlinear_input':  
+            # TODO should it combine with input_y???
+            eps = 1e-6
+            
+            input_y = additions[0][:, :-1] if additions[0].shape[-2] > 1 else additions[0]
             input_y = input_y.float()
-            mean_tensor = self.latent_trans_networks(input_y) 
-            mean_tensor = torch.reshape(mean_tensor,
-                                    [batch_size, num_steps, dist_dim])
+            input_y = torch.tile(input_y.float(), (1,1,3))
+            
+            # mean_tensor = self.latent_trans_mean(input_y) 
+            # ipdb.set_trace()
+            input_sy = torch.cat([inputs, input_y], -1)
+            mean_tensor = self.latent_trans_mean(input_sy) 
+            self.mean = mean_tensor
+            
+            # ipdb.set_trace()
+            if self.use_trainable_cov:
+                cov_tensor = self.latent_trans_cov(input_sy)
+                self.cov_mat = torch.diag_embed(torch.relu(cov_tensor) + 1e-6) 
 
-        if self.use_triangular_cov:
-            output_dist = distributions.multivariate_normal.MultivariateNormal(
-                    loc = mean_tensor, scale_tril=torch.tril(self.cov_mat))     
-        else: # TODO
-            pass 
-            # output_dist = tfd.MultivariateNormalDiag(
-            # loc=mean_tensor,
-            # scale_diag=self.cov_mat)
+        output_dist = distributions.multivariate_normal.MultivariateNormal(
+                loc = mean_tensor, scale_tril=torch.tril(self.cov_mat))    
 
         return output_dist
 
@@ -253,12 +186,8 @@ class GaussianDistributionFromMean(nn.Module):
     def __init__(self,
                 mean_network,
                 distribution_dim,
-                cov_mat=None,
-                use_triangular_cov=False,
-                use_trainable_cov=True,
-                raw_sigma_bias=0.0,
-                sigma_min=1e-5,
-                sigma_scale=0.05,
+                cov_network=None,
+                config=None,
                 device='cpu'):
         """
         Construct a `GaussianDistributionFromMean` instance.
@@ -269,50 +198,49 @@ class GaussianDistributionFromMean(nn.Module):
         distribution_dim:    an `int` scalar for dimension of observations, `x`.
         """
         super(GaussianDistributionFromMean, self).__init__()
-        self.dist_dim = distribution_dim
-        self.y_emission_net = mean_network
-        self.use_triangular_cov = use_triangular_cov
+        cov_mat=config['cov_mat'],
+        use_trainable_cov=config['use_trainable_cov'],
+        raw_sigma_bias=config['raw_sigma_bias'],
+        sigma_min=config['sigma_min'],
+        sigma_scale=config['sigma_scale'],
         
-        if cov_mat:
+        self.dist_dim = distribution_dim
+        self.mean_net = mean_network
+        self.cov_net = cov_network
+        self.cov_mat = cov_mat[0]
+        self.use_trainable_cov = use_trainable_cov[0]
+        
+        if cov_mat[0]:
             self.cov_mat = cov_mat
-        elif self.use_triangular_cov:
+        else:
             m = torch.empty(1, int(self.dist_dim * (self.dist_dim + 1) / 2), device=device)
             m = torch.nn.init.uniform_(m)[0]
-            m = Parameter(m, requires_grad=use_trainable_cov)
             cov_mat = torch.zeros((self.dist_dim, self.dist_dim), device=device)
             tril_indices = torch.tril_indices(row=self.dist_dim, col=self.dist_dim, offset=0)
             cov_mat[tril_indices[0], tril_indices[1]] += m
+            cov_mat = Parameter(cov_mat, requires_grad=use_trainable_cov[0])
             
             if self.dist_dim == 1:
-                self.cov_mat = (torch.maximum((cov_mat + raw_sigma_bias), 
-                                    torch.tensor(sigma_min)) * sigma_scale)
+                self.cov_mat = (torch.maximum((cov_mat + raw_sigma_bias[0]), 
+                                    torch.tensor(sigma_min[0])) * sigma_scale[0])
             else: 
-                self.cov_mat = (torch.maximum(F.softmax(cov_mat + raw_sigma_bias, dim=-1),
-                                    torch.tensor(sigma_min)) * sigma_scale)
+                self.cov_mat = (torch.maximum(F.softmax(cov_mat + raw_sigma_bias[0], dim=-1),
+                                    torch.tensor(sigma_min[0])) * sigma_scale[0])
 
-        else:
-            cov_mat = torch.empty(1, self.dist_dim, device=device)
-            cov_mat = torch.nn.init.uniform_(cov_mat)[0]
-            cov_mat = Parameter(cov_mat, requires_grad=use_trainable_cov)
             
-            self.cov_mat = (torch.maximum(F.softmax(cov_mat + raw_sigma_bias, dim=-1),
-                                sigma_min) * sigma_scale)
-            
-    def forward(self, input_tensor):
+    def forward(self, inputs):
+        eps = 1e-6
         
-        mean_tensor = self.y_emission_net(input_tensor) # [bs*n, y_emission_net.out_dim]
+        mean_tensor = self.mean_net(inputs) # [bs*n, y_emission_net.out_dim]
         self.mean = mean_tensor
         
-        if self.use_triangular_cov:
-            output_dist = distributions.multivariate_normal.MultivariateNormal(
-                loc = mean_tensor, scale_tril=torch.tril(self.cov_mat)
-            )
-        else:
-            pass # TODO
-            # output_dist = tfd.MultivariateNormalDiag(
-            #     loc=mean_tensor,
-            #     scale_diag=self.cov_mat)
-
+        if self.use_trainable_cov:
+            cov_tensor = self.cov_net(inputs)
+            self.cov_mat = torch.diag_embed(cov_tensor + eps) 
+        
+        output_dist = distributions.multivariate_normal.MultivariateNormal(
+            loc=mean_tensor, scale_tril=torch.tril(self.cov_mat)
+        )
         return output_dist
 
     @property
@@ -326,53 +254,48 @@ class NonlinearEmissionDistribution(nn.Module):
     def __init__(self,
                 emission_mean_network,
                 observation_dim,
-                cov_mat=None,
-                use_triangular_cov=False,
-                use_trainable_cov=True,
-                raw_sigma_bias=0.0,
-                sigma_min=1e-5,
-                sigma_scale=0.05,
+                config=None,
                 device='cpu'):
         """
         Args:
         emission_network: a `callable` network taking continuous hidden states, `z[t]`, and returning the
                                 mean of emission distribution, `p(y[t] | z[t])`.
                                 
-        observation_dim:    an `int` scalar for dimension of observations, `x`.
+        observation_dim:    an `int` scalar for dimension of observations, `y`.
         """
         super(NonlinearEmissionDistribution, self).__init__()
+
+        cov_mat=config['cov_mat'],
+        use_trainable_cov=config['use_trainable_cov'],
+        raw_sigma_bias=config['raw_sigma_bias'],
+        sigma_min=config['sigma_min'],
+        sigma_scale=config['sigma_scale'],
+        
         self.ob_dim = observation_dim
         self.y_emission_net = emission_mean_network
-        self.use_triangular_cov = use_triangular_cov
         
-        if cov_mat:
+        if cov_mat[0]:
             self.cov_mat = cov_mat
-        elif self.use_triangular_cov:
+        else:
             m = torch.empty(1, int(self.ob_dim * (self.ob_dim + 1) / 2), device=device)
             m = torch.nn.init.uniform_(m)[0]
-            m = Parameter(m, requires_grad=use_trainable_cov)
             cov_mat = torch.zeros((self.ob_dim, self.ob_dim), device=device)
             tril_indices = torch.tril_indices(row=self.ob_dim, col=self.ob_dim, offset=0)
             cov_mat[tril_indices[0], tril_indices[1]] += m
+            cov_mat = Parameter(cov_mat, requires_grad=use_trainable_cov[0])
             
             if self.ob_dim == 1:
-                self.cov_mat = (torch.maximum((cov_mat + raw_sigma_bias), 
-                                    torch.tensor(sigma_min)) * sigma_scale)
+                self.cov_mat = (torch.maximum((cov_mat + raw_sigma_bias[0]), 
+                                    torch.tensor(sigma_min[0])) * sigma_scale[0])
             else: 
-                self.cov_mat = (torch.maximum(F.softmax(cov_mat + raw_sigma_bias, dim=-1),
-                                    torch.tensor(sigma_min)) * sigma_scale)
+                self.cov_mat = (torch.maximum(F.softmax(cov_mat + raw_sigma_bias[0], dim=-1),
+                                    torch.tensor(sigma_min[0])) * sigma_scale[0])
 
-        else:
-            cov_mat = torch.empty(1, self.ob_dim, device=device)
-            cov_mat = torch.nn.init.uniform_(cov_mat)[0]
-            cov_mat = Parameter(cov_mat, requires_grad=use_trainable_cov)
-            
-            self.cov_mat = (torch.maximum(F.softmax(cov_mat + raw_sigma_bias, dim=-1),
-                                sigma_min) * sigma_scale)
-            
-    def forward(self, input_tensor, nonlinear='Bernoulli'):
 
-        mean_tensor = self.y_emission_net(input_tensor) # [bs*n, y_emission_net.out_dim]
+    def forward(self, inputs, nonlinear='Bernoulli'):
+        # TODO
+        # mean_tensor = self.y_emission_net(inputs) # [bs*n, y_emission_net.out_dim]
+        mean_tensor = torch.sigmoid(inputs)
         self.mean = mean_tensor
         
         if nonlinear == 'Bernoulli':
@@ -380,16 +303,10 @@ class NonlinearEmissionDistribution(nn.Module):
         # check https://github.com/pytorch/pytorch/issues/7857
         # https://pytorch.org/docs/stable/distributions.html#logitrelaxedbernoulli
 
-        if nonlinear == 'Gaussian': 
-            if self.use_triangular_cov:
-                output_dist = distributions.multivariate_normal.MultivariateNormal(
-                    loc = mean_tensor, scale_tril=torch.tril(self.cov_mat)
-                )
-            else:
-                pass # TODO
-                # output_dist = tfd.MultivariateNormalDiag(
-                #     loc=mean_tensor,
-                #     scale_diag=self.cov_mat)
+        elif nonlinear == 'Gaussian': 
+            output_dist = distributions.multivariate_normal.MultivariateNormal(
+                loc = mean_tensor, scale_tril=torch.tril(self.cov_mat)
+            )
 
         return output_dist
 
@@ -427,17 +344,18 @@ class RnnInferenceNetwork(nn.Module):
         self.latent_dim = latent_dim
         self.posterior_rnn = posterior_rnn
         self.posterior_dist = posterior_dist
-        
+    
         self.device = device
 
         if embedding_network is None:
             self.embedding_network = lambda x: x
         self.embedding_network = embedding_network
 
+
     def forward(
             self,
             inputs,
-            num_samples=1,
+            num_samples=20,
             random_seed=RANDOM_SEED,
         ):
         """
@@ -461,41 +379,47 @@ class RnnInferenceNetwork(nn.Module):
         log_probs: a float 2-D `Tensor` of size [num_samples. batch_size,
         num_steps], which stores the log posterior probabilities.
         """
+        # ipdb.set_trace()
+        bs, num_steps, _ = inputs[0].shape
         
-        batch_size, num_steps, _ = inputs.shape
-        mc_y_inputs = torch.tile(inputs, (num_samples, 1,1))
+        # TODO how to normalize the time
+        t_inputs = (inputs[1]-inputs[1][:,0:1])/(inputs[1][:,-1:]-inputs[1][:,0:1])
+        mc_t_inputs = torch.tile(t_inputs, (num_samples, 1,1)).float()
+        mc_y_inputs = torch.tile(inputs[0], (num_samples, 1,1)).float() # [bs, times, 1]
+        mc_yt_inputs = torch.cat([mc_y_inputs, mc_t_inputs], -1) # [bs, times, 1]
+        
         latent_dim = self.latent_dim
         
-        # TODO if the inputs are int, are there gradient???
-        # ipdb.set_trace()
-        ## passing through embedding_network, e.g. bidirectional RNN
-        mc_y_inputs = self.embedding_network(mc_y_inputs) # TODO: potential improvement
+        mc_yt_rnn_inputs, _ = self.embedding_network(mc_yt_inputs)
+        emb_dim_yt = mc_yt_rnn_inputs.shape[-1]
+        # -> the same for z and s now
 
         ## passing through forward RNN
         if isinstance(self.posterior_rnn, nn.LSTMCell): 
-            initial_rnn_state = [torch.zeros((batch_size * num_samples, self.posterior_rnn.hidden_size), 
+            prev_rnn_state = [torch.zeros((bs * num_samples, self.posterior_rnn.hidden_size), 
                                          device=self.device)] * 2
         else:   
-            initial_rnn_state = [torch.zeros((batch_size * num_samples, self.posterior_rnn.hidden_size), 
+            prev_rnn_state = [torch.zeros((bs * num_samples, self.posterior_rnn.hidden_size), 
                                          device=self.device)]
-        initial_latent_states = torch.zeros((batch_size * num_samples, latent_dim), 
-                                            device=self.device)
-        
-        prev_latent_state = initial_latent_states
-        prev_rnn_state = initial_rnn_state
+            
+        if latent_dim == 3:
+            prev_latent_state = torch.zeros((bs * num_samples, latent_dim*2),  device=self.device)
+        if latent_dim == 1:
+            prev_latent_state = torch.zeros((bs * num_samples, latent_dim*8),  device=self.device)
+        # prev_latent_state = torch.zeros((bs * num_samples, emb_dim_yt), device=self.device)
+    
         latent_states = []
         rnn_states = []
         entropies = []
         log_probs = []
         for t in range(num_steps):
             # Duplicate current observation to sample multiple trajectories.
-            current_input = mc_y_inputs[:, t, :] # [bs*n, 1]
+            current_input = mc_yt_rnn_inputs[:, t] # [bs*n, 1]
             rnn_input = torch.concat([current_input, prev_latent_state], dim=-1)  # [bs*n latent_dim+input_dim], 
             
             rnn_out, rnn_state = self.posterior_rnn(rnn_input, prev_rnn_state) 
                 # rnn_out [bs*n, rnn_hid_dim]
                 # rnn_state [bs*n, rnn_hid_dim]
-                # ??? what is rnn_out
             dist = self.posterior_dist(rnn_out)
             
             # # 1. dist.sample() no gradient!!!
@@ -506,7 +430,6 @@ class RnnInferenceNetwork(nn.Module):
             # latent_state = self.posterior_dist.mean + eps*std 
             # # 3. rsample() it also has gradient! 
             latent_state = dist.rsample() 
-            # TODO why not sample multiple latent states here?
             
             latent_states.append(latent_state)
             rnn_states.append(rnn_state)
@@ -517,14 +440,20 @@ class RnnInferenceNetwork(nn.Module):
             # the variance is not depends on the input `rnn_out` (it is only a trainable parameter). 
             # So the gradient will not flow back to the posterior estimator rnn
             
-            prev_latent_state = latent_state
+            if latent_dim == 3:
+                prev_latent_state = torch.tile(latent_state, (1,2))
+            else:
+                prev_latent_state = torch.tile(latent_state, (1,8))
             prev_rnn_state = [rnn_out, rnn_state]
+            # TODO is it reasonable???
+            # prev_latent_state = latent_state.detach()
+            # prev_rnn_state = [rnn_out.detach(), rnn_state.detach()]
             
         # TODO check when multiple samples 
-        sampled_s = torch.stack(latent_states, -2).reshape(num_samples, batch_size, num_steps, latent_dim) 
-        entropies = torch.stack(entropies, -1).reshape(num_samples, batch_size, -1)
-        log_probs = torch.stack(log_probs, -1).reshape(num_samples, batch_size, -1)
-        rnn_states = torch.stack(rnn_states, -1).reshape(num_samples, batch_size, num_steps, self.posterior_rnn.hidden_size)
+        sampled_s = torch.stack(latent_states, -2).reshape(num_samples, bs, num_steps, latent_dim) 
+        entropies = torch.stack(entropies, -1).reshape(num_samples, bs, -1)
+        log_probs = torch.stack(log_probs, -1).reshape(num_samples, bs, -1)
+        rnn_states = torch.stack(rnn_states, -1).reshape(num_samples, bs, num_steps, self.posterior_rnn.hidden_size)
 
         return sampled_s, entropies, log_probs, rnn_states
 
@@ -556,7 +485,7 @@ class HierachicalSSM(BaseLearnerModel):
         s_transition_network,
         emission_network,
         inference_network,
-        initial_distribution,
+        # initial_distribution,
         num_samples=1,
         args=None,
         device='cpu',
@@ -600,10 +529,14 @@ class HierachicalSSM(BaseLearnerModel):
         self.z_tran = z_transition_network
         self.s_tran = s_transition_network
         self.y_emit = emission_network
-        self.s_infer_net, self.z_infer_net = inference_network
-        self.s0_dist, self.z0_dist = initial_distribution
+        
+        self.s_infer, self.z_infer = inference_network
+        
+        # self.s0_dist, self.z0_dist = initial_distribution
+        self.s0_mean, self.s0_scale = self._construct_initial_mean_cov(3, False)
+        self.z0_mean, self.z0_scale = self._construct_initial_mean_cov(1, False)
 
-        self.discrete_prior = self.s0_dist
+        # self.discrete_prior = self.s0_dist
         self.observation_dim = self.y_emit.output_event_dims
         
         self.num_samples = num_samples
@@ -611,7 +544,82 @@ class HierachicalSSM(BaseLearnerModel):
         self.device = device
         self.args = args
 
+        
+    def _construct_initial_mean_cov(self, dim, use_trainable_cov):
+        x0_mean = torch.empty(1, dim, device=self.device)
+        x0_mean = torch.nn.init.xavier_uniform_(x0_mean)[0]
+        x0_mean = Parameter(x0_mean, requires_grad=True)
+        
+        m = torch.empty(int(dim * (dim + 1) / 2), 1, device=self.device)
+        m = torch.nn.init.xavier_uniform_(m)
+        x0_scale = torch.zeros((dim, dim), device=self.device)
+        tril_indices = torch.tril_indices(row=dim, col=dim, offset=0)
+        x0_scale[tril_indices[0], tril_indices[1]] += m[:, 0]
+        x0_scale = Parameter(x0_scale, requires_grad=use_trainable_cov)
+        
+        return x0_mean, x0_scale
+        
+    def _construct_initial_state_distribution(
+        self,
+        latent_dim,
+        z0_mean=None,
+        z0_scale=None,
+        config=None,
+        device='cpu'):
+        """
+        Construct the initial state distribution, `p(s_0) or p(z_0)`.
+        Args:
+            latent_dim:  an `int` scalar for dimension of continuous hidden states, `z`.
+            num_categ:   an `int` scalar for number of discrete states, `s`.
+            
+            use_trainable_cov:  a `bool` scalar indicating whether the scale of `p(z[0])` is trainable. Default to False.
+            raw_sigma_bias:     a `float` scalar to be added to the raw sigma, which is standard deviation of the 
+                                    distribution. Default to `0.`.
+            sigma_min:          a `float` scalar for minimal level of sigma to prevent underflow. Default to `1e-5`.
+            sigma_scale:        a `float` scalar for scaling the sigma. Default to `0.05`. The above three arguments 
+                                    are used as `sigma_scale * max(softmax(raw_sigma + raw_sigma_bias), sigma_min))`.
+                                    
+            dtype: data type for variables within the scope. Default to `torch.float32`.
+            name: a `str` to construct names of variables.
 
+        Returns:
+            return_dist: a `tfp.distributions` instance for the initial state
+            distribution, `p(z[0])`.
+        """
+        use_trainable_cov = False
+        raw_sigma_bias = 0.0
+        sigma_min = 1e-5
+        sigma_scale = 0.05
+        
+        if z0_mean == None:
+            z0_mean = torch.empty(1, latent_dim, device=self.device)
+            z0_mean = torch.nn.init.xavier_uniform_(z0_mean)[0]
+            z0_mean = Parameter(z0_mean, requires_grad=True)
+
+        if z0_scale == None:
+            m = torch.empty(int(latent_dim * (latent_dim + 1) / 2), 1, device=self.device)
+            m = torch.nn.init.xavier_uniform_(m)
+            z0_scale = torch.zeros((latent_dim, latent_dim), device=self.device)
+            tril_indices = torch.tril_indices(row=latent_dim, col=latent_dim, offset=0)
+
+            z0_scale[tril_indices[0], tril_indices[1]] += m[:, 0]
+            z0_scale = Parameter(z0_scale, requires_grad=use_trainable_cov)
+        
+        if latent_dim == 1:
+            z0_scale = (torch.maximum((z0_scale + raw_sigma_bias), # TODO is this correct?
+                                torch.tensor(sigma_min)) * sigma_scale)
+            dist = distributions.multivariate_normal.MultivariateNormal(
+                loc = z0_mean, covariance_matrix=z0_scale)
+        else: 
+            z0_scale = (torch.maximum(F.softmax(z0_scale + raw_sigma_bias, dim=-1),
+                                torch.tensor(sigma_min)) * sigma_scale)
+            dist = distributions.multivariate_normal.MultivariateNormal(
+                loc = z0_mean, scale_tril=torch.tril(z0_scale)
+                )
+
+        return dist
+    
+    
     # TODO
     def _get_iwae(self, sequence_likelihood, initial_likelihood, log_prob_q,
                     num_samples):
@@ -649,42 +657,6 @@ class HierachicalSSM(BaseLearnerModel):
             axis=0) - torch.math.log(torch.cast(num_samples, torch.float32))
         iwae_bound_mean = torch.reduce_mean(iwae_bound)
         return iwae_bound_mean
-    
-    
-    def _get_log_likelihood(self, log_a, log_b, log_init, log_gamma1, log_gamma2):
-        """
-        Computes the log-likelihood based on pre-computed log-probabilities.
-
-        Computes E_s[log p(x[1:T], z[1:T], s[1:T])] decomposed into two terms.
-
-        Args:
-        log_a: Transition tensor: log_a[t, i, j] = log p(s[t] = i|x[t-1], s[t-1]=j),
-                size [batch_size, num_steps, num_cat, num_cat]
-        log_b: Emission tensor: log_b[t, i] = log p(x[t], z[t] | s[t]=i, z[t-1]),
-                size [batch_size, num_steps, num_cat]
-        log_init: Initial tensor, log_init[i] = log p(s[0]=i)
-                    size [batch_size, num_cat]
-        log_gamma1: computed by forward-backward algorithm. log_gamma1[t, i] = log p(s[t] = i | v[1:T]),
-                        size [batch_size, num_steps, num_cat]
-        log_gamma2: computed by forward-backward algorithm. log_gamma2[t, i, j] = log p(s[t]= i, s[t-1]= j| v[1:T]),
-                        size [batch_size, num_steps, num_cat, num_cat]
-
-        Returns:
-        tuple (t1, t2)
-            t1: sequence likelihood, E_s[log p(s[1:T], v[1:T]| s[0], v[0])], size [batch_size]
-            t2: initial likelihood, E_s[log p(s[0], v[0])], size [batch_size]
-        """
-        gamma1 = torch.exp(log_gamma1)
-        gamma2 = torch.exp(log_gamma2)
-        t1 = torch.reduce_sum(gamma2[:, 1:, :, :]
-                        * (log_b[:, 1:, torch.newaxis, :]
-                            + log_a[:, 1:, :, :]),
-                        axis=[1, 2, 3])
-
-        gamma1_1, log_b1 = gamma1[:, 0, :], log_b[:, 0, :]
-        t2 = torch.reduce_sum(gamma1_1 * (log_b1 +  log_init[torch.newaxis, :]),
-                        axis=-1)
-        return t1, t2
 
 
     def get_objective_values(self,
@@ -699,10 +671,9 @@ class HierachicalSSM(BaseLearnerModel):
         """
         # All the sequences should be of the shape
         # [batch_size, num_steps, (data_dim)]
-        [log_prob_st, log_prob_zt, log_prob_yt] = log_probs
+        [log_prob_st, log_prob_zt, log_prob_yt] = log_probs 
         
-        # ipdb.set_trace()
-        sequence_likelihood = (log_prob_st[:, 1:] + log_prob_zt[:, 1:] + log_prob_yt[:, 1:]).sum(-1) # [bs,]
+        sequence_likelihood = (log_prob_st[:, 1:] + log_prob_zt[:, 1:] + log_prob_yt[:, 1:]).mean(-1) # [bs,]
         initial_likelihood = log_prob_st[:, 0] + log_prob_zt[:, 0] + log_prob_yt[:, 0]
 
         t1_mean = torch.mean(sequence_likelihood, dim=0)
@@ -756,9 +727,10 @@ class HierachicalSSM(BaseLearnerModel):
         reconstruced_inputs: a float `Tensor` of size [batch_size, num_steps,
             obs_dim] for reconstructed inputs.
         """
+        # ipdb.set_trace()
         y_input = inputs['label_seq'] 
-        batch_size, num_steps = y_input.shape
-        num_sample = int(sampled_s.shape[0] / batch_size)
+        bs, num_steps = y_input.shape
+        num_sample = int(sampled_s.shape[0] / bs)
         
         y_input = torch.tile(inputs['label_seq'].unsqueeze(-1), (num_sample, 1, 1))
         time_input = torch.tile(inputs['time_seq'].unsqueeze(-1), (num_sample, 1, 1))
@@ -770,9 +742,13 @@ class HierachicalSSM(BaseLearnerModel):
         # Broadcasting rules of TFP dictate that: if the samples_z0 of dimension
         # [batch_size, 1, event_size], z0_dist is of [num_categ, event_size].
         # z0_dist.log_prob(samples_z0[:, None, :]) is of [batch_size, num_categ].
+        self.z0_dist = self._construct_initial_state_distribution(
+            latent_dim=self.z0_mean.shape[0], 
+            z0_mean=self.z0_mean, 
+            z0_scale=self.z0_scale
+        )
         sampled_z0 = sampled_z[:, 0, :]
         log_prob_z0 = self.z0_dist.log_prob(sampled_z0[:, None, :]) # [bs, 1]
-        # log_prob_z0 = log_prob_z0[:, None, :] # [bs, 1, 1] # TODO check why not num_ateg
         
         # `log_prob_zt` should be of the shape [batch_size, num_steps, self.z_dim]
         log_prob_zt = self.get_z_prior(sampled_z, [sampled_s, time_input], log_prob_z0) # [bs*n, num_steps]
@@ -781,10 +757,15 @@ class HierachicalSSM(BaseLearnerModel):
         ########################################
         ## getting log p(s[t] |s[t-1], x[t-1])
         ########################################
-        
+        self.s0_dist = self._construct_initial_state_distribution(
+            latent_dim=self.s0_mean.shape[0], 
+            z0_mean=self.s0_mean, 
+            z0_scale=self.s0_scale
+        )
         if switching_conditional_inputs is None:
             switching_conditional_inputs = y_input
         sampled_s0 = sampled_s[:, 0, :]
+        
         log_prob_s0 = self.s0_dist.log_prob(sampled_s0[:, None, :]) # [bs, 1]
             
         log_prob_st = self.get_s_prior(sampled_s, [switching_conditional_inputs], log_prob_s0) # [bs*n, num_steps]
@@ -811,8 +792,7 @@ class HierachicalSSM(BaseLearnerModel):
         # `emission_dist' should have the same event shape as `inputs',
         # by broadcasting rule, the `log_prob_xt' should be of the shape
         # [batch_size, num_steps],
-        log_prob_yt = emission_dist.log_prob(
-            torch.reshape(y_input.float(), [batch_size, num_steps, -1]))[..., 0] # [bs, t]
+        log_prob_yt = emission_dist.log_prob(y_input.float())[..., 0] # [bs, t]
 
         # log ( p(x_t | z_t) p(z_t | z_t-1, s_t) )
         # log_xt_zt = log_prob_yt + log_prob_zt
@@ -824,7 +804,7 @@ class HierachicalSSM(BaseLearnerModel):
                             observation_shape=None,
                             sample_for_reconstruction=True,
                             sample_hard=False,
-                            sample_num=1): # TODO
+                            num_samples=1): # TODO
         """Generate reconstructed inputs from emission distribution, `p(x[t]|z[t])`.
 
         Args:
@@ -884,14 +864,14 @@ class HierachicalSSM(BaseLearnerModel):
         return log_prob_zt
     
 
-    def forward(self, inputs, temperature=1.0, num_samples=1):
+    def forward(self, inputs, temperature=1.0, num_samples=50):
         """
         Inference call of SNLDS.
 
         Args:
         inputs:      a `float` Tensor of shape `[batch_size, num_steps, event_size]`, containing the observation time series of the model.
         temperature: a `float` Scalar for temperature used to estimate discrete
-                        state transition `p(s[t] | s[t-1], x[t-1])` as described in Dong et al.
+                        state transition `p(s[t] | s[t-1], y[t-1])` as described in Dong et al.
                         (2019). Increasing temperature increase the uncertainty about each
                         discrete states.
                         Default to 1. For ''temperature annealing'', the temperature is set
@@ -912,47 +892,46 @@ class HierachicalSSM(BaseLearnerModel):
             sampled_z:      the sampled z[1:T] from the approximate posterior.
             cross_entropy:  batched cross entropy between discrete state posterior likelihood and its prior distribution.
         """
+        eps = 1e-6
         
         input_y = inputs['label_seq'].unsqueeze(-1)  # [bs, times] -> [bs, times, 1]
+        input_t = inputs['time_seq'].unsqueeze(-1)
+        # ipdb.set_trace()
         
         # ----- Sample continuous hidden variable from `q(s[1:T] | y[1:T])' -----
-        s_sampled, s_entropy, s_log_prob_q, _ = self.s_infer_net(
-            input_y, num_samples=num_samples)
+        s_sampled, s_entropy, s_log_prob_q, _ = self.s_infer(
+            [input_y, input_t], num_samples=num_samples
+        )
         
-        _, batch_size, num_steps, s_dim = s_sampled.shape
+        _, bs, num_steps, s_dim = s_sampled.shape
 
-        s_sampled = torch.reshape(s_sampled,
-                            [num_samples * batch_size, num_steps, s_dim])
-        s_entropy = torch.reshape(s_entropy, [num_samples * batch_size, num_steps])
-        s_log_prob_q = torch.reshape(s_log_prob_q, [num_samples * batch_size, num_steps])
+        s_sampled = torch.reshape(
+            s_sampled, [num_samples * bs, num_steps, s_dim]
+        )
+        s_entropy = torch.reshape(s_entropy, [num_samples * bs, num_steps])
+        s_log_prob_q = torch.reshape(s_log_prob_q, [num_samples * bs, num_steps])
 
         
         # ----- Sample continuous hidden variable from `q(z[1:T] | y[1:T])' -----
-        z_sampled, z_entropy, z_log_prob_q, _ = self.z_infer_net(
-            input_y, num_samples=num_samples)
+        z_sampled, z_entropy, z_log_prob_q, _ = self.z_infer(
+            [input_y, input_t], num_samples=num_samples)
         
         _, _, _, z_dim = z_sampled.shape
 
         z_sampled = torch.reshape(z_sampled,
-                            [num_samples * batch_size, num_steps, z_dim])
-        z_entropy = torch.reshape(z_entropy, [num_samples * batch_size, num_steps])
-        z_log_prob_q = torch.reshape(z_log_prob_q, [num_samples * batch_size, num_steps])
-
+                            [num_samples * bs, num_steps, z_dim])
+        z_entropy = torch.reshape(z_entropy, [num_samples * bs, num_steps])
+        z_log_prob_q = torch.reshape(z_log_prob_q, [num_samples * bs, num_steps])
 
         # ----- joint log likelihood -----
         log_prob_yt, log_prob_zt, log_prob_st = self.calculate_likelihoods( 
             inputs, s_sampled, z_sampled, temperature=temperature)
-
-        # # Forward-backward algorithm will return the posterior marginal of
-        # # discrete states `log_gamma2 = p(s[t]=k, s[t-1]=j | x[1:T], z[1:T])'
-        # # and `log_gamma1 = p(s[t]=k | x[1:T], z[1:T])'.
-        # _, _, log_gamma1, log_gamma2 = forward_backward_algo.forward_backward(
-        #     log_a, log_b, self.log_init)
-
+        
         recon_inputs = self.get_reconstruction(
             z_sampled,
-            observation_shape=input_y.shape,
-            sample_for_reconstruction=False)
+            observation_shape=z_sampled.shape,
+            sample_for_reconstruction=True, # TODO
+        )
 
         # Calculate Evidence Lower Bound with components.
         # The return_dict currently support the following items:
@@ -962,7 +941,6 @@ class HierachicalSSM(BaseLearnerModel):
         #   sequence_likelihood: likelihood of p(s[1:T], z[1:T], x[0:T]).
         #   zt_entropy: the entropy of posterior distribution.
         return_dict = self.get_objective_values([log_prob_st, log_prob_zt, log_prob_yt], 
-                                                # self.log_init, log_gamma1, log_gamma2, 
                                                 [s_log_prob_q, z_log_prob_q],
                                                 [s_entropy, z_entropy], num_samples)
 
@@ -973,66 +951,96 @@ class HierachicalSSM(BaseLearnerModel):
         #     prior_probs=self.discrete_prior)
         # state_crossentropy = torch.reduce_mean(state_crossentropy, axis=0)
 
-        recon_inputs = torch.reshape(recon_inputs,
-                                [num_samples, batch_size, num_steps, -1])
+        recon_inputs = torch.reshape(recon_inputs, [num_samples, bs, num_steps, -1])
         z_sampled = torch.reshape(z_sampled,
-                            [num_samples, batch_size, num_steps, z_dim])
+                            [num_samples, bs, num_steps, z_dim])
         s_sampled = torch.reshape(s_sampled,
-                            [num_samples, batch_size, num_steps, s_dim])
-        
-        return_dict["label"] = input_y
-        return_dict["prediction"] = recon_inputs[0]
-        return_dict["sampled_z"] = z_sampled[0]
-        return_dict["sampled_z"] = s_sampled[0]
-        # return_dict["cross_entropy"] = state_crossentropy
+                            [num_samples, bs, num_steps, s_dim])
 
+        return_dict["label"] = input_y
+        return_dict["prediction"] = recon_inputs
+        return_dict["sampled_z"] = z_sampled[0]
+        return_dict["sampled_s"] = s_sampled[0]
+        # return_dict["cross_entropy"] = state_crossentropy
+        # ipdb.set_trace()
         return return_dict
     
     
-    def inference(self):
+    def inference_model(self):
         pass
     
     
-    def prediction(self, inputs, num_samples=1):
-        # TODO it depends on the training mode, for now, it is only for splitting time 
-        time_step = int(inputs['skill_seq'].shape[-1])
-        train_step = int(time_step * self.args.train_time_ratio)
-        test_step = int(time_step * self.args.test_time_ratio)
-        test_timestamps = inputs['time_seq'][:, train_step-1:].unsqueeze(-1)
-    
-        past_y = inputs['label_seq'][:, :train_step].unsqueeze(-1)
-        # TODO which way to sample? from q(z) or from q(s)? or prior distribution?
-        # ideally they should be the same, but currently because the 
-        s_sampled, _, _, _ = self.s_infer_net(past_y, num_samples)
-        z_sampled, _, _, _ = self.z_infer_net(past_y, num_samples)
-        
-        # TODO multiple samples
-        s_last = s_sampled[0][:, -1:] # [n_samples, train_total, train_time, 3]
-        z_last = z_sampled[0][:, -1:]
-        y_last = past_y[:, -1:]
-    
-        # TODO for the s_tran, it needs the input of label p(s_t | s_t-1, x_t-1)
-        # two ways: 
-        # 1. we make the x_t-1 as hat(x_t-1) which is the prediction -> easier to compare with others, but will the gradient be accumulated?
-        # 2. use the ground truth x_t-1 when it is observed -> it is online learning, but it makes difficult to compare with other methods  
-
+    def generative_model(self, past_states, future_timestamps, steps, num_samples=1):
+        '''
+        Args:
+            past_states:
+            
+        '''
         outputs = []
-        for t in range(0, self.args.max_step-train_step):
+        s_last, z_last, y_last = past_states
+        for t in range(0, steps):
             s_next = self.s_tran(s_last, [y_last], 'nonlinear_input').mean # or sample  # [bs, 1, 3]
-            z_next = self.z_tran(z_last, [s_next, test_timestamps[:, t:t+2]], 'OU_vola').mean
-            y_next = self.y_emit(z_next).mean
+            z_next = self.z_tran(z_last, [s_next, future_timestamps[:, t:t+2]], 'OU_vola').mean
+            
+            y_next = self.get_reconstruction(
+                z_next,
+                observation_shape=z_next.shape,
+                sample_for_reconstruction=True,
+                sample_hard=True,
+            )
 
             y_last = y_next
             z_last = z_next
             s_last = s_next
             
             outputs.append((s_next, z_next, y_next))
-            
+
         pred_y = torch.cat([outputs[i][2] for i in range(len(outputs))], 1) # [n, pred_step, 1]
         pred_z = torch.cat([outputs[i][1] for i in range(len(outputs))], 1)
         pred_s = torch.cat([outputs[i][0] for i in range(len(outputs))], 1)
+        # ipdb.set_trace()
+        return [pred_s, pred_z, pred_y]
+    
+    
+    def predictive_model(self, inputs, num_samples=50):
+        # TODO it depends on the training mode, for now, it is only for splitting time 
+        '''
+        p(s_t+1, z_t+1 | y_1:t)
+        Args:
+            inputs: 
+            num_samples
+        '''
+        time_step = int(inputs['skill_seq'].shape[-1])
+        train_step = int(time_step * self.args.train_time_ratio)
+        test_step = int(time_step * self.args.test_time_ratio)
         
-        pred_dict = defaultdict(lambda: torch.zeros((), device=self.device))
+        # ipdb.set_trace()
+        past_y = inputs['label_seq'][:, :train_step].unsqueeze(-1)
+        past_timestamps = inputs['time_seq'][:, :train_step].unsqueeze(-1)
+        future_timestamps = inputs['time_seq'][:, train_step-1:].unsqueeze(-1)
+        future_timestamps = torch.tile(future_timestamps, (num_samples,1,1))
+        
+        # TODO which way to sample? from q(z) or from q(s)? or prior distribution?
+        # ideally they should be the same, but currently because the 
+        s_sampled, _, _, _ = self.s_infer([past_y, past_timestamps], num_samples)
+        z_sampled, _, _, _ = self.z_infer([past_y, past_timestamps], num_samples)
+        
+        
+        s_last = s_sampled[:,:,-1:].reshape(-1, 1,3) # [n_samples, train_total, train_time, 3] -> [total, 1. 3]
+        z_last = z_sampled[:,:,-1:].reshape(-1, 1,1)
+        y_last = torch.tile(past_y[:, -1:], (num_samples,1,1))
+        
+        # s_last = s_sampled[:,:,-2:-1].reshape(-1, 1,3)
+        # y_last = torch.tile(past_y[:, -2:-1], (num_samples,1,1))
+        
+        # TODO for the s_tran, it needs the input of label p(s_t | s_t-1, y_t-1)
+        # two ways: 
+        # 1. we make the x_t-1 as hat(x_t-1) which is the prediction -> easier to compare with others, but will the gradient be accumulated?
+        # 2. use the ground truth x_t-1 when it is observed -> it is online learning, but it makes difficult to compare with other methods  
+
+        pred_s, pred_z, pred_y = self.generative_model([s_last, z_last, y_last], future_timestamps, 
+                                  self.args.max_step-train_step, )
+        # ipdb.set_trace()
         pred_dict = {
             'prediction': pred_y[:, -test_step:], 
             'label': inputs['label_seq'][:, -test_step:],
@@ -1040,26 +1048,26 @@ class HierachicalSSM(BaseLearnerModel):
             'pred_z': pred_z,
             'pred_s': pred_s
         }
-        # recon_inputs = self.get_reconstruction(
-        #     z_sampled,
-        #     observation_shape=input_y.shape,
-        #     sample_for_reconstruction=False)
-        # ipdb.set_trace()
+        
         return pred_dict
     
     
     def loss(self, feed_dict, outdict, metrics=None):
         losses = defaultdict(lambda: torch.zeros((), device=self.device))
-
-        elbo = outdict['elbo']
-        losses['loss_total'] = -elbo
         
-        loss_fn = torch.nn.BCELoss()
         gt = outdict["label"] 
         pred = outdict["prediction"]
+        num_sample = pred.shape[0]
+        gt = torch.tile(gt[None, ...], (num_sample,1,1,1))
+        
+        loss_fn = torch.nn.BCELoss()
         bceloss = loss_fn(pred, gt.float())
         losses['loss_bce'] = bceloss
 
+        elbo = outdict['elbo']
+        losses['loss_total'] = -elbo + bceloss
+        losses['loss_elbo'] = elbo
+        
         if metrics != None:
             pred = pred.detach().cpu().data.numpy()
             gt = gt.detach().cpu().data.numpy()
@@ -1079,7 +1087,6 @@ class HierachicalSSM(BaseLearnerModel):
 def get_default_distribution_config():
     config = ConfigDict()
     config.cov_mat = None
-    config.use_triangular_cov = True
     config.use_trainable_cov = False
     config.raw_sigma_bias = 0.0
     config.sigma_min = 1e-5
@@ -1095,7 +1102,7 @@ def build_dense_network(
     """
     modules = []
     for lsize, activation in zip(layer_sizes, layer_activations):
-        modules.append(nn.Linear(input_size, lsize)) # whatisinfeaturedim???
+        modules.append(nn.Linear(input_size, lsize)) 
         if activation != None:
             modules.append(activation)
         input_size = lsize
@@ -1109,7 +1116,7 @@ def build_rnn_cell(rnn_type, hidden_dim_rnn, rnn_input_dim):
     if rnn_type == "gru":
         rnn_cell = nn.GRUCell(
             input_size=rnn_input_dim,
-            hidden_size=hidden_dim_rnn) # whatisinfeaturedim???
+            hidden_size=hidden_dim_rnn) 
     elif rnn_type == "lstm":
         rnn_cell = nn.LSTMCell(
             input_size=rnn_input_dim,
@@ -1121,9 +1128,9 @@ def build_rnn_cell(rnn_type, hidden_dim_rnn, rnn_input_dim):
     return rnn_cell
     
     
-def create_model(hidden_dim_s,
-                 hidden_dim_z,
-                 observation_dim,
+def create_model(dim_s,
+                 dim_z,
+                 dim_y,
 
                  config_emission=get_default_distribution_config(),
                  config_inference=get_default_distribution_config(),
@@ -1140,9 +1147,9 @@ def create_model(hidden_dim_s,
     """
     Construct SNLDS model.
     Args:
-        hidden_dim_s:     an `int` scalar for dimension of continuous hidden states, `s`.
-        hidden_dim_z:     an `int` scalar for dimension of continuous hidden states, `z`.
-        observation_dim:  an `int` scalar for dimension of observations, `y`.
+        dim_s:     an `int` scalar for dimension of continuous hidden states, `s`.
+        dim_z:     an `int` scalar for dimension of continuous hidden states, `z`.
+        dim_y:  an `int` scalar for dimension of observations, `y`.
         
         config_emission:     a `dict` for configuring emission distribution,
                                 `p(x[t] | z[t])`.
@@ -1177,134 +1184,135 @@ def create_model(hidden_dim_s,
     """
 
 
-    ##### For latent states S
+    ############################## For latent states S ##############################
     # -- initialization p(s_0 ; s_0_mean, s_0_var) -- 
-    initial_distribution_s = construct_initial_state_distribution(
-        latent_dim=hidden_dim_s,
-        use_trainable_cov=config_s_initial.use_trainable_cov,
-        use_triangular_cov=config_s_initial.use_triangular_cov,
-        raw_sigma_bias=config_s_initial.raw_sigma_bias,
-        sigma_min=config_s_initial.sigma_min,
-        sigma_scale=config_s_initial.sigma_scale,
-        device=device,
-    )
+    # initial_distribution_s = construct_initial_state_distribution(
+    #     latent_dim=dim_s,
+    #     config=config_s_initial,
+    #     device=device,
+    # )
     # -- transition p(s_t | s_t-1 ; s_t_mean, s_t_var) -- 
     network_transition_s = build_dense_network(
-            observation_dim,
-            [4 * hidden_dim_s, hidden_dim_s], # TODO
+            dim_y *dim_s + dim_s,
+            [4 * dim_s, dim_s ], # TODO
             [nn.ReLU(), None]
     )
     transition_s = ContinuousStateTransition(
         transition_mean_networks=network_transition_s,
-        distribution_dim=hidden_dim_s,
-        cov_mat=config_s_transition.cov_mat,
-        use_triangular_cov=config_s_transition.use_triangular_cov,
-        use_trainable_cov=config_s_transition.use_trainable_cov,
-        raw_sigma_bias=config_s_transition.raw_sigma_bias,
-        sigma_min=config_s_transition.sigma_min,
-        sigma_scale=config_s_transition.sigma_scale,
+        distribution_dim=dim_s,
+        config=config_s_transition,
         device=device,
     )
     
-    ##### For latent states Z
+    
+    ############################## For latent states Z ##############################
     # -- initialization p(z_0 ; z_0_mean, z_0_var) -- 
-    initial_distribution_z = construct_initial_state_distribution(
-        latent_dim=1,
-        use_trainable_cov=config_z_initial.use_trainable_cov,
-        use_triangular_cov=config_z_initial.use_triangular_cov,
-        raw_sigma_bias=config_z_initial.raw_sigma_bias,
-        sigma_min=config_z_initial.sigma_min,
-        sigma_scale=config_z_initial.sigma_scale,
-        device=device,
-    )
+    # initial_distribution_z = construct_initial_state_distribution(
+    #     latent_dim=1,
+    #     config=config_z_initial,
+    #     device=device,
+    # )
     # -- transition p(z_t | z_t-1, s_t ; z_t_var) -- only variance 
     networks_transition_z = build_dense_network(
-            1, 
-            [3*hidden_dim_z, hidden_dim_z],  # TODO
+            dim_y, 
+            [3*dim_z, dim_z],  # TODO
             [nn.ReLU(), None]
     )
     transition_z = ContinuousStateTransition(
         transition_mean_networks=networks_transition_z,
         distribution_dim=1,
-        cov_mat=config_z_transition.cov_mat,
-        use_triangular_cov=config_z_transition.use_triangular_cov,
-        use_trainable_cov=config_z_transition.use_trainable_cov,
-        raw_sigma_bias=config_z_transition.raw_sigma_bias,
-        sigma_min=config_z_transition.sigma_min,
-        sigma_scale=config_z_transition.sigma_scale,
+        config=config_z_transition, 
         device=device,
     )
     
-    ##### For observations Y
+    
+    ############################## For observations Y ##############################
     # -- emission p(y_t | z_t ; ??? ) -- 
-    # TODO should NOT be Gaussian 
-    # but lets assume its Gaussian for now
+    # network_emission = build_dense_network(
+    #     dim_z, 
+    #     [4 * dim_y, dim_y],
+    #     [nn.ReLU(), nn.Sigmoid()]
+    # )
     network_emission = build_dense_network(
-        1, 
-        [4 * observation_dim, observation_dim],
-        [nn.ReLU(), nn.Sigmoid()]
+        dim_z, 
+        [dim_y],
+        [nn.Sigmoid()]
     )
     emission_network = NonlinearEmissionDistribution(
         emission_mean_network=network_emission,
-        observation_dim=observation_dim,
-        cov_mat=config_emission.cov_mat,
-        use_triangular_cov=config_emission.use_triangular_cov,
-        use_trainable_cov=config_emission.use_trainable_cov,
-        raw_sigma_bias=config_emission.raw_sigma_bias,
-        sigma_min=config_emission.sigma_min,
-        sigma_scale=config_emission.sigma_scale,
+        observation_dim=dim_y,
+        config=config_emission, 
         device=device,
     )
 
-    ##### For posterior Z^hat or S^hat
+    ############################## For posterior Z^hat or S^hat ##############################
     # -- posterior p(???) -- 
-    network_input_embedding = lambda x: x
-    network_posterior_mlp_s = build_dense_network(
+    # network_input_embedding = lambda x: x
+    # network_input_embedding = build_dense_network(
+    #         dim_y * 2,
+    #         [dim_y * 2 * 4, dim_y * 2 * 8], 
+    #         [nn.ReLU, None]
+    # )
+    network_input_embedding = nn.RNN(
+        input_size=dim_y * 2, # input_y + input_time 2
+        hidden_size=dim_y * 2 * 2,  # 4
+        bidirectional = True,
+        batch_first = True,
+    )
+    
+    emb_dim_yt = dim_y * 2 * 2 * 2 # 8 because it is bidirectional
+    emb_mean_dim_s = emb_dim_yt
+    emb_cov_dim_s = emb_dim_yt
+    hidden_dim_rnn = emb_dim_yt * 2 # 16
+    
+    network_posterior_mean_mlp_s = build_dense_network(
             hidden_dim_rnn,
-            [hidden_dim_s], [None]) # is it not allowed to add non-linear functions here?
+            [emb_mean_dim_s, dim_s], 
+            [nn.ReLU(), None]) # is it not allowed to add non-linear functions here?
+    network_posterior_cov_mlp_s = build_dense_network(
+            hidden_dim_rnn,
+            [emb_cov_dim_s, dim_s], 
+            [nn.ReLU(), nn.ReLU()]) # is it not allowed to add non-linear functions here?
     posterior_distribution_s = GaussianDistributionFromMean(
-        mean_network=network_posterior_mlp_s,
-        distribution_dim=hidden_dim_s,
-        cov_mat=config_inference.cov_mat,
-        use_triangular_cov=config_inference.use_triangular_cov,
-        use_trainable_cov=config_inference.use_trainable_cov,
-        raw_sigma_bias=config_inference.raw_sigma_bias,
-        sigma_min=config_inference.sigma_min,
-        sigma_scale=config_inference.sigma_scale,
-        device=device
+        mean_network=network_posterior_mean_mlp_s,
+        cov_network=network_posterior_cov_mlp_s,
+        distribution_dim=dim_s,
+        config=config_inference,        
+        device=device,
     )
     network_posterior_rnn_s = build_rnn_cell(
-        rnn_type="lstm", hidden_dim_rnn=hidden_dim_rnn, rnn_input_dim=observation_dim+hidden_dim_s
+        rnn_type="lstm", hidden_dim_rnn=hidden_dim_rnn, rnn_input_dim=emb_dim_yt+dim_s*2
     )
     posterior_network_s = RnnInferenceNetwork(
         posterior_rnn=network_posterior_rnn_s,
         posterior_dist=posterior_distribution_s,
-        latent_dim=hidden_dim_s,
+        latent_dim=dim_s,
         embedding_network=network_input_embedding,
         device=device)
     
     
-    network_posterior_mlp_z = build_dense_network(
+    network_posterior_mean_mlp_z = build_dense_network(
             hidden_dim_rnn,
-            [hidden_dim_z], [None])
+            [emb_mean_dim_s, dim_z], 
+            [nn.ReLU(), None])
+    network_posterior_cov_mlp_z = build_dense_network(
+            hidden_dim_rnn,
+            [emb_mean_dim_s, dim_z], 
+            [nn.ReLU(), None])
     posterior_distribution_z = GaussianDistributionFromMean(
-        mean_network=network_posterior_mlp_z,
-        distribution_dim=hidden_dim_z,
-        cov_mat=config_inference.cov_mat,
-        use_triangular_cov=config_inference.use_triangular_cov,
-        use_trainable_cov=config_inference.use_trainable_cov,
-        raw_sigma_bias=config_inference.raw_sigma_bias,
-        sigma_min=config_inference.sigma_min,
-        sigma_scale=config_inference.sigma_scale,
-        device=device
+        mean_network=network_posterior_mean_mlp_z,
+        cov_network=network_posterior_cov_mlp_z, 
+        distribution_dim=dim_z,
+        config=config_inference,
+        device=device,
     )
     network_posterior_rnn_z = build_rnn_cell(
-        rnn_type="lstm", hidden_dim_rnn=hidden_dim_rnn, rnn_input_dim=observation_dim+hidden_dim_z
+        rnn_type="lstm", hidden_dim_rnn=hidden_dim_rnn, rnn_input_dim=emb_dim_yt+dim_z*8
     )
     posterior_network_z = RnnInferenceNetwork(
         posterior_rnn=network_posterior_rnn_z,
         posterior_dist=posterior_distribution_z,
-        latent_dim=hidden_dim_z,
+        latent_dim=dim_z,
         embedding_network=network_input_embedding,
         device=device)
 
@@ -1314,7 +1322,6 @@ def create_model(hidden_dim_s,
         s_transition_network=transition_s,
         emission_network=emission_network,
         inference_network=[posterior_network_s, posterior_network_z],
-        initial_distribution=[initial_distribution_s, initial_distribution_z],
         num_samples=1,
         args=args,
         device=device,

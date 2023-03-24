@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=jupyter
-#SBATCH --partition=gpu-v100
+#SBATCH --partition=gpu-2080ti
 #SBATCH --gres=gpu:1
 #SBATCH --time=2-00:00:00
 #SBATCH --mem=32GB
@@ -8,7 +8,7 @@
 #SBATCH --error=jupyter.err
 
 
-port=8887
+port=8889
 node=$(hostname -s)
 
 module load cuda

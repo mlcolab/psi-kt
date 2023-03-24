@@ -3,26 +3,19 @@ import sys
 sys.path.append('..')
 
 import os 
-import time
 import pickle
 import argparse
 import numpy as np
+import copy
 import torch
 import datetime
-import builtins
 
 from data import data_loader
-from models import *
+# from models import *
 from KTRunner import *
-from VCLRunner import *
 from utils import utils, arg_parser, logger
-from models.learner_model import HLR, PPE, VanillaOU, GraphOU
-from models.new_learner_model import *
 from models.new_learner_model_test import *
-
-# import torch.distributed as dist
-# import torch.multiprocessing as mp
-# from torch.nn.parallel import DistributedDataParallel as DDP
+from models.learner_model import *
 
 import ipdb
 # https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
@@ -78,34 +71,19 @@ if __name__ == '__main__':
     parser.add_argument('--num_node', type=int, default=1, help='')
     parser.add_argument('--num_seq', type=int, default=1, help='')
     
-    # HLR 
-    parser.add_argument('--base', type=float, default=2., help='')
-    # OU 
-    # PPE
-    parser.add_argument('--ppe_lr', type=float, default=0.2, help='')
-    # SSSM
-    parser.add_argument('--hidden_dim', type=int, default=8, help='')
-    
     parser.add_argument('--graph_path', type=str, default='/mnt/qb/work/mlcolab/hzhou52/kt/junyi/adj.npy')
+    
     
     parser = arg_parser.parse_args(parser)
     
     global_args, extras = parser.parse_known_args() 
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # global_args.device = torch.device('cpu')
     
     logs = logger.Logger(global_args)
     
     # ----- data part -----
     corpus_path = os.path.join(global_args.data_dir, global_args.dataset, 'Corpus_{}.pkl'.format(global_args.max_step))
-    if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
-        data = data_loader.DataReader(global_args, logs)
-        # data.gen_fold_data(k=0)
-        data.show_columns() 
-        logs.write_to_log_file('Save corpus to {}'.format(corpus_path))
-        pickle.dump(data, open(corpus_path, 'wb'))
-    # Load data
     corpus = load_corpus(logs, global_args) 
     
     # ----- logger information -----
@@ -140,73 +118,38 @@ if __name__ == '__main__':
     
     adj = np.load(global_args.graph_path)
     
-    if global_args.model_name == 'HLR':
-        model = HLR(
-            mode=global_args.train_mode, 
-            num_seq=num_seq,
-            num_node=1 if not global_args.multi_node else corpus.n_skills,
-            nx_graph=None if not global_args.multi_node else adj,
-            device=global_args.device, 
-            logs=logs,
-        )
-        
-    elif global_args.model_name == 'VanillaOU':
-        model = VanillaOU(
-            mode=global_args.train_mode, 
-            num_seq=num_seq,
-            num_node=1 if not global_args.multi_node else corpus.n_skills,
-            nx_graph=None if not global_args.multi_node else adj,
-            device=global_args.device, 
-            logs=logs
-        )
-        
-    elif global_args.model_name == 'GraphOU':
-        model = GraphOU(
-            mode=global_args.train_mode, 
-            num_seq=num_seq,
-            num_node=1 if not global_args.multi_node else corpus.n_skills,
-            nx_graph=None if not global_args.multi_node else adj,
-            device=global_args.device, 
-            logs=logs
-        )
-        
-    elif global_args.model_name == 'PPE':
-        model = PPE(
-            mode=global_args.train_mode, 
-            num_seq=num_seq,
-            num_node=1 if not global_args.multi_node else corpus.n_skills,
-            nx_graph=None if not global_args.multi_node else adj,
-            device=global_args.device, 
-            logs=logs
-        )
-        
-    elif global_args.model_name == 'SwitchingNLDS':
-        model = create_model(
-            dim_s=3,
-            dim_z=1,
-            dim_y=1,
-            device=global_args.device, 
-            args=global_args,
-            logs=logs,   
-        )
-    
-    elif global_args.model_name == 'TestHierachicalSSM':
-        model = TestHierachicalSSM(
-            mode=global_args.train_mode, 
-            num_seq=num_seq,
-            num_node=1 if not global_args.multi_node else corpus.n_skills,
-            nx_graph=None if not global_args.multi_node else adj,
-            device=global_args.device, 
-            logs=logs,
-        )
 
-        
-    if global_args.load > 0:
-        model.load_model(model_path=global_args.load_folder)
-    logs.write_to_log_file(model)
-    # model = model.double() # ??? when to use double
-    # model.apply(model.init_weights)
-    model.actions_before_train()
+    # model = TestHierachicalSSM(
+    #     device=global_args.device, 
+    #     args=global_args,
+    #     logs=logs,   
+    # )
+    # model_path = '/mnt/qb/work/mlcolab/hzhou52/kt/logs/1exp_ngms/AmortizeHSSM/split_time/2023-03-14T12:27:13.728399__overfit_0/Model/Model_76.pt'
+    # model.load_state_dict(torch.load(model_path))
+    # model.eval()
+    
+    # model = VanillaOU(
+    #     mode=global_args.train_mode,
+    #     device=global_args.device, 
+    #     logs=logs,   
+    #     num_seq=num_seq,
+    # )
+    # model_path = '/mnt/qb/work/mlcolab/hzhou52/kt/logs/0exp_ngss/OU/junyi/single_user_single_skill/2023-03-09T10:41:38.685090__overfit_0_epoch_100/Model/Model_76.pt'
+    # model.load_state_dict(torch.load(model_path))
+    # model.eval()
+    
+    model = GraphOU(
+        mode=global_args.train_mode,
+        device=global_args.device, 
+        logs=logs,   
+        num_seq=num_seq,
+        num_node=corpus.n_skills,
+        nx_graph=adj,
+    )
+    model_path = '/mnt/qb/work/mlcolab/hzhou52/kt/logs/2exp_gsm/GraphOU/2023-03-13T17:14:53.108027__overfit_0_mean_graph/Model/Model_40.pt'
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
+    
     
     
     # Move to current device
@@ -218,9 +161,29 @@ if __name__ == '__main__':
             
     # Running
     runner = KTRunner(global_args, logs)
-    # runner = VCLRunner(global_args, logs)
-    runner.train(model, corpus)
-    # logs.write_to_log_file('\nTest After Training: ' + runner._print_res(model, corpus))
-
+    
+    epoch_whole_data = copy.deepcopy(corpus.data_df['whole'])
+    # epoch_train_data = 
+    # epoch_dev_data = 
+    # epoch_test_data
+    whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, batch_size=64, phase='whole')
+    # train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
+    # val_batches = model.module.prepare_batches(corpus, epoch_dev_data, self.eval_batch_size, phase='dev')
+    # test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
+    
+    _, outdicts = runner.evaluate(model, corpus, set_name='whole', visualize=True, 
+                                  data_batches=whole_batches, whole_batches=whole_batches)
+    
+    ipdb.set_trace()
+    flat_outdicts = {}
+    num_samples = 50
+    for key in outdicts[0].keys():
+        if key != 'prediction' and key != 'label':
+            # ipdb.set_trace()
+            flat_outdicts[key] = torch.cat([out[key] for out in outdicts], 1)
+    
+    with open('model_dict_graphou_ngss.pkl', 'wb') as f:
+        pickle.dump(flat_outdicts, f)
+    ipdb.set_trace()
     # model.module.actions_after_train()
     logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)

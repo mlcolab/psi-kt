@@ -58,7 +58,7 @@ class DataReader(object):
                 sk_df['num_failure'] = sk_df.num_history - sk_df.num_success
                 sk_dfs.append(sk_df)
             new_df = pd.concat(sk_dfs, axis=0).sort_values('timestamp', ascending=True)
-
+            
             user_wise_dict[cnt] = {
                 'user_id': user,                                                    # the ID of the learner
                 'skill_seq': new_df['skill_id'].values.tolist(),                    # the sequence of ID of the skills
@@ -72,7 +72,7 @@ class DataReader(object):
             
             cnt += 1
             n_inters += len(df)
-
+        ipdb.set_trace()
         self.user_seq_df = pd.DataFrame.from_dict(user_wise_dict, orient='index')
         self.n_users = max(self.inter_df['user_id'].values) + 1
         self.n_skills = max(self.inter_df['skill_id']) + 1
@@ -106,6 +106,7 @@ class DataReader(object):
         self.data_df['dev'] = self.user_seq_df.iloc[dev_indices]
         
         self.data_df['train'] = residual_df.drop(dev_indices)
+        self.data_df['whole'] = self.user_seq_df
 
     def gen_time_split_data(self, train_ratio, test_ratio):
         '''

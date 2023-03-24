@@ -128,17 +128,26 @@ class KTRunner(object):
         ##### prepare the batches of training data; this is specific to different KT models (different models may require different features)
         if self.overfit > 0:
             epoch_train_data = copy.deepcopy(corpus.data_df['train'])[:self.overfit] # Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
+            epoch_dev_data = copy.deepcopy(corpus.data_df['dev'])[:self.overfit]
+            epoch_test_data = copy.deepcopy(corpus.data_df['test'])[:self.overfit]
+            epoch_whole_data = copy.deepcopy(corpus.data_df['whole'])[:self.overfit]
         else:
             epoch_train_data = copy.deepcopy(corpus.data_df['train'])
-        epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) # Return a random sample of items from an axis of object.
+            epoch_dev_data = copy.deepcopy(corpus.data_df['dev'])
+            epoch_test_data = copy.deepcopy(corpus.data_df['test'])
+            epoch_whole_data = copy.deepcopy(corpus.data_df['whole'])
+        # epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) # Return a random sample of items from an axis of object.
 
         train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
+        
         if self.args.validate:
-            val_batches = model.module.prepare_batches(corpus, corpus.data_df['dev'], self.eval_batch_size, phase='dev')
-            test_batches = model.module.prepare_batches(corpus, corpus.data_df['test'], self.eval_batch_size, phase='test')
+            val_batches = model.module.prepare_batches(corpus, epoch_dev_data, self.eval_batch_size, phase='dev')
+            test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
             from models.new_learner_model import HierachicalSSM
-            if isinstance(model.module, HierachicalSSM):
-                whole_batches = model.module.prepare_batches(corpus, corpus.data_df['whole'], self.eval_batch_size, phase='whole')
+            from models.new_learner_model_test import TestHierachicalSSM
+            
+            if isinstance(model.module, HierachicalSSM) or isinstance(model.module, TestHierachicalSSM):
+                whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
             else: whole_batches = None
 
             
@@ -159,8 +168,8 @@ class KTRunner(object):
                 if self.args.validate:
                     
                     with torch.no_grad():
-                        valid_result = self.evaluate(model, corpus, 'dev', val_batches, whole_batches)
-                        test_result = self.evaluate(model, corpus, 'test', test_batches, whole_batches)
+                        valid_result, _ = self.evaluate(model, corpus, 'dev', val_batches, whole_batches)
+                        test_result, _ = self.evaluate(model, corpus, 'test', test_batches, whole_batches)
 
                     self.logs.append_test_loss(test_result)
                     self.logs.append_val_loss(valid_result)
@@ -225,8 +234,8 @@ class KTRunner(object):
         train_losses = defaultdict(list)
         
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
-            # # ipdb.set_trace()
-            # # # TODO for debugging
+            # ipdb.set_trace()
+            # # TODO for debugging
             # for name, param in model.module.named_parameters():
             #     if param.grad != None:
             #         print(name, torch.isfinite(param.grad).all())
@@ -237,6 +246,10 @@ class KTRunner(object):
             #     else: print(name)
             #     if param.requires_grad:
             #         print('Grad:', name)
+            # for name, param in model.module.named_parameters():
+            #     if param.requires_grad:
+            #         print(name, param.shape)
+            # # # ipdb.set_trace()
                     
             batch = model.module.batch_to_gpu(batch)
             model.module.optimizer.zero_grad()
@@ -245,6 +258,10 @@ class KTRunner(object):
             loss_dict = model.module.loss(batch, output_dict, metrics = self.metrics)
 
             loss_dict['loss_total'].backward()
+            # for name, param in model.module.named_parameters():
+            #     if param.requires_grad:
+            #         print(name, param.shape, param.grad)
+            #     ipdb.set_trace()
             model.module.optimizer.step()
             model.module.scheduler.step()
             
@@ -283,20 +300,25 @@ class KTRunner(object):
     
 
 
-    def predict(self, model, corpus, set_name, data_batches=None, whole_batches=None):
+    def predict(self, model, corpus, set_name, data_batches=None, whole_batches=None, visualize=False):
         '''
         Args:
             model: 
         '''
         model.eval()
         predictions, labels = [], []
+        outdicts = []
     
         from models.new_learner_model import HierachicalSSM
+        from models.new_learner_model_test import TestHierachicalSSM
         
-        if isinstance(model.module, HierachicalSSM):
+        if isinstance(model.module, HierachicalSSM) or isinstance(model.module, TestHierachicalSSM):
             for batch in tqdm(whole_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
                 batch = model.module.batch_to_gpu(batch)
-                outdict = model.module.prediction(batch)
+                outdict = model.module.predictive_model(batch)
+                if visualize:
+                    outdicts.append(outdict)
+                # ipdb.set_trace()
                 prediction, label = outdict['prediction'], outdict['label']
                 predictions.extend(prediction.detach().cpu().data.numpy())
                 labels.extend(label.detach().cpu().data.numpy())
@@ -307,26 +329,32 @@ class KTRunner(object):
                 # ipdb.set_trace()
                 outdict = model(batch)
                 prediction, label = outdict['prediction'], outdict['label']
+                if visualize:
+                    outdicts.append(outdict)
+
                 predictions.extend(prediction.detach().cpu().data.numpy())
                 labels.extend(label.detach().cpu().data.numpy())
         
-        return np.array(predictions), np.array(labels)
+        return np.array(predictions), np.array(labels), outdicts
 
 
-    def evaluate(self, model, corpus, set_name, data_batches=None, whole_batches=None):  # evaluate the results for an input set
+    def evaluate(self, model, corpus, set_name, data_batches=None, whole_batches=None, visualize=False):  # evaluate the results for an input set
         '''
         Args:
             model: 
         '''
-        predictions, labels = self.predict(model, corpus, set_name, data_batches, whole_batches)
+        predictions, labels, outdicts = self.predict(model, corpus, set_name, data_batches, whole_batches, visualize)
         lengths = np.array(list(map(lambda lst: len(lst) - 1, corpus.data_df[set_name]['skill_seq'])))
         
         concat_pred, concat_label = list(), list()
         for pred, label, length in zip(predictions, labels, lengths):
-            concat_pred.append(pred[:length])
-            concat_label.append(label[:length])
+            concat_pred.append(pred)
+            concat_label.append(label)
+            # TODO what for???
+            # concat_pred.append(pred[:length])
+            # concat_label.append(label[:length])
         concat_pred = np.concatenate(concat_pred)
         concat_label = np.concatenate(concat_label)
         
-        return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics)
+        return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics), outdicts
 

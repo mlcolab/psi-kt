@@ -13,11 +13,11 @@
 #SBATCH --array=0
 
 
-python hssm_test.py --dataset junyi/single_user_single_skill \
---model_name SwitchingNLDS \
+python single_learner_single_skill_predict.py --dataset junyi/single_user_single_skill \
+--model_name TestHierachicalSSM \
 --max_step 200 --gpu 0 \
---epoch 100 --overfit 512 \
+--epoch 100 --overfit 16 \
 --train_time_ratio 0.5 --test_time_ratio 0.4 --early_stop 0 \
---batch_size 512 --eval_batch_size 16 \
---train_mode simple_split_time --multi_node 1 \
+--batch_size 512 --eval_batch_size 512 \
+--train_mode ls_split_time --multi_node 0 \
 --validate

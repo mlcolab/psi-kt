@@ -14,6 +14,6 @@
 python single_learner_single_skill_predict.py \
 --dataset junyi/single_user_multi_skill \
 --model_name GraphOU --max_step 200 --gpu 0 \
---epoch 100 --overfit 0 \
+--epoch 100 --overfit 16 \
 --batch_size 512 --validate --train_time_ratio 0.5 --test_time_ratio 0.4 \
 --train_mode ls_split_time --multi_node 1 \

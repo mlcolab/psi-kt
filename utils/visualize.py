@@ -99,3 +99,42 @@ def visualize_ground_truth(graph, args, adj, size=4.0):
     ax.tick_params(axis='both', which='both', length=0)
     ax.set_title(r'Ground truth $G^*$', pad=10)
     plt.savefig(os.path.join(args.log_path, 'graph_adj.png'))
+    
+    
+    
+# --- taking samples from posterier gaussian distribution --- # 
+
+# sample_num = 0 # number of samples
+# fig, (ax1, ax2) = plt.subplots(ncols=2,figsize=(10,3))
+# pos = ax1.imshow(post_cov)
+# fig.colorbar(pos,ax=ax1)
+# ax1.title.set_text('Covariance Matrix')
+# ax2.plot(x_real,y_real,c='k',label='real function')
+# ax2.plot(x_test,post_mean,label='mean',c='r',linestyle='--')
+# plt.fill_between(x_test, post_mean+np.diagonal(post_cov)*2, post_mean-np.diagonal(post_cov)*2,label='95% variance',alpha=0.2)
+# plt.title('Gaussian process conditioned on test data')
+# ax2.scatter(x_data,y_data,c='b')
+# ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+# ax2.grid()
+# ax2.set_xlabel('$x$'); ax2.set_ylabel('$f(x)$')
+# plt.show()
+
+# # plotting with some samples from the conditional distribution 
+
+# sample_num = 10 # number of samples
+# fig, (ax1, ax2) = plt.subplots(ncols=2,figsize=(10,3))
+# pos = ax1.imshow(post_cov)
+# fig.colorbar(pos,ax=ax1)
+# ax1.title.set_text('Covariance Matrix')
+# ax2.plot(x_real,y_real,c='k',label='real function')
+# ax2.plot(x_test,post_mean,label='mean',c='r',linestyle='--')
+# plt.fill_between(x_test, post_mean+np.diagonal(post_cov)*2, post_mean-np.diagonal(post_cov)*2,label='95% variance',alpha=0.2)
+# for j in range(sample_num):
+#     sample = np.random.multivariate_normal(post_mean,post_cov)
+#     ax2.plot(x_test,sample)
+# plt.title('Gaussian process conditioned on test data')
+# ax2.scatter(x_data,y_data,c='b')
+# ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+# ax2.grid()
+# ax2.set_xlabel('$x$'); ax2.set_ylabel('$f(x)$')
+# plt.show()

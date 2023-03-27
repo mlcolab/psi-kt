@@ -126,17 +126,18 @@ class KTRunner(object):
         
         ##### prepare training data (if needs quick test then specify overfit arguments in the args);
         ##### prepare the batches of training data; this is specific to different KT models (different models may require different features)
+        set_name = ['train', 'dev', 'test', 'whole']
         if self.overfit > 0:
-            epoch_train_data = copy.deepcopy(corpus.data_df['train'])[:self.overfit] # Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
-            epoch_dev_data = copy.deepcopy(corpus.data_df['dev'])[:self.overfit]
-            epoch_test_data = copy.deepcopy(corpus.data_df['test'])[:self.overfit]
-            epoch_whole_data = copy.deepcopy(corpus.data_df['whole'])[:self.overfit]
+            epoch_train_data, epoch_dev_data, epoch_test_data, epoch_whole_data = [
+                copy.deepcopy(corpus.data_df[key][:self.overfit]) for key in set_name
+            ]
         else:
-            epoch_train_data = copy.deepcopy(corpus.data_df['train'])
-            epoch_dev_data = copy.deepcopy(corpus.data_df['dev'])
-            epoch_test_data = copy.deepcopy(corpus.data_df['test'])
-            epoch_whole_data = copy.deepcopy(corpus.data_df['whole'])
-        # epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) # Return a random sample of items from an axis of object.
+            epoch_train_data, epoch_dev_data, epoch_test_data, epoch_whole_data = [
+                copy.deepcopy(corpus.data_df[key]) for key in set_name
+            ]
+
+        # Return a random sample of items from an axis of object.
+        epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) 
 
         train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
         

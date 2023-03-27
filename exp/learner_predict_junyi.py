@@ -1,4 +1,6 @@
 # -*- coding: UTF-8 -*-
+import sys
+sys.path.append('..')
 
 import os 
 import time
@@ -23,30 +25,20 @@ import ipdb
 # https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
 
 
-def main(args, 
-         model, 
-         logs, 
-         fun=None):
-    '''
-    Args:
-        args:
-        model:
-        logs:
-        fun
-    '''
+def main(args, model, logs, fun=None):
     logs.write_to_log_file('-' * 45 + ' BEGIN: ' + utils.get_time() + ' ' + '-' * 45)
     exclude = ['check_epoch', 'log_file', 'model_path', 'path', 'pin_memory',
                'regenerate', 'sep', 'train', 'verbose']
     logs.write_to_log_file(utils.format_arg_str(args, exclude_lst=exclude))
-
+    
     # Random seed
     torch.manual_seed(args.random_seed)
     torch.cuda.manual_seed(args.random_seed)
     np.random.seed(args.random_seed)
 
     # Load data
-    corpus = load_corpus(logs, args) #junyi train 178276 dev 19808 test 49522
-
+    corpus = load_corpus(logs, args) 
+    
     # GPU & CUDA
     if args.device.type != "cpu":
         if args.GPU_to_use is not None:
@@ -58,66 +50,14 @@ def main(args,
         args.batch_size_multiGPU = args.batch_size
     logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
 
-    # # DDP setting
-    # if "WORLD_SIZE" in os.environ:
-    #     args.world_size = int(os.environ["WORLD_SIZE"])
-    # args.distributed = args.world_size > 1
-    # ngpus_per_node = torch.cuda.device_count()
-    # if args.distributed:
-    #     if args.local_rank != -1: # for torch.distributed.launch
-    #         args.rank = args.local_rank
-    #         args.gpu = args.local_rank
-    #     elif 'SLURM_PROCID' in os.environ: # for slurm scheduler
-    #         args.rank = int(os.environ['SLURM_PROCID']) # The values of SLURM_PROCID range from 0 to the number of running processes minus 1.
-    #         args.gpu = args.rank % torch.cuda.device_count()
-    #     dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-    #                             world_size=args.world_size, rank=args.rank)
-    # # suppress printing if not on master gpu
-    # if args.rank != 0:
-    #     def print_pass(*args):
-    #         pass
-    #     builtins.print = print_pass
-
     # Running
     # runner = KTRunner(args, logs)
     runner = VCLRunner(args, logs)
-
-    # if args.distributed:
-    #     mp.spawn(fun, nprocs=args.num_GPU, args=(args, corpus, runner, model, logs)) 
-    # else:
-    #     test_train(args.device[0], args, corpus, runner, model, logs)
     
-    # -- load model from existing path
     if args.load > 0:
         model.load_model()
         
-    # logs.write_to_log_file('Test Before Training: ' + runner._print_res(model, corpus))
-    fun(args.device, args, corpus, runner, model, logs)
-    logs.write_to_log_file('\nTest After Training: ' + runner._print_res(model, corpus))
-
-    model.actions_after_train()
-    logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)
-
-
-def distributed_train(gpu, args, corpus, runner, model, logs):
-    '''
-    Args:
-        args:    global arguments
-        corpus:  loaded training data
-        runner:  KTRunner instance for training, testing and validation
-        model:   defined model instance for training
-        logs:    Logger instance for logging information
-    '''
-    # # Define multiple gpus
-    # dev0 = (gpu*2) %  args.world_size
-    # dev1 = (gpu*2+1) % args.world_size
-    # print("Start the initialize of the process group")
-    # dist.init_process_group(backend="nccl", world_size=args.world_size, rank=gpu, init_method="file:///distributed_test",)   
-    # # NCCL_DEBUG=INFO
-    # print("Finish the initialization of the process group")
-    
-    # Define model
-    model = model(args, corpus, logs)#, dev0, dev1)
+    model = model(args, corpus, logs)
     logs.write_to_log_file(model)
     model = model.double()
     model.apply(model.init_weights)
@@ -129,40 +69,24 @@ def distributed_train(gpu, args, corpus, runner, model, logs):
         else: 
             model = model.to(args.device)
 
-    # # DPP training
-    # torch.cuda.set_device(gpu)
-    # model.cuda(gpu)
-    # model = torch.nn.parallel.DistributedDataParallel(model)# , device_ids=[gpu])
-    # print(f"Running basic DDP example on rank {args.rank}.")
-    # # TODO DEBUG
-    # for name, param in model.module.named_parameters():
-    #     if param.grad != None:
-    #         print(name, torch.isfinite(param.grad).all())
-    #     else: print(name)
-    # for name, param in model.named_parameters():
-    #     if param.grad != None:
-    #         print(name, torch.isfinite(param.grad).all())
-    #     else: print(name)
-    #     if param.requires_grad:
-    #         print('Grad:', name)
-
     runner.train(model, corpus)
+    logs.write_to_log_file('\nTest After Training: ' + runner.print_res(model, corpus))
+
+    model.actions_after_train()
+    logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)
 
 
 def load_corpus(logs, args):
     '''
+    agrs: the global arguments
     Load corupus from the corpus path, and split the data into k folds. 
-    Args:
-        data_dir:
-        dataset:
-    Return:
-        corpus: 
     '''
+
     corpus_path = os.path.join(args.data_dir, args.dataset, 'Corpus_{}.pkl'.format(args.max_step))
     logs.write_to_log_file('Load corpus from {}'.format(corpus_path))
     with open(corpus_path, 'rb') as f:
         corpus = pickle.load(f)
-    corpus.gen_fold_data(k=0)
+    corpus.gen_fold_data(args.fold)
     logs.write_to_log_file('# Train: {}, # Dev: {}, # Test: {}'.format(
             len(corpus.data_df['train']), len(corpus.data_df['dev']), len(corpus.data_df['test'])
         ))
@@ -181,10 +105,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Global')
     parser = arg_parser.parse_args(parser)
     parser = model.parse_model_args(parser)
-    global_args, extras = parser.parse_known_args() # https://docs.python.org/3/library/argparse.html?highlight=parse_known_args#argparse.ArgumentParser.parse_known_args
+    global_args, extras = parser.parse_known_args() 
     global_args.model_name = model_name
     global_args.time = datetime.datetime.now().isoformat()
-    
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     logs = logger.Logger(global_args)
@@ -202,7 +125,5 @@ if __name__ == '__main__':
     log_args = [init_args.model_name, global_args.dataset, str(global_args.random_seed)]
     for arg in ['lr', 'l2', 'fold'] + model.extra_log_args:
         log_args.append(arg + '=' + str(eval('global_args.' + arg))) 
-    # os.environ['MASTER_ADDR'] = 'localhost'
-    # os.environ['MASTER_PORT'] = '44144'
 
-    main(global_args, model, logs, distributed_train)
+    main(global_args, model, logs)

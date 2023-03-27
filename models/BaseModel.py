@@ -8,12 +8,11 @@ from sklearn.metrics import *
 import numpy as np
 import torch.nn.functional as F
 import os
-
+import ipdb
 from utils.utils import *
 
 
 class BaseModel(torch.nn.Module):
-    reader = 'DataReader'
     runner = 'KTRunner'
     extra_log_args = []
 
@@ -25,6 +24,11 @@ class BaseModel(torch.nn.Module):
 
     @staticmethod
     def pred_evaluate_method(p, l, metrics):
+        # ipdb.set_trace()
+        if p.ndim != 1:
+            p = p.reshape((-1))
+        if l.ndim != 1:
+            l = l.reshape((-1))
         evaluations = dict()
         bi_p = (p > 0.5).astype(int)
         for metric in metrics:
@@ -33,7 +37,7 @@ class BaseModel(torch.nn.Module):
             elif metric == 'mae':
                 evaluations[metric] = mean_absolute_error(l, p)
             elif metric == 'auc':
-                evaluations[metric] = roc_auc_score(l, p)
+                evaluations[metric] = roc_auc_score(l, p) 
             elif metric == 'f1':
                 evaluations[metric] = f1_score(l, bi_p)
             elif metric == 'accuracy':
@@ -68,7 +72,7 @@ class BaseModel(torch.nn.Module):
                 batch[key] = batch[key].cuda()
         return batch
 
-    def __init__(self, model_path='../model/Model/Model.pt'):
+    def __init__(self, model_path='../model/Model/Model_{}.pt'):
         super(BaseModel, self).__init__()
         self.model_path = model_path
         self._init_weights()
@@ -84,38 +88,53 @@ class BaseModel(torch.nn.Module):
         pass
 
     def prepare_batches(self, corpus, data, batch_size, phase):
-        num_example = len(data)
+        '''
+        Args:
+            corpus:
+            data: the training/validation/test data which needs to be batched
+        '''
+        num_example = len(data) # -> num of students?
         total_batch = int((num_example + batch_size - 1) / batch_size)
         assert(num_example > 0)
         batches = []
         for batch in tqdm(range(total_batch), leave=False, ncols=100, mininterval=1, desc='Prepare Batches'):
+            ipdb.set_trace()
             batches.append(self.get_feed_dict(corpus, data, batch * batch_size, batch_size, phase))
-        return batches
+        ipdb.set_trace()
+        if self.args.quick_test:
+            return batches[:2]
+        else: return batches
+
 
     def count_variables(self):
         total_parameters = sum(p.numel() for p in self.parameters() if p.requires_grad)
         return total_parameters
 
-    def save_model(self, model_path=None):
+    def save_model(self, epoch, model_path=None):
         if model_path is None:
             model_path = self.model_path
+        model_path = model_path.format(epoch)
         dir_path = os.path.dirname(model_path)
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
         torch.save(self.state_dict(), model_path)
-        logging.info('Save model to ' + model_path)
+        self.logs.write_to_log_file('Save model to ' + model_path)
+        self.model_path = model_path
 
     def load_model(self, model_path=None):
         if model_path is None:
             model_path = self.model_path
-        self.load_state_dict(torch.load(model_path))
+        self.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
         self.eval()
-        logging.info('Load model from ' + model_path)
+        self.logs.write_to_log_file('Load model from ' + model_path)
 
     def customize_parameters(self):
-        # customize optimizer settings for different parameters
+        '''
+        Customize optimizer settings for different parameters
+        '''
         weight_p, bias_p = [], []
-        for name, p in filter(lambda x: x[1].requires_grad, self.named_parameters()):
+        # find parameters which require gradient
+        for name, p in filter(lambda x: x[1].requires_grad, self.named_parameters()): 
             if 'bias' in name:
                 bias_p.append(p)
             else:
@@ -125,7 +144,7 @@ class BaseModel(torch.nn.Module):
 
     def actions_before_train(self):
         total_parameters = self.count_variables()
-        logging.info('#params: %d' % total_parameters)
+        self.logs.write_to_log_file('#params: %d' % total_parameters)
 
     def actions_after_train(self):
         pass

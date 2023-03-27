@@ -1,0 +1,96 @@
+/var/spool/slurmd/job3155280/slurm_script: /usr/bin/modulecmd: No such file or directory
+/var/spool/slurmd/job3155280/slurm_script: /usr/bin/modulecmd: No such file or directory
+[I 10:09:41.541 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
+[I 10:09:41.548 NotebookApp] Jupyter Notebook 6.4.12 is running at:
+[I 10:09:41.548 NotebookApp] http://slurm-bm-37:8889/?token=e72124af3f9021df8a0d85528131fab4039d6e4d9a48e345
+[I 10:09:41.548 NotebookApp]  or http://127.0.0.1:8889/?token=e72124af3f9021df8a0d85528131fab4039d6e4d9a48e345
+[I 10:09:41.548 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 10:09:41.949 NotebookApp] 
+    
+    To access the notebook, open this file in a browser:
+        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-12239-open.html
+    Or copy and paste one of these URLs:
+        http://slurm-bm-37:8889/?token=e72124af3f9021df8a0d85528131fab4039d6e4d9a48e345
+     or http://127.0.0.1:8889/?token=e72124af3f9021df8a0d85528131fab4039d6e4d9a48e345
+[I 10:13:57.253 NotebookApp] 302 GET /?token=e72124af3f9021df8a0d85528131fab4039d6e4d9a48e345 (192.168.212.63) 12.020000ms
+[W 10:15:54.406 NotebookApp] Notebook data/preprocess/duolingo.ipynb is not trusted
+[I 10:15:55.259 NotebookApp] Kernel started: 69209d58-de7f-4480-a386-83ebe4b41017, name: python3
+[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
+[IPKernelApp] WARNING | No such comm: a7552642-3040-4fa3-8f11-e5ef3334e1dc
+[I 10:17:54.769 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[W 10:17:54.771 NotebookApp] Notebook data/preprocess/duolingo.ipynb is not trusted
+[I 10:23:54.646 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[W 10:23:54.649 NotebookApp] Notebook data/preprocess/duolingo.ipynb is not trusted
+[I 10:39:56.941 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[W 10:39:56.944 NotebookApp] Notebook data/preprocess/duolingo.ipynb is not trusted
+[I 10:42:08.218 NotebookApp] Kernel started: f5027530-5722-4f06-abf1-ff624a1fbad0, name: python3
+[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
+[IPKernelApp] WARNING | No such comm: 9039bc7d-f12f-47cd-b4d5-54d34dcd0caa
+[I 10:47:54.605 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[W 10:47:54.607 NotebookApp] Notebook data/preprocess/duolingo.ipynb is not trusted
+[I 10:49:54.662 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[W 10:49:54.664 NotebookApp] Notebook data/preprocess/duolingo.ipynb is not trusted
+[I 10:51:54.600 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[W 10:51:54.602 NotebookApp] Notebook data/preprocess/duolingo.ipynb is not trusted
+[I 10:57:54.596 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[W 10:57:54.599 NotebookApp] Notebook data/preprocess/duolingo.ipynb is not trusted
+[I 10:58:19.872 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[W 10:58:19.873 NotebookApp] Notebook data/preprocess/duolingo.ipynb is not trusted
+[I 12:09:54.509 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[I 12:56:00.449 NotebookApp] Starting buffering for f5027530-5722-4f06-abf1-ff624a1fbad0:d5c7c67045b947188b2583212a78c459
+[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
+[IPKernelApp] WARNING | No such comm: 0d5bac65-47cf-46e5-a347-a0918908d05d
+[I 14:09:15.662 NotebookApp] Starting buffering for f5027530-5722-4f06-abf1-ff624a1fbad0:856bbce06d0642928abd9f8a34cc1773
+[I 14:09:17.490 NotebookApp] Kernel started: f34c4998-2b2e-4069-bc0f-b5c3379e6f52, name: python3
+[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
+[IPKernelApp] WARNING | No such comm: 8e6d2675-90b4-4d9f-9735-1c22ce3faa42
+[I 14:09:55.160 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/nbformat/__init__.py:128: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  validate(nb)
+/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/notebook/services/contents/manager.py:353: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  validate_nb(model['content'])
+[I 14:14:00.159 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[I 14:15:54.309 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[I 14:45:54.289 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[I 14:53:54.258 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[I 15:03:54.269 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[I 15:05:54.247 NotebookApp] Saving file at /data/preprocess/duolingo.ipynb
+[I 15:30:41.927 NotebookApp] Starting buffering for f34c4998-2b2e-4069-bc0f-b5c3379e6f52:dfd9a8450bac43099536690c9abab0a1
+[I 15:30:42.393 NotebookApp] Starting buffering for 69209d58-de7f-4480-a386-83ebe4b41017:a158f7fe05e946cc8400de4e309a12a6
+[I 15:34:13.414 NotebookApp] Kernel shutdown: f34c4998-2b2e-4069-bc0f-b5c3379e6f52
+[I 15:34:13.437 NotebookApp] Kernel shutdown: 69209d58-de7f-4480-a386-83ebe4b41017
+[I 15:34:13.438 NotebookApp] Kernel shutdown: f5027530-5722-4f06-abf1-ff624a1fbad0
+[W 15:34:46.532 NotebookApp] Notebook exp/Untitled.ipynb is not trusted
+[I 15:34:47.823 NotebookApp] Kernel started: a7a45e30-a2af-40ee-8e79-338a879e077a, name: python3
+[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
+[IPKernelApp] WARNING | No such comm: a12ecc0a-a3c3-43aa-a131-66cafab80025
+[I 15:36:47.790 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 15:36:54.913 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 15:38:47.783 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 15:50:47.753 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 15:52:50.250 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 15:54:26.953 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 15:54:47.747 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 15:56:47.753 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 15:58:47.747 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 16:00:02.814 NotebookApp] KernelRestarter: restarting kernel (1/5), keep random ports
+WARNING:root:kernel a7a45e30-a2af-40ee-8e79-338a879e077a restarted
+[I 16:00:47.860 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 16:02:47.906 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 16:04:47.733 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 16:06:58.431 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 16:08:47.732 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 16:10:47.732 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 16:33:52.595 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 16:34:00.219 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 16:34:04.873 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 16:34:48.909 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 16:36:47.705 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 16:36:56.079 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 16:38:47.705 NotebookApp] Saving file at /exp/Untitled.ipynb
+[I 17:04:47.672 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[I 17:06:47.657 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[I 17:07:43.132 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[I 17:33:20.052 NotebookApp] Starting buffering for a7a45e30-a2af-40ee-8e79-338a879e077a:cd2d126eb5c449d2bad8981be77d285d
+slurmstepd: error: *** JOB 3155280 ON slurm-bm-37 CANCELLED AT 2023-03-16T20:50:30 ***
+slurmstepd: error: Detected 1 oom-kill event(s) in StepId=3155280.batch cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.

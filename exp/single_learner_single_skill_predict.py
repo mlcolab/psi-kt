@@ -59,7 +59,6 @@ def load_corpus(logs, args):
 if __name__ == '__main__':
     # ----- add aditional arguments for this exp. -----
     parser = argparse.ArgumentParser(description='Global')
-    # init_parser = argparse.ArgumentParser(description='Model')
     parser.add_argument('--model_name', type=str, help='Choose a model to run.')
     
     # Training options
@@ -68,24 +67,13 @@ if __name__ == '__main__':
         help= 'simple_split_time' + 'simple_split_learner' 
         + 'ls_split_time' 
         + 'ns_split_time' + 'ns_split_learner'
-        + 'ln_split_time', # ln can be split to time+learner
+        + 'ln_split_time', 
     )
+    parser.add_argument('--vis_train', type=int, default=1)
+    parser.add_argument('--vis_val', type=int, default=1)
     parser.add_argument('--multi_node', type=int, default=0)
     parser.add_argument('--train_time_ratio', type=float, default=0.5, help='')
     parser.add_argument('--test_time_ratio', type=float, default=0.4, help='')
-    
-    # general
-    parser.add_argument('--num_node', type=int, default=1, help='')
-    parser.add_argument('--num_seq', type=int, default=1, help='')
-    
-    # HLR 
-    parser.add_argument('--base', type=float, default=2., help='')
-    # OU 
-    # PPE
-    parser.add_argument('--ppe_lr', type=float, default=0.2, help='')
-    # SSSM
-    parser.add_argument('--hidden_dim', type=int, default=8, help='')
-    
     parser.add_argument('--graph_path', type=str, default='/mnt/qb/work/mlcolab/hzhou52/kt/junyi/adj.npy')
     
     parser = arg_parser.parse_args(parser)
@@ -93,7 +81,6 @@ if __name__ == '__main__':
     global_args, extras = parser.parse_known_args() 
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # global_args.device = torch.device('cpu')
     
     logs = logger.Logger(global_args)
     
@@ -101,20 +88,15 @@ if __name__ == '__main__':
     corpus_path = os.path.join(global_args.data_dir, global_args.dataset, 'Corpus_{}.pkl'.format(global_args.max_step))
     if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
         data = data_loader.DataReader(global_args, logs)
-        # data.gen_fold_data(k=0)
         data.show_columns() 
         logs.write_to_log_file('Save corpus to {}'.format(corpus_path))
         pickle.dump(data, open(corpus_path, 'wb'))
-    # Load data
     corpus = load_corpus(logs, global_args) 
     
     # ----- logger information -----
     log_args = [global_args.model_name, global_args.dataset, str(global_args.random_seed)]
-
     logs.write_to_log_file('-' * 45 + ' BEGIN: ' + utils.get_time() + ' ' + '-' * 45)
-    exclude = ['check_epoch', 'log_file', 'model_path', 'path', 'pin_memory',
-               'regenerate', 'sep', 'train', 'verbose']
-    logs.write_to_log_file(utils.format_arg_str(global_args, exclude_lst=exclude))
+    logs.write_to_log_file(utils.format_arg_str(global_args, exclude_lst=[]))
     
     # ----- random seed -----
     torch.manual_seed(global_args.random_seed)
@@ -131,7 +113,6 @@ if __name__ == '__main__':
         global_args.num_GPU = None
         global_args.batch_size_multiGPU = global_args.batch_size
     logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
-    
     
     # ----- Model initialization -----
     if 'ls_' or 'ln_' in global_args.train_mode:
@@ -197,6 +178,7 @@ if __name__ == '__main__':
             num_node=1 if not global_args.multi_node else corpus.n_skills,
             nx_graph=None if not global_args.multi_node else adj,
             device=global_args.device, 
+            args=global_args,
             logs=logs,
         )
 
@@ -204,10 +186,7 @@ if __name__ == '__main__':
     if global_args.load > 0:
         model.load_model(model_path=global_args.load_folder)
     logs.write_to_log_file(model)
-    # model = model.double() # ??? when to use double
-    # model.apply(model.init_weights)
     model.actions_before_train()
-    
     
     # Move to current device
     if torch.cuda.is_available():

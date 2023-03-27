@@ -7,24 +7,31 @@ import imageio
 import ipdb
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 def draw_path(path, args, times, items=None, prefix=None, scatter=False):
     '''
     Args:
         path: [num_node, t]
         times: [t]
     '''
-    if args.device.type == 'cuda':
-        path = path.cpu().numpy()
-        times = times.cpu().numpy()
-        items = items.cpu().numpy()
-    else: 
-        path = path.numpy()
-        times = times.numpy()
-        items = items.numpy()
+    path = path.cpu().numpy() if args.device.type == 'cuda' else path.numpy()
+    times = times.cpu().numpy() if args.device.type == 'cuda' else times.numpy()
+    items = items.cpu().numpy() if args.device.type == 'cuda' else items.numpy()
+    
     process = prefix.split('_')[0]
     color = cm.rainbow(np.linspace(0, 1, args.num_node))
-    
-    
+
     plt.clf()
     plt.figure(figsize=(20,8))
     plt.xlabel('time t')
@@ -36,7 +43,6 @@ def draw_path(path, args, times, items=None, prefix=None, scatter=False):
     )
         
     for i, c in zip(range(args.num_node), color):
-        # ipdb.set_trace()
         if scatter:
             ind = np.where(items==i)[0]
             plt.plot(times[ind], path[ind,i], color=c, label='{}'.format(i), linewidth=4)
@@ -47,12 +53,13 @@ def draw_path(path, args, times, items=None, prefix=None, scatter=False):
         ind = np.where(items==i)[0]
         plt.scatter(times[ind], path[i, ind], s=150, marker='*')
         plt.vlines(x=times[ind], ymin = np.min(path), ymax = np.max(path),
-                colors = 'grey', linestyles='dashdot')# ,
-                # label = 'vline_multiple - full height')
+                colors = 'grey', linestyles='dashdot')
+                
     plt.legend()
     if not os.path.exists(os.path.join(args.log_path, process)):
         os.makedirs(os.path.join(args.log_path, process))
     plt.savefig(os.path.join(args.log_path, process, prefix+'.png'))
+
 
 
 def draw_params(params, args, times, items=None, prefix=None, scatter=False):

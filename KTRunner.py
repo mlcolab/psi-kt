@@ -1,4 +1,4 @@
-import gc
+import gc, pickle
 import copy
 import os
 
@@ -9,12 +9,23 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 
 import torch
+import torch.optim as optim
 from torch.optim import lr_scheduler
 
 from utils import utils
 import ipdb
 
-torch.autograd.set_detect_anomaly(True)
+    
+from models.new_learner_model import HierachicalSSM
+from models.new_learner_model_test import TestHierachicalSSM
+        
+        
+OPTIMIZER_MAP = {
+    'gd': optim.SGD,
+    'adagrad': optim.Adagrad,
+    'adadelta': optim.Adadelta,
+    'adam': optim.Adam
+}
 
 
 class KTRunner(object):
@@ -29,6 +40,7 @@ class KTRunner(object):
             logs: the Logger instance for logging information
         '''
         self.overfit = args.overfit # TODO debug args
+        self.time = None
 
         self.args = args
         self.epoch = args.epoch
@@ -40,20 +52,23 @@ class KTRunner(object):
             self.metrics[i] = self.metrics[i].strip()
 
         self.early_stop = args.early_stop
-        self.time = None
         self.logs = logs
 
 
     def _check_time(self, start=False):
-        '''
-        Check the time to compute the training/test/val time
-        '''
+        """
+        Check the time to compute the training/test/val time.
+
+        Returns:
+        The elapsed time since the last call to this method or the start time.
+        """
         if self.time is None or start:
             self.time = [time()] * 2
             return self.time[0]
-        tmp_time = self.time[1]
-        self.time[1] = time()
-        return self.time[1] - tmp_time
+        else:
+            tmp_time = self.time[1]
+            self.time[1] = time()
+            return self.time[1] - tmp_time
 
 
     def _build_optimizer(self, model):
@@ -70,27 +85,19 @@ class KTRunner(object):
         lr_decay = self.args.lr_decay
         lr_decay_gamma = self.args.gamma
 
-        if optimizer_name == 'gd':
-            self.logs.write_to_log_file("Optimizer: GD")
-            optimizer = torch.optim.SGD(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay)
-        elif optimizer_name == 'adagrad':
-            self.logs.write_to_log_file("Optimizer: Adagrad")
-            optimizer = torch.optim.Adagrad(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay)
-        elif optimizer_name == 'adadelta':
-            self.logs.write_to_log_file("Optimizer: Adadelta")
-            optimizer = torch.optim.Adadelta(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay)
-        elif optimizer_name == 'adam':
-            self.logs.write_to_log_file("Optimizer: Adam")
-            optimizer = torch.optim.Adam(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay)
-        else:
-            raise ValueError("Unknown Optimizer: " + self.optimizer_name)
+        if optimizer_name not in OPTIMIZER_MAP:
+            raise ValueError("Unknown optimizer: " + optimizer_name)
+
+        optimizer_class = OPTIMIZER_MAP[optimizer_name]
+        self.logs.write_to_log_file(f"Optimizer: {optimizer_name}")
+        optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay)
 
         scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay, gamma=lr_decay_gamma)
 
         return optimizer, scheduler
 
 
-    def _print_res(self, model, corpus):
+    def _print_res(self, model, corpus): # TODO
         '''
         Print the model prediction on test data set.
         This is used in main function to compare the performance of model before and after training.
@@ -113,14 +120,14 @@ class KTRunner(object):
         return False
     
 
-
     def train(self, model, corpus):
         '''
+        Trains the KT model instance with parameters.
+
         Args:
-            model: KT model instance with parameters to train
+            model: the KT model instance with parameters to train
             corpus: data
         '''
-
         assert(corpus.data_df['train'] is not None)
         self._check_time(start=True)
         
@@ -138,45 +145,34 @@ class KTRunner(object):
 
         # Return a random sample of items from an axis of object.
         epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) 
-
         train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
         
         if self.args.validate:
             val_batches = model.module.prepare_batches(corpus, epoch_dev_data, self.eval_batch_size, phase='dev')
             test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
-            from models.new_learner_model import HierachicalSSM
-            from models.new_learner_model_test import TestHierachicalSSM
             
             if isinstance(model.module, HierachicalSSM) or isinstance(model.module, TestHierachicalSSM):
                 whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
             else: whole_batches = None
 
-            
         try:
             for epoch in range(self.epoch):
                 gc.collect()
-                self._check_time()
-                
                 model.train()
-                # valid_result = self.evaluate(model, corpus, 'dev', val_batches, whole_batches)
-                # test_result = self.evaluate(model, corpus, 'test', test_batches, whole_batches)
                 
-                loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch + 1)
-
+                self._check_time()
+                loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch+1)
                 training_time = self._check_time()
 
                 ##### output validation and write to logs
                 if self.args.validate:
-                    
                     with torch.no_grad():
-                        valid_result, _ = self.evaluate(model, corpus, 'dev', val_batches, whole_batches)
-                        test_result, _ = self.evaluate(model, corpus, 'test', test_batches, whole_batches)
-
-                    self.logs.append_test_loss(test_result)
-                    self.logs.append_val_loss(valid_result)
-                
+                        valid_result = self.evaluate(model, corpus, 'dev', val_batches, whole_batches, epoch=epoch+1)
+                        test_result = self.evaluate(model, corpus, 'test', test_batches, whole_batches, epoch=epoch+1)
                     testing_time = self._check_time()
-
+                    
+                    self.logs.append_epoch_losses(test_result, 'test')
+                    self.logs.append_epoch_losses(valid_result, 'val')
                     self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
                                 epoch + 1, loss, training_time, utils.format_metric(valid_result),
                                 utils.format_metric(test_result), testing_time))
@@ -186,6 +182,7 @@ class KTRunner(object):
                     if self._eva_termination(model) and self.early_stop:
                         self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
                         break
+                    
                 self.logs.draw_loss_curves()
 
         except KeyboardInterrupt:
@@ -223,50 +220,65 @@ class KTRunner(object):
 
     def fit(self, model, batches, epoch_train_data, epoch=-1): 
         """
-        Args: 
-            model:
-            batches: a list of data, each element is a batch to train
-            epoch_train_data: Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
+        Trains the given model on the given batches of data.
+
+        Args:
+            model: The model to train.
+            batches: A list of data, where each element is a batch to train.
+            epoch_train_data: A pandas DataFrame containing the training data.
+            epoch: The current epoch number.
+
+        Returns:
+            A dictionary containing the training losses.
         """
+
+        # Build the optimizer if it hasn't been built already.
         if model.module.optimizer is None:
             model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
             
         model.train()
         train_losses = defaultdict(list)
         
+        # Iterate through each batch.
+        out_dicts = []
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
-            # ipdb.set_trace()
-            # # TODO for debugging
-            # for name, param in model.module.named_parameters():
-            #     if param.grad != None:
-            #         print(name, torch.isfinite(param.grad).all())
-            #     else: print(name)
-            # for name, param in model.named_parameters():
-            #     if param.grad != None:
-            #         print(name, torch.isfinite(param.grad).all())
-            #     else: print(name)
-            #     if param.requires_grad:
-            #         print('Grad:', name)
-            # for name, param in model.module.named_parameters():
-            #     if param.requires_grad:
-            #         print(name, param.shape)
-            # # # ipdb.set_trace()
-                    
+            
+            # Move the batch to the GPU.
             batch = model.module.batch_to_gpu(batch)
+            
+            # Reset gradients.
             model.module.optimizer.zero_grad()
             
+            # Forward pass.
             output_dict = model(batch)
-            loss_dict = model.module.loss(batch, output_dict, metrics = self.metrics)
-
+            out_dicts.append(output_dict)
+            
+            # Calculate loss and perform backward pass.
+            loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
             loss_dict['loss_total'].backward()
-            # for name, param in model.module.named_parameters():
-            #     if param.requires_grad:
-            #         print(name, param.shape, param.grad)
-            #     ipdb.set_trace()
+            
+            # Update parameters.
             model.module.optimizer.step()
             model.module.scheduler.step()
             
-            train_losses = utils.append_losses(train_losses, loss_dict)
+            # Append the losses to the train_losses dictionary.
+            train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
+            
+        string = self.logs.result_string("train", epoch, train_losses, t=epoch) # TODO
+        self.logs.write_to_log_file(string)
+        self.logs.append_epoch_losses(train_losses, 'train')
+        
+        model.eval()
+        
+        # Save the output dict for visualization
+        if self.args.vis_train & epoch % 5 == 0:
+            flat_outdicts = {}
+            for key in out_dicts[0].keys():
+                if key not in ['prediction', 'label']:
+                    flat_outdicts[key] = torch.cat([out[key] for out in out_dicts], 0)
+            
+            with open(os.path.join(self.args.visdir, 'train_out_dict_epoch_{}.pkg'.format(epoch)), 'wb') as f:
+                pickle.dump(flat_outdicts, f)
             
             
         # TODO DEBUG: to visualize the difference of synthetic data adj
@@ -286,76 +298,84 @@ class KTRunner(object):
 
             plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
             plt.savefig(os.path.join(self.args.plotdir, 'adj_diff_epoch{}.png'.format(epoch)))
-
-        # # TODO DEBUG
-        # if epoch % 10 == 0:
-        #     print(output_dict['prediction'])
-        string = self.logs.result_string("train", epoch, train_losses, t=epoch)
-        self.logs.write_to_log_file(string)
-        self.logs.append_train_loss(train_losses)
-        
-        model.eval()
+            
         return self.logs.train_results['loss_total'][-1]
 
-    
-    
 
-
-    def predict(self, model, corpus, set_name, data_batches=None, whole_batches=None, visualize=False):
+    def predict(self, model, corpus, set_name, data_batches=None, whole_batches=None, epoch=None):
         '''
         Args:
             model: 
         '''
         model.eval()
-        predictions, labels = [], []
-        outdicts = []
-    
-        from models.new_learner_model import HierachicalSSM
-        from models.new_learner_model_test import TestHierachicalSSM
         
+        predictions, labels = [], []
+        out_dicts = []
+
         if isinstance(model.module, HierachicalSSM) or isinstance(model.module, TestHierachicalSSM):
             for batch in tqdm(whole_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
                 batch = model.module.batch_to_gpu(batch)
-                outdict = model.module.predictive_model(batch)
-                if visualize:
-                    outdicts.append(outdict)
-                # ipdb.set_trace()
-                prediction, label = outdict['prediction'], outdict['label']
+                
+                out_dict = model.module.predictive_model(batch)
+                out_dicts.append(out_dict)
+                
+                prediction, label = out_dict['prediction'], out_dict['label']
                 predictions.extend(prediction.detach().cpu().data.numpy())
                 labels.extend(label.detach().cpu().data.numpy())
         
         else:
             for batch in tqdm(data_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
                 batch = model.module.batch_to_gpu(batch)
-                # ipdb.set_trace()
-                outdict = model(batch)
-                prediction, label = outdict['prediction'], outdict['label']
-                if visualize:
-                    outdicts.append(outdict)
-
+            
+                out_dict = model(batch)
+                out_dicts.append(out_dict)
+                
+                prediction, label = out_dict['prediction'], out_dict['label']
                 predictions.extend(prediction.detach().cpu().data.numpy())
                 labels.extend(label.detach().cpu().data.numpy())
         
-        return np.array(predictions), np.array(labels), outdicts
+        # Save the output dict for visualization
+        if self.args.vis_val & epoch % 5 == 0:
+            flat_outdicts = {}
+            for key in out_dicts[0].keys():
+                if key not in ['prediction', 'label']:
+                    flat_outdicts[key] = torch.cat([out[key] for out in out_dicts], 0)
+            
+            with open(os.path.join(self.args.visdir, set_name+'_out_dict_epoch_{}.pkg'.format(epoch)), 'wb') as f:
+                pickle.dump(flat_outdicts, f)
+                
+        return np.array(predictions), np.array(labels)
 
 
-    def evaluate(self, model, corpus, set_name, data_batches=None, whole_batches=None, visualize=False):  # evaluate the results for an input set
+    def evaluate(self, model, corpus, set_name, data_batches=None, whole_batches=None, epoch=None):
         '''
+        Evaluate the results for an input set.
+
         Args:
-            model: 
+            model: The trained model to evaluate.
+            corpus: The Corpus object that holds the input data.
+            set_name: The name of the dataset to evaluate (e.g. 'train', 'valid', 'test').
+            data_batches: The list of batches containing the input data (optional).
+            whole_batches: The list of whole batches containing the input data (optional).
+            epoch: The epoch number (optional).
+
+        Returns:
+            The evaluation results as a dictionary.
         '''
-        predictions, labels, outdicts = self.predict(model, corpus, set_name, data_batches, whole_batches, visualize)
+
+        # Get the predictions and labels from the predict() method.
+        predictions, labels = self.predict(model, corpus, set_name, data_batches, whole_batches, epoch=epoch)
+
+        # Get the lengths of the sequences in the input dataset.
         lengths = np.array(list(map(lambda lst: len(lst) - 1, corpus.data_df[set_name]['skill_seq'])))
-        
-        concat_pred, concat_label = list(), list()
+
+        # Concatenate the predictions and labels into arrays.
+        concat_pred, concat_label = [], []
         for pred, label, length in zip(predictions, labels, lengths):
             concat_pred.append(pred)
             concat_label.append(label)
-            # TODO what for???
-            # concat_pred.append(pred[:length])
-            # concat_label.append(label[:length])
         concat_pred = np.concatenate(concat_pred)
         concat_label = np.concatenate(concat_label)
-        
-        return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics), outdicts
 
+        # Evaluate the predictions and labels using the pred_evaluate_method of the model.
+        return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics)

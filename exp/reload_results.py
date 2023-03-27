@@ -52,7 +52,6 @@ def load_corpus(logs, args):
 if __name__ == '__main__':
     # ----- add aditional arguments for this exp. -----
     parser = argparse.ArgumentParser(description='Global')
-    # init_parser = argparse.ArgumentParser(description='Model')
     parser.add_argument('--model_name', type=str, help='Choose a model to run.')
     
     # Training options
@@ -138,7 +137,7 @@ if __name__ == '__main__':
     # model.load_state_dict(torch.load(model_path))
     # model.eval()
     
-    model = GraphOU(
+    model = PPE(
         mode=global_args.train_mode,
         device=global_args.device, 
         logs=logs,   
@@ -146,7 +145,14 @@ if __name__ == '__main__':
         num_node=corpus.n_skills,
         nx_graph=adj,
     )
-    model_path = '/mnt/qb/work/mlcolab/hzhou52/kt/logs/2exp_gsm/GraphOU/2023-03-13T17:14:53.108027__overfit_0_mean_graph/Model/Model_40.pt'
+    # OU: 
+    # model_path = '/mnt/qb/work/mlcolab/hzhou52/kt/logs/VanillaOU/junyi/single_user_multi_skill/2023-03-26T09:59:02.878897__overfit_0/Model/Model_60.pt'
+    # Graphou
+    # model_path = '/mnt/qb/work/mlcolab/hzhou52/kt/logs/GraphOU/junyi/single_user_multi_skill/2023-03-26T14:44:05.947186__overfit_0/Model/Model_57.pt'
+    # HLR 
+    # model_path = '/mnt/qb/work/mlcolab/hzhou52/kt/logs/HLR/junyi/single_user_multi_skill/2023-03-26T22:14:30.148679_0.5_overfit_0/Model/Model_19.pt'
+    # PPE
+    model_path = '/mnt/qb/work/mlcolab/hzhou52/kt/logs/PPE/junyi/single_user_multi_skill/2023-03-27T01:00:39.656180_0.5_overfit_0/Model/Model_99.pt'
     model.load_state_dict(torch.load(model_path))
     model.eval()
     
@@ -163,27 +169,40 @@ if __name__ == '__main__':
     runner = KTRunner(global_args, logs)
     
     epoch_whole_data = copy.deepcopy(corpus.data_df['whole'])
-    # epoch_train_data = 
-    # epoch_dev_data = 
-    # epoch_test_data
-    whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, batch_size=64, phase='whole')
+    whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, batch_size=8, phase='whole')
+    
     # train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
     # val_batches = model.module.prepare_batches(corpus, epoch_dev_data, self.eval_batch_size, phase='dev')
     # test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
     
-    _, outdicts = runner.evaluate(model, corpus, set_name='whole', visualize=True, 
-                                  data_batches=whole_batches, whole_batches=whole_batches)
     
-    ipdb.set_trace()
-    flat_outdicts = {}
-    num_samples = 50
-    for key in outdicts[0].keys():
-        if key != 'prediction' and key != 'label':
-            # ipdb.set_trace()
-            flat_outdicts[key] = torch.cat([out[key] for out in outdicts], 1)
+    for i in range(len(whole_batches)):
+        batch = [whole_batches[i]]
+        _, outdicts = runner.evaluate(model, corpus, set_name='whole', visualize=True, 
+                                    data_batches=batch, whole_batches=batch)
     
-    with open('model_dict_graphou_ngss.pkl', 'wb') as f:
-        pickle.dump(flat_outdicts, f)
+        ipdb.set_trace()
+        flat_outdicts = outdicts
+        # flat_outdicts = {}
+        # for key in outdicts[0].keys():
+        #     # if key != 'prediction' and key != 'label':
+        #     flat_outdicts[key] = torch.cat([out[key] for out in outdicts], 1)
+        
+        with open('model_dict_ppe_batch_id_{}.pkl'.format(i), 'wb') as f:
+            pickle.dump(flat_outdicts, f)
+            
+            
+    # _, outdicts = runner.evaluate(model, corpus, set_name='whole', visualize=True, 
+    #                             data_batches=whole_batches, whole_batches=whole_batches)
+
+    # flat_outdicts = {}
+    # for key in outdicts[0].keys():
+    #     if key != 'prediction' and key != 'label':
+    #         flat_outdicts[key] = torch.cat([out[key] for out in outdicts], 1)
+    
+    # with open('/mnt/qb/work/mlcolab/hzhou52/kt/junyi/single_user_multi_skill/model_dict_graphou_batch_id.pkl', 'wb') as f:
+    #     pickle.dump(flat_outdicts, f)
+                 
     ipdb.set_trace()
     # model.module.actions_after_train()
     logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)

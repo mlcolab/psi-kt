@@ -6,6 +6,30 @@ import datetime
 import numpy as np
 from collections import defaultdict
 
+import ipdb
+
+
+def _get_feed_dict(keys, data, start, batch_size, pad_list=False):
+    # Create an empty dictionary to hold the feed_dict values
+    feed_dict = {}
+    
+    # Iterate over the keys in the provided list
+    for key, value in keys.items():
+        seq = data[value][start: start + batch_size].values
+        # Extract the sequence of values for the current key from the input data
+        
+        # If the key ends in '_seq' and the pad_list flag is True, pad the sequence
+        if '_seq' in key or 'num_' in key:
+            seq = pad_lst(seq)
+        
+        # Convert the sequence to a PyTorch tensor and add it to the feed_dict dictionary
+        feed_dict[key] = torch.as_tensor(seq)
+        
+    return feed_dict
+
+
+
+
 def format_arg_str(args, exclude_lst, max_len=20):
     linesep = os.linesep
     arg_dict = vars(args)
@@ -42,13 +66,7 @@ def format_metric(metric):
     return ','.join(format_str)
 
 
-def pad_lst(lst, value=0, dtype=np.int64):
-    inner_max_len = max(map(len, lst))
-    result = np.ones([len(lst), inner_max_len], dtype) * value
-    for i, row in enumerate(lst):
-        for j, val in enumerate(row):
-            result[i][j] = val
-    return result
+
 
 
 def check_dir(file_name):
@@ -84,26 +102,6 @@ def monotonic(l):
 
 # https://github.com/tswsxk/longling/blob/2cc45688e183b3395ada129ec54db7bd00959cbb/longling/lib/candylib.py#L17
 def as_list(obj) -> list:
-    r"""A utility function that converts the argument to a list
-    if it is not already.
-    Parameters
-    ----------
-    obj : object
-        argument to be converted to a list
-    Returns
-    -------
-    list_obj: list
-        If `obj` is a list or tuple, return it. Otherwise,
-        return `[obj]` as a single-element list.
-    Examples
-    --------
-    >>> as_list(1)
-    [1]
-    >>> as_list([1])
-    [1]
-    >>> as_list((1, 2))
-    [1, 2]
-    """
     if isinstance(obj, list):
         return obj
     elif isinstance(obj, tuple):
@@ -112,18 +110,7 @@ def as_list(obj) -> list:
         return [obj]
 
 
-def append_losses(losses_list, losses):
-    for loss, value in losses.items():
-        if type(value) == float:
-            losses_list[loss].append(value)
-        elif type(value) == defaultdict:
-            if losses_list[loss] == []:
-                losses_list[loss] = defaultdict(list)
-            for idx, elem in value.items():
-                losses_list[loss][idx].append(elem)
-        else:
-            losses_list[loss].append(value.item())
-    return losses_list
+
 
 
 # def create_rel_rec_send(args, num_atoms):
@@ -216,3 +203,24 @@ class ConfigDict(dict):
     def __delitem__(self, key):
         super(ConfigDict, self).__delitem__(key)
         del self.__dict__[key]
+        
+        
+        
+def pad_lst(lst, value=-1, dtype=np.int64):
+    # Find the maximum length of any row in the input list
+    inner_max_len = max(map(len, lst))
+    
+    # Create a new array with the same number of rows as the input list
+    # and the maximum row length as the number of columns
+    result = np.ones([len(lst), inner_max_len], dtype) * value
+    
+    # Iterate over each row of the input list
+    for i, row in enumerate(lst):
+        # Iterate over each element in the row
+        for j, val in enumerate(row):
+            # Copy the element value to the corresponding position in the new array
+            result[i][j] = val
+            
+    return result
+
+

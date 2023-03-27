@@ -8,6 +8,53 @@ import torch.nn.functional as F
 from torch.nn import Dropout, LayerNorm, Linear, Module, Sequential
 
 
+def build_rnn_cell(rnn_type: str, hidden_dim_rnn: int, rnn_input_dim: int):
+    """
+    Build a PyTorch RNN cell with the specified type, hidden dimension, and input dimension.
+
+    Parameters:
+    - rnn_type: a string representing the type of RNN cell to use (e.g., "GRU", "LSTM", "SimpleRNN")
+    - hidden_dim_rnn: an integer representing the size of the hidden state of the RNN cell
+    - rnn_input_dim: an integer representing the size of the input to the RNN cell
+
+    Returns:
+    - rnn_cell: a PyTorch RNN cell of the specified type
+    """
+    rnn_type = rnn_type.lower()
+    if rnn_type == "gru":
+        rnn_cell = nn.GRUCell(input_size=rnn_input_dim, hidden_size=hidden_dim_rnn)
+    elif rnn_type == "lstm":
+        rnn_cell = nn.LSTMCell(input_size=rnn_input_dim, hidden_size=hidden_dim_rnn)
+    elif rnn_type == "simplernn":
+        rnn_cell = nn.RNNCell(input_size=rnn_input_dim, hidden_size=hidden_dim_rnn)
+    else:
+        raise ValueError(f"Invalid RNN type: {rnn_type}")
+    return rnn_cell
+
+
+def build_dense_network(input_size, layer_sizes, layer_activations):
+    """
+    Build a multi-layer neural network with the specified input size, layer sizes, and layer activations.
+
+    Parameters:
+    - input_size: an integer representing the size of the input layer
+    - layer_sizes: a list of integers representing the sizes of the hidden layers
+    - layer_activations: a list of activation functions, or None for linear activations
+
+    Returns:
+    - nets: a PyTorch sequential model representing the multi-layer neural network
+    """
+    modules = []
+    for lsize, activation in zip(layer_sizes, layer_activations):
+        modules.append(nn.Linear(input_size, lsize))
+        if activation is not None:
+            modules.append(activation)
+        input_size = lsize
+    nets = nn.Sequential(*modules)
+    return nets
+
+
+
 def generate_fully_connected(
     input_dim: int,
     output_dim: int,

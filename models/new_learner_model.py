@@ -49,6 +49,7 @@ import ipdb
 from models.learner_model import BaseLearnerModel
 from utils.utils import ConfigDict
 from models.BaseModel import BaseModel
+from models.modules import build_dense_network, generate_fully_connected, build_rnn_cell
 
 torch.autograd.set_detect_anomaly(True)
 
@@ -1092,40 +1093,7 @@ def get_default_distribution_config():
     config.sigma_min = 1e-5
     config.sigma_scale = 0.05
     return config
-def build_dense_network(
-        input_size,
-        layer_sizes,
-        layer_activations,
-    ):
-    """
-    Helper function for building a multi-layer network.
-    """
-    modules = []
-    for lsize, activation in zip(layer_sizes, layer_activations):
-        modules.append(nn.Linear(input_size, lsize)) 
-        if activation != None:
-            modules.append(activation)
-        input_size = lsize
-    nets = nn.Sequential(*modules)
-    return nets
-def build_rnn_cell(rnn_type, hidden_dim_rnn, rnn_input_dim):
-    """
-    Helper function for building RNN cells.
-    """
-    rnn_type = rnn_type.lower()
-    if rnn_type == "gru":
-        rnn_cell = nn.GRUCell(
-            input_size=rnn_input_dim,
-            hidden_size=hidden_dim_rnn) 
-    elif rnn_type == "lstm":
-        rnn_cell = nn.LSTMCell(
-            input_size=rnn_input_dim,
-            hidden_size=hidden_dim_rnn)
-    elif rnn_type == "simplernn":
-        rnn_cell = nn.RNNCell(  # what is difference of simplernn in tf vs. rnn in torch???
-            input_size=rnn_input_dim,
-            hidden_size=hidden_dim_rnn)
-    return rnn_cell
+
     
     
 def create_model(dim_s,

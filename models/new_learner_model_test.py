@@ -15,7 +15,6 @@ import ipdb
 
 from models.learner_model import BaseLearnerModel
 from models.new_learner_model import build_dense_network
-from utils.utils import ConfigDict
 from models.BaseModel import BaseModel
 
 torch.autograd.set_detect_anomaly(True)
@@ -43,14 +42,14 @@ class TestHierachicalSSM(BaseLearnerModel):
         self.infer_global_s = False
         self.infer_transition_s = False
 
-        # self.s0_dist, self.z0_dist = initial_distribution
-        self.s0_mean, self.s0_scale = self._construct_initial_mean_cov(self.dim_s, False)
-        self.z0_mean, self.z0_scale = self._construct_initial_mean_cov(self.dim_z, False)
+        
+        self.s0_mean, self.s0_scale = self._construct_normal_mean_cov(self.dim_s, False)
+        self.z0_mean, self.z0_scale = self._construct_normal_mean_cov(self.dim_z, False)
         
         # FLAG
         # self.s_infer, self.z_infer = inference_network
         if self.directly_fit_vi:
-            self.s_trans_mean, self.s_trans_scale = self._construct_initial_mean_cov(self.dim_s, True, num_sample=num_seq) 
+            self.s_trans_mean, self.s_trans_scale = self._construct_normal_mean_cov(self.dim_s, True, num_sample=num_seq) 
             ipdb.set_trace()
         
         elif self.infer_global_s:   
@@ -80,21 +79,31 @@ class TestHierachicalSSM(BaseLearnerModel):
         self.device = device
         self.args = args
 
-        
-    def _construct_initial_mean_cov(self, dim, use_trainable_cov, num_sample=1):
-        # ipdb.set_trace()
-        x0_mean = torch.empty(num_sample, dim, device=self.device)
-        x0_mean = torch.nn.init.xavier_uniform_(x0_mean)
-        x0_mean = Parameter(x0_mean, requires_grad=True)
-        
-        m = torch.empty(num_sample, int(dim * (dim + 1) / 2), device=self.device)
-        m = torch.nn.init.xavier_uniform_(m)
+    
+    def _construct_normal_mean_cov(self, dim: int, use_trainable_cov: bool, num_sample: int = 1):
+        """
+        Construct the initial mean and covariance matrix for the multivariate Gaussian distribution.
+
+        Parameters:
+        - dim: an integer representing the dimension of the Gaussian distribution
+        - use_trainable_cov: a boolean indicating whether to use a trainable covariance matrix
+        - num_sample: an integer representing the number of samples to generate
+
+        Returns:
+        - x0_mean: a PyTorch parameter representing the initial mean of the Gaussian distribution
+        - x0_scale: a PyTorch parameter representing the initial covariance matrix of the Gaussian distribution
+        """
+        x0_mean = nn.init.xavier_uniform_(torch.empty(num_sample, dim, device=self.device))
+        x0_mean = nn.Parameter(x0_mean, requires_grad=True)
+
+        m = nn.init.xavier_uniform_(torch.empty(num_sample, int(dim * (dim + 1) / 2), device=self.device))
         x0_scale = torch.zeros((num_sample, dim, dim), device=self.device)
         tril_indices = torch.tril_indices(row=dim, col=dim, offset=0)
         x0_scale[:, tril_indices[0], tril_indices[1]] += m
-        x0_scale = Parameter(x0_scale, requires_grad=use_trainable_cov)
-        
+        x0_scale = nn.Parameter(x0_scale, requires_grad=use_trainable_cov)
+ 
         return x0_mean, x0_scale
+
         
     def _construct_initial_state_distribution(
         self,

@@ -5,9 +5,245 @@ import networkx as nx
 import os
 import imageio
 import ipdb
+import torch
+import torch.nn as nn
+import seaborn as sns
+import sys
+sys.path.append('..')
+
+import numpy as np
+from numpy.random import default_rng
+
+import pandas as pd
+import networkx as nx 
+import scipy
+from scipy import stats
+
+import os
+import argparse
+import datetime
+import torch
+
+##########################################################################################
+# Compare different models, different tasks, single metrics (ideally f1 score)
+# Put all of the results in a single figure
+##########################################################################################
+
+def compare_model_task(
+    figsize=(12, 3), 
+    title='Compare Model Performance on Different Tasks',
+    save_path=None
+    ):
+    """
+    Compare the performance of different models.
+
+    Returns:
+    None
+    """
+    # Define the data
+    train_sizes = ['Train 40%', 'Train 30%', 'Train 20%']
+    metrics = ['HLR_acc', 'OU_acc', 'HLR_f1', 'OU_f1']
+    results = np.array([
+        [0.7716, 0.8581, 0.8648, 0.9206],
+        [0.7412, 0.8540, 0.8348, 0.9179],
+        [0.7066, 0.8476, 0.8145, 0.9137],
+    ])
+
+    # Create the plot
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.minorticks_on()
+    ax.set_xticks(np.arange(len(train_sizes) * len(metrics)))
+    ax.set_xticklabels(np.repeat(metrics, len(train_sizes)), fontsize=8)
+    ax.set_ylim(0.6, 1.0)
+    ax.set_ylabel('F1 Score')
+
+    colors = ['lightsteelblue', 'lightblue', 'cornflowerblue', 'steelblue']
+    for i, train_size in enumerate(train_sizes):
+        offset = i * len(metrics)
+        bars = ax.bar(
+            x=np.arange(offset, offset + len(metrics)),
+            height=results[i],
+            color=colors[i],
+            width=0.8
+        )
+        ax.bar_label(bars, size=8)
+    
+    ax.legend(train_sizes, loc='lower left')
+    plt.title(title)
+    plt.savefig(save_path)
+
+
+##########################################################################################
 
 
 
+
+
+
+
+
+
+##########################################################################################
+# Compare different models, different tasks, different metrics
+##########################################################################################
+
+def _create_heatmap(data, tasks, model_names, metrics, save_path, prefix):
+    """
+    Create a heatmap to visualize the performance of different models on different tasks.
+
+    Parameters:
+    - data: a dictionary containing the performance metrics for each model and task
+    - tasks: a list of task names
+    - model_names: a list of model names
+    - metrics: a list of metric names
+
+    Returns:
+    None
+    """
+
+    # Prepare data for heatmap
+    num_tasks = len(tasks)
+    num_models = len(model_names)
+    num_metrics = len(metrics)
+    heatmap_data = np.zeros((num_models * num_tasks, num_metrics))
+
+    for task_idx, task in enumerate(tasks):
+        for model_idx, model in enumerate(model_names):
+            metric_values = data[model][task]
+            heatmap_data[task_idx * num_models + model_idx] = metric_values
+
+    # Create a DataFrame for heatmap labels
+    heatmap_labels = pd.DataFrame({
+        'Task': np.repeat(tasks, num_models),
+        'Model': np.tile(model_names, num_tasks)
+    })
+
+    # Create heatmap
+    plt.clf()
+    plt.figure(figsize=(10, 10))
+    sns.heatmap(heatmap_data, annot=True, fmt='.2f', cmap='coolwarm', xticklabels=metrics, yticklabels=False, cbar_kws={'label': 'Metric Value'})
+
+    # Add labels
+    for i in range(num_models * num_tasks):
+        plt.text(-1, i + 0.5, heatmap_labels.iloc[i]['Model'] + ', ' + heatmap_labels.iloc[i]['Task'], ha='left', va='center', fontsize=10)
+
+    # Display the plot
+    # plt.show()
+    plt.savefig(os.path.join(save_path, 'heatmap' + prefix +'.png'))
+    
+    
+def _create_bar(data, tasks, model_names, metrics, save_path, prefix):
+    num_tasks = len(tasks)
+    num_models = len(model_names)
+    num_metrics = len(metrics)
+    
+    bar_width = 1 / (num_models + 1)
+    opacity = 0.8
+    colors = ['lightblue', 'lightsteelblue', 'cornflowerblue', 'darkblue']
+
+    # Create subplots for each task
+    fig, axes = plt.subplots(nrows=1, ncols=num_tasks, figsize=(20, 5), sharey=True)
+    fig.subplots_adjust(wspace=0.1)
+
+    for task_idx, task in enumerate(tasks):
+        ax = axes[task_idx]
+        
+        # Plot bars for each model
+        for model_idx, model in enumerate(model_names):
+            metric_values = data[model][task]
+            bar_positions = np.arange(num_metrics) + model_idx * bar_width
+            bars = ax.bar(bar_positions, metric_values, bar_width, alpha=opacity, label=model, color=colors[model_idx])
+
+            # Label the values in the bars
+            for bar in bars:
+                height = bar.get_height()
+                ax.annotate('{:.2f}'.format(height),
+                            xy=(bar.get_x() + bar.get_width() / 2, height),
+                            xytext=(0, 3),  # 3 points vertical offset
+                            textcoords="offset points",
+                            ha='center', va='bottom')
+
+        # Set axis labels and ticks
+        ax.set_title(task)
+        ax.set_xticks(np.arange(num_metrics) + bar_width * (num_models - 1) / 2)
+        ax.set_xticklabels(metrics)
+        ax.set_ylim([0, 1])
+        
+        # Add grid lines
+        ax.yaxis.grid(True, linestyle='--', linewidth=0.5, alpha=0.5)
+
+        # Add legend
+        ax.legend(loc='center left')
+    fig.savefig(os.path.join(save_path, 'bar' + prefix +'.png'))
+
+
+def _create_line(data, tasks, model_names, metrics, save_path, prefix):
+    num_tasks = len(tasks)
+    num_models = len(model_names)
+    num_metrics = len(metrics)
+    
+    colors = cm.rainbow(np.linspace(0, 1, num_metrics))
+
+    fig, axes = plt.subplots(nrows=1, ncols=num_tasks, figsize=(20, 5), sharey=True)
+    fig.subplots_adjust(wspace=0.1)
+
+    for task_idx, task in enumerate(tasks):
+        ax = axes[task_idx]
+        
+        # Plot lines for each model
+        for metric_idx, metric in enumerate(metrics):
+            # if metric_idx == 1: continue
+            metric_values = [data[model][task][metric_idx] for model in model_names]
+            ax.plot(model_names, metric_values, marker='o', label=metric, color=colors[metric_idx])
+
+        # Set axis labels and ticks
+        ax.set_title(task)
+        ax.set_ylim([0, 1])
+        
+        # Add grid lines
+        ax.yaxis.grid(True, linestyle='--', linewidth=0.5, alpha=0.5)
+
+        # Add legend outside the plot area
+        ax.legend(loc='upper left', bbox_to_anchor=(1.0, 1.0))
+
+    # Adjust the layout to accommodate the legend
+    plt.tight_layout(rect=[0, 0, 0.9, 1])
+    fig.savefig(os.path.join(save_path, 'line' + prefix +'.png'))
+    
+    
+def compare_model_task_metric(data, tasks, model_names, metrics, save_path=None, fig_format='heatmap', prefix=''):
+    '''
+    Example data:
+    model_names = ['PPE', 'HLR', 'HOU']
+    tasks = ['Train 50%', 'Train 40%']
+    metrics = ['Accuracy', 'AUC', 'F1 Score', 'Precision', 'Recall']
+
+    data = {
+        'PPE': {
+            'Train 50%': [0.1731, 0.5178, 0.1481, 0.9159, 0.0806],
+            'Train 40%': [0.1713, 0.5178, 0.1443, 0.9164, 0.0783],
+        },
+        'HLR': {
+            'Train 50%': [0.8477, 0.5094, 0.9169, 0.8928, 0.9424],
+            'Train 40%': [0.7716, 0.5019, 0.8648, 0.8619, 0.8678],
+        },
+        'HOU': {
+            'Train 50%': [0.8718, 0.5391,  0.9310, 0.8957, 0.9692],
+            'Train 40%': [0.8581, 0.8021, 0.9206, 0.8927, 0.9502],
+        }
+    }
+    '''
+    
+    num_models = len(model_names)
+    num_tasks = len(tasks)
+    num_metrics = len(metrics)
+    
+    if fig_format == 'heatmap':
+        _create_heatmap(data, tasks, model_names, metrics, save_path)
+    elif fig_format == 'bar':
+        _create_bar(data, tasks, model_names, metrics, save_path, prefix)
+    elif fig_format == 'line':
+        _create_line(data, tasks, model_names, metrics, save_path, prefix)
 
 
 
@@ -108,40 +344,3 @@ def visualize_ground_truth(graph, args, adj, size=4.0):
     plt.savefig(os.path.join(args.log_path, 'graph_adj.png'))
     
     
-    
-# --- taking samples from posterier gaussian distribution --- # 
-
-# sample_num = 0 # number of samples
-# fig, (ax1, ax2) = plt.subplots(ncols=2,figsize=(10,3))
-# pos = ax1.imshow(post_cov)
-# fig.colorbar(pos,ax=ax1)
-# ax1.title.set_text('Covariance Matrix')
-# ax2.plot(x_real,y_real,c='k',label='real function')
-# ax2.plot(x_test,post_mean,label='mean',c='r',linestyle='--')
-# plt.fill_between(x_test, post_mean+np.diagonal(post_cov)*2, post_mean-np.diagonal(post_cov)*2,label='95% variance',alpha=0.2)
-# plt.title('Gaussian process conditioned on test data')
-# ax2.scatter(x_data,y_data,c='b')
-# ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-# ax2.grid()
-# ax2.set_xlabel('$x$'); ax2.set_ylabel('$f(x)$')
-# plt.show()
-
-# # plotting with some samples from the conditional distribution 
-
-# sample_num = 10 # number of samples
-# fig, (ax1, ax2) = plt.subplots(ncols=2,figsize=(10,3))
-# pos = ax1.imshow(post_cov)
-# fig.colorbar(pos,ax=ax1)
-# ax1.title.set_text('Covariance Matrix')
-# ax2.plot(x_real,y_real,c='k',label='real function')
-# ax2.plot(x_test,post_mean,label='mean',c='r',linestyle='--')
-# plt.fill_between(x_test, post_mean+np.diagonal(post_cov)*2, post_mean-np.diagonal(post_cov)*2,label='95% variance',alpha=0.2)
-# for j in range(sample_num):
-#     sample = np.random.multivariate_normal(post_mean,post_cov)
-#     ax2.plot(x_test,sample)
-# plt.title('Gaussian process conditioned on test data')
-# ax2.scatter(x_data,y_data,c='b')
-# ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-# ax2.grid()
-# ax2.set_xlabel('$x$'); ax2.set_ylabel('$f(x)$')
-# plt.show()

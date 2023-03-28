@@ -110,29 +110,6 @@ def as_list(obj) -> list:
         return [obj]
 
 
-
-
-
-# def create_rel_rec_send(args, num_atoms):
-#     """Based on https://github.com/ethanfetaya/NRI (MIT License)."""
-#     if args.unobserved > 0 and args.model_unobserved == 1:
-#         num_atoms -= args.unobserved
-
-#     # Generate off-diagonal interaction graph
-#     off_diag = np.ones([num_atoms, num_atoms]) - np.eye(num_atoms)
-#     # ipdb.set_trace()
-#     rel_rec = np.array(encode_onehot(np.where(off_diag)[0]), dtype=np.float32)
-#     rel_send = np.array(encode_onehot(np.where(off_diag)[1]), dtype=np.float32)
-#     rel_rec = torch.FloatTensor(rel_rec)
-#     rel_send = torch.FloatTensor(rel_send)
-
-#     if args.cuda:
-#         rel_rec = rel_rec.cuda()
-#         rel_send = rel_send.cuda()
-
-#     return rel_rec, rel_send
-
-
 def create_rel_rec_send(num_atoms, device):
     """Based on https://github.com/ethanfetaya/NRI (MIT License)."""
     

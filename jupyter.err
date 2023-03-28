@@ -1,60 +1,71 @@
-/var/spool/slurmd/job3182153/slurm_script: line 14: module: command not found
-/var/spool/slurmd/job3182153/slurm_script: line 15: module: command not found
-[I 00:07:16.997 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
-[I 00:07:16.999 NotebookApp] Jupyter Notebook 6.4.12 is running at:
-[I 00:07:16.999 NotebookApp] http://slurm-bm-06:8889/?token=c8804f142a5f0d8f10e9cb572ec96881e5bc470aeade9a1b
-[I 00:07:16.999 NotebookApp]  or http://127.0.0.1:8889/?token=c8804f142a5f0d8f10e9cb572ec96881e5bc470aeade9a1b
-[I 00:07:16.999 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
-[C 00:07:17.044 NotebookApp] 
+/var/spool/slurmd/job3183045/slurm_script: line 14: module: command not found
+/var/spool/slurmd/job3183045/slurm_script: line 15: module: command not found
+[I 12:27:46.763 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
+[I 12:27:46.764 NotebookApp] Jupyter Notebook 6.4.12 is running at:
+[I 12:27:46.764 NotebookApp] http://slurm-bm-23:8889/?token=91e3c24d686356f6ae9e46e42ab1c34314e9731b0de3c2b9
+[I 12:27:46.764 NotebookApp]  or http://127.0.0.1:8889/?token=91e3c24d686356f6ae9e46e42ab1c34314e9731b0de3c2b9
+[I 12:27:46.764 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 12:27:46.779 NotebookApp] 
     
     To access the notebook, open this file in a browser:
-        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-230833-open.html
+        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-156353-open.html
     Or copy and paste one of these URLs:
-        http://slurm-bm-06:8889/?token=c8804f142a5f0d8f10e9cb572ec96881e5bc470aeade9a1b
-     or http://127.0.0.1:8889/?token=c8804f142a5f0d8f10e9cb572ec96881e5bc470aeade9a1b
-[I 00:08:37.634 NotebookApp] 302 GET /?token=c8804f142a5f0d8f10e9cb572ec96881e5bc470aeade9a1b (192.168.212.63) 12.100000ms
-[W 00:09:12.761 NotebookApp] Notebook exp/Overfit_to_three_models.ipynb is not trusted
-[W 00:09:13.057 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
-[I 00:09:13.331 NotebookApp] Kernel started: 7d7cbe7d-67db-46bd-9629-15d447459e33, name: python3
-[I 00:09:15.124 NotebookApp] Kernel started: d4f96940-ac84-4225-82da-42c3c5a089d0, name: python3
+        http://slurm-bm-23:8889/?token=91e3c24d686356f6ae9e46e42ab1c34314e9731b0de3c2b9
+     or http://127.0.0.1:8889/?token=91e3c24d686356f6ae9e46e42ab1c34314e9731b0de3c2b9
+[I 12:34:27.388 NotebookApp] 302 GET /?token=91e3c24d686356f6ae9e46e42ab1c34314e9731b0de3c2b9 (192.168.212.63) 0.580000ms
+[W 12:34:43.237 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 12:34:43.840 NotebookApp] Kernel started: 1159f96c-d0a7-4338-a949-f8b8d43e794a, name: python3
 [IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: a19b8750-0d4e-4861-9356-926197c03af1
-[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 51857bcf-6b61-4a81-803c-1bff8ec35005
-[I 00:09:37.747 NotebookApp] Starting buffering for 7d7cbe7d-67db-46bd-9629-15d447459e33:c28285593bbe4e86b3ebdbdcbcb31e00
-[I 00:09:41.085 NotebookApp] Kernel shutdown: 7d7cbe7d-67db-46bd-9629-15d447459e33
-[I 00:10:42.907 NotebookApp] Saving file at /exp/Visualization.ipynb
-[W 00:10:42.910 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
-[I 00:13:16.592 NotebookApp] Saving file at /exp/Visualization.ipynb
-[W 00:13:16.595 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
-[I 00:15:18.119 NotebookApp] Saving file at /exp/Visualization.ipynb
-[W 00:15:18.122 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[IPKernelApp] WARNING | No such comm: 8104cd4b-4cec-428c-b7ce-fa51ff3285da
+[I 12:42:46.258 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 12:42:46.261 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 12:44:44.565 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 12:44:44.568 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 12:46:45.885 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 12:46:45.889 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 12:48:45.443 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 12:48:45.446 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 12:54:46.393 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 12:54:46.398 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 12:58:45.207 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 12:58:45.210 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:00:45.769 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:00:45.772 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:06:46.464 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:06:46.467 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:14:46.627 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:14:46.630 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:16:46.146 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:16:46.148 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:35:50.379 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:35:50.394 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:36:46.185 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:36:46.194 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:38:45.582 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:38:46.655 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
 /mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/nbformat/__init__.py:128: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
   validate(nb)
 /mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/notebook/services/contents/manager.py:353: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
   validate_nb(model['content'])
-[I 00:17:18.878 NotebookApp] Saving file at /exp/Visualization.ipynb
-[W 00:17:18.881 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
-[I 00:19:18.433 NotebookApp] Saving file at /exp/Visualization.ipynb
-[W 00:19:18.436 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
-[I 00:35:34.007 NotebookApp] Creating new notebook in /exp
-[I 00:35:41.336 NotebookApp] Kernel started: 947acb30-f6eb-4790-9361-7764a09eb1bb, name: python3
-[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: dc1315b2-e243-4cb3-8d12-14231231cbfb
-[I 00:37:16.049 NotebookApp] Starting buffering for 947acb30-f6eb-4790-9361-7764a09eb1bb:93b3f1f9b82448f99335635a1430b08a
-[I 00:37:16.051 NotebookApp] Starting buffering for d4f96940-ac84-4225-82da-42c3c5a089d0:68313d4b9521433a8eb79b755ef3f630
-[I 00:37:26.160 NotebookApp] Restoring connection for d4f96940-ac84-4225-82da-42c3c5a089d0:68313d4b9521433a8eb79b755ef3f630
-[I 00:37:31.246 NotebookApp] Restoring connection for 947acb30-f6eb-4790-9361-7764a09eb1bb:93b3f1f9b82448f99335635a1430b08a
-[I 00:37:41.453 NotebookApp] Saving file at /exp/Untitled.ipynb
-[I 00:39:05.330 NotebookApp] Saving file at /exp/Untitled.ipynb
-[I 00:39:13.660 NotebookApp] Saving file at /exp/Visualization.ipynb
-[W 00:39:13.662 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
-[I 00:39:42.028 NotebookApp] Saving file at /exp/Untitled.ipynb
-[I 00:41:16.824 NotebookApp] Saving file at /exp/Visualization.ipynb
-[W 00:41:16.827 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
-[I 00:41:42.412 NotebookApp] Saving file at /exp/Untitled.ipynb
-[I 00:55:55.755 NotebookApp] Saving file at /exp/Visualization.ipynb
-[W 00:55:55.758 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
-[I 00:55:55.916 NotebookApp] Starting buffering for d4f96940-ac84-4225-82da-42c3c5a089d0:68313d4b9521433a8eb79b755ef3f630
-[I 00:55:58.088 NotebookApp] Starting buffering for 947acb30-f6eb-4790-9361-7764a09eb1bb:93b3f1f9b82448f99335635a1430b08a
-slurmstepd: error: *** JOB 3182153 ON slurm-bm-06 CANCELLED AT 2023-03-28T00:56:13 ***
+[I 13:38:54.400 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:38:56.618 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:40:46.177 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:40:46.180 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:42:47.946 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:42:47.949 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:46:46.955 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:46:46.957 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:48:47.606 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:48:47.608 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:50:46.950 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:50:46.953 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:52:46.197 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:52:46.199 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 13:54:46.106 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 13:54:46.109 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 14:04:45.254 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 14:04:45.264 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 14:06:45.914 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 14:06:45.917 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 14:08:45.809 NotebookApp] Saving file at /exp/Visualization.ipynb
+[W 14:08:45.812 NotebookApp] Notebook exp/Visualization.ipynb is not trusted

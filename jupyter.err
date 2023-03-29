@@ -69,3 +69,6 @@
 [W 14:06:45.917 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
 [I 14:08:45.809 NotebookApp] Saving file at /exp/Visualization.ipynb
 [W 14:08:45.812 NotebookApp] Notebook exp/Visualization.ipynb is not trusted
+[I 20:00:47.651 NotebookApp] Starting buffering for 1159f96c-d0a7-4338-a949-f8b8d43e794a:b53ba14116e24b598d245bbbb9f2f074
+[I 20:00:49.306 NotebookApp] Restoring connection for 1159f96c-d0a7-4338-a949-f8b8d43e794a:b53ba14116e24b598d245bbbb9f2f074
+slurmstepd: error: *** JOB 3183045 ON slurm-bm-23 CANCELLED AT 2023-03-28T21:42:38 ***

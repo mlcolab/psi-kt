@@ -146,15 +146,18 @@ class KTRunner(object):
         # Return a random sample of items from an axis of object.
         epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) 
         train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
+        val_batches = None
+        test_batches = None
         
-        if self.args.validate:
-            val_batches = model.module.prepare_batches(corpus, epoch_dev_data, self.eval_batch_size, phase='dev')
-            test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
+        # if self.args.validate:
+        #     val_batches = model.module.prepare_batches(corpus, epoch_dev_data, self.eval_batch_size, phase='dev')
+        #     test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
             
-            if isinstance(model.module, HierachicalSSM) or isinstance(model.module, TestHierachicalSSM):
-                whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
-            else: whole_batches = None
-
+        #     if isinstance(model.module, HierachicalSSM) or isinstance(model.module, TestHierachicalSSM):
+        #         whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
+        #     else: whole_batches = None
+        whole_batches = None
+        
         try:
             for epoch in range(self.epoch):
                 gc.collect()

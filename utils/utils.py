@@ -28,8 +28,6 @@ def _get_feed_dict(keys, data, start, batch_size, pad_list=False):
     return feed_dict
 
 
-
-
 def format_arg_str(args, exclude_lst, max_len=20):
     linesep = os.linesep
     arg_dict = vars(args)
@@ -64,9 +62,6 @@ def format_metric(metric):
         elif type(m) is int or type(m) is np.int or type(m) is np.int32 or type(m) is np.int64:
             format_str.append('{}:{}'.format(name, m))
     return ','.join(format_str)
-
-
-
 
 
 def check_dir(file_name):

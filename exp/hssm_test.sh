@@ -13,11 +13,11 @@
 #SBATCH --array=0
 
 
-python single_learner_single_skill_predict.py --dataset junyi/single_user_single_skill \
---model_name TestHierachicalSSM \
+python exp_learner_predict.py --dataset junyi/single_user_single_skill \
+--model_name TestHSSM \
 --max_step 200 --gpu 0 \
 --epoch 100 --overfit 16 \
---train_time_ratio 0.5 --test_time_ratio 0.4 --early_stop 0 \
+--train_time_ratio 0.2 --test_time_ratio 0.4 --early_stop 0 \
 --batch_size 512 --eval_batch_size 512 \
 --train_mode ls_split_time --multi_node 0 \
 --validate

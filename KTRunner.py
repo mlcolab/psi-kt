@@ -148,15 +148,16 @@ class KTRunner(object):
         train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
         val_batches = None
         test_batches = None
-        
-        # if self.args.validate:
-        #     val_batches = model.module.prepare_batches(corpus, epoch_dev_data, self.eval_batch_size, phase='dev')
-        #     test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
-            
-        #     if isinstance(model.module, HierachicalSSM) or isinstance(model.module, TestHierachicalSSM):
-        #         whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
-        #     else: whole_batches = None
         whole_batches = None
+        
+        if self.args.validate:
+            val_batches = model.module.prepare_batches(corpus, epoch_dev_data, self.eval_batch_size, phase='dev')
+            test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
+            
+            if isinstance(model.module, HierachicalSSM) or isinstance(model.module, TestHierachicalSSM):
+                whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
+            else: whole_batches = None
+        
         
         try:
             for epoch in range(self.epoch):
@@ -168,7 +169,7 @@ class KTRunner(object):
                 training_time = self._check_time()
 
                 ##### output validation and write to logs
-                if self.args.validate:
+                if self.args.validate & epoch % self.args.validate_every == 0:
                     with torch.no_grad():
                         valid_result = self.evaluate(model, corpus, 'dev', val_batches, whole_batches, epoch=epoch+1)
                         test_result = self.evaluate(model, corpus, 'test', test_batches, whole_batches, epoch=epoch+1)
@@ -277,8 +278,11 @@ class KTRunner(object):
         if self.args.vis_train & epoch % 5 == 0:
             flat_outdicts = {}
             for key in out_dicts[0].keys():
-                if key not in ['prediction', 'label']:
-                    flat_outdicts[key] = torch.cat([out[key] for out in out_dicts], 0)
+                if key not in ['elbo', 'iwae', 'initial_likelihood', 'sequence_likelihood', 
+                               'st_entropy', 'zt_entropy',
+                               'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
+                    flat_outdicts[key] = torch.cat([out[key] for out in out_dicts], )
+                    # ipdb.set_trace()
             
             with open(os.path.join(self.args.visdir, 'train_out_dict_epoch_{}.pkg'.format(epoch)), 'wb') as f:
                 pickle.dump(flat_outdicts, f)
@@ -341,8 +345,10 @@ class KTRunner(object):
         if self.args.vis_val & epoch % 5 == 0:
             flat_outdicts = {}
             for key in out_dicts[0].keys():
-                if key not in ['prediction', 'label']:
-                    flat_outdicts[key] = torch.cat([out[key] for out in out_dicts], 0)
+                if key not in ['elbo', 'iwae', 'initial_likelihood', 'sequence_likelihood', 
+                               'st_entropy', 'zt_entropy',
+                               'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
+                    flat_outdicts[key] = torch.cat([out[key] for out in out_dicts], 1)
             
             with open(os.path.join(self.args.visdir, set_name+'_out_dict_epoch_{}.pkg'.format(epoch)), 'wb') as f:
                 pickle.dump(flat_outdicts, f)

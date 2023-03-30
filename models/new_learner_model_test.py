@@ -42,14 +42,15 @@ class TestHierachicalSSM(BaseLearnerModel):
         self.dim_y = 1
         self.dim_z = 1
         self.dim_s = 3
+        self.num_sample = 50 
         
         self.directly_fit_vi = True
         self.infer_global_s = False
         self.infer_transition_s = False
 
-        
         self.s0_mean, self.s0_scale = self._construct_normal_mean_cov(self.dim_s, False)
-        self.z0_mean, self.z0_scale = self._construct_normal_mean_cov(self.dim_z, False)
+        self.z0_mean, self.z0_scale = self._construct_normal_mean_cov(self.dim_z, False) # self.z0_scale is std
+        
         
         # FLAG
         # self.s_infer, self.z_infer = inference_network
@@ -107,7 +108,7 @@ class TestHierachicalSSM(BaseLearnerModel):
         """
         if cov.shape[-1] == 1:
             # if the covariance matrix is a scalar, create a univariate normal distribution
-            dist = distributions.Normal(mean, cov*cov)
+            dist = distributions.MultivariateNormal(mean, cov*cov + EPS)
             return dist
         
         else:
@@ -130,15 +131,15 @@ class TestHierachicalSSM(BaseLearnerModel):
             # way 3
             # use the torch.cholesky() function to compute the Cholesky decomposition of a matrix. 
             # The resulting lower triangular matrix is guaranteed to be positive definite
-            cov_pdm = torch.matmul(cov, cov.transpose(-1,-2)) # + EPS
-            try:
-                torch.linalg.cholesky(cov_pdm)
-            except RuntimeError:
-                # if the covariance matrix is not positive definite, add a small positive constant to its diagonal
-                cov_pdm = cov_pdm + torch.eye(cov_pdm.size(-1)) * EPS
+            cov_pdm = torch.matmul(cov, cov.transpose(-1,-2)) + EPS
+            # try:
+            #     torch.linalg.cholesky(cov_pdm)
+            # except RuntimeError:
+            #     # if the covariance matrix is not positive definite, add a small positive constant to its diagonal
+            #     cov_pdm = cov_pdm + torch.eye(cov_pdm.size(-1)) * EPS
                 
             # create a multivariate normal distribution
-            dist = distributions.MultivariateNormal(mean, cov_pdm)
+            dist = distributions.MultivariateNormal(mean, scale_tril=torch.tril(cov_pdm))
         return dist
     
     
@@ -158,12 +159,16 @@ class TestHierachicalSSM(BaseLearnerModel):
         x0_mean = nn.init.xavier_uniform_(torch.empty(num_sample, dim, device=self.device))
         x0_mean = nn.Parameter(x0_mean, requires_grad=True)
 
-        m = nn.init.xavier_uniform_(torch.empty(num_sample, int(dim * (dim + 1) / 2), device=self.device))
-        x0_scale = torch.zeros((num_sample, dim, dim), device=self.device)
-        tril_indices = torch.tril_indices(row=dim, col=dim, offset=0)
-        x0_scale[:, tril_indices[0], tril_indices[1]] += m
+        x0_scale = nn.init.xavier_uniform_(torch.empty(num_sample, dim, device=self.device))
         x0_scale = nn.Parameter(x0_scale, requires_grad=use_trainable_cov)
- 
+
+        x0_scale = torch.diag_embed(x0_scale)
+        # m = nn.init.xavier_uniform_(torch.empty(num_sample, int(dim * (dim + 1) / 2), device=self.device))
+        # x0_scale = torch.zeros((num_sample, dim, dim), device=self.device)
+        # tril_indices = torch.tril_indices(row=dim, col=dim, offset=0)
+        # x0_scale[:, tril_indices[0], tril_indices[1]] += m
+        # x0_scale = nn.Parameter(x0_scale, requires_grad=use_trainable_cov)
+        
         return x0_mean, x0_scale
 
 
@@ -183,13 +188,13 @@ class TestHierachicalSSM(BaseLearnerModel):
         t1_mean = torch.mean(sequence_likelihood, dim=0)
         t2_mean = torch.mean(initial_likelihood, dim=0)
         
-        t3 = torch.sum(posterior_entropies[0], dim=-1) # no gradient now  TODO
+        t3 = torch.sum(posterior_entropies[0], dim=-1) # no gradient now  TODO entropy should be minimized? in ELBO?
         t3_mean = torch.mean(t3, dim=0)
         
         t4 = torch.sum(posterior_entropies[1], dim=-1) # no gradient now  TODO
         t4_mean = torch.mean(t4, dim=0)
         
-        elbo = t1_mean + t2_mean + t3_mean + t4_mean
+        elbo = t1_mean + t2_mean - t3_mean - t4_mean
         
         iwae = None # TODO ???
         # iwae = self._get_iwae(sequence_likelihood, initial_likelihood, log_prob_q,
@@ -210,7 +215,6 @@ class TestHierachicalSSM(BaseLearnerModel):
                                 switching_conditional_inputs=None,
                                 temperature=1.0):
         
-        ipdb.set_trace()
         y_input = inputs['label_seq']  # [bs, times]
         bs, num_steps = y_input.shape
         num_sample = int(sampled_s.shape[0] / bs)
@@ -339,7 +343,7 @@ class TestHierachicalSSM(BaseLearnerModel):
         input_y, input_t, user_id = inputs	
         bs, num_steps, _ = input_y.shape	
         
-        time_diff = torch.diff(input_t, dim=1)/60/60/24 + EPS  
+        time_diff = torch.diff(input_t, dim=1)/T_SCALE + EPS  
         # TODO add time information p(s_t | s_t-1) variance should based on time difference
 
         self.s0_dist = self._construct_normal_from_mean_cov(
@@ -350,8 +354,6 @@ class TestHierachicalSSM(BaseLearnerModel):
         # direcly fit 
         if self.directly_fit_vi:
             # initial samples
-            # TODO think about how to sample
-            ipdb.set_trace()
             s_trans_mean_user_wise = self.s_trans_mean[user_id][None, ...] # [bs, dim_s]
             s_trans_cov_user_wise = self.s_trans_scale[user_id][None, ...]
             s0_sample = self.s0_dist.rsample((num_samples,)) # [n, 1, dim_s]
@@ -373,6 +375,7 @@ class TestHierachicalSSM(BaseLearnerModel):
                 mu = s_trans_mean_user_wise * s_last
                 cov =  s_trans_cov_user_wise # * time_diff[:, step] # TODO
                 cov = torch.tile(cov, (num_samples, 1,1,1)) # [n, bs, dim_s, dim_s]
+                # ipdb.set_trace()
                 dist = self._construct_normal_from_mean_cov(mu, cov)
                 sample = dist.rsample()
                 
@@ -405,7 +408,7 @@ class TestHierachicalSSM(BaseLearnerModel):
             
             dist = self.network_posterior_mean_mlp_s(out1)
             mus = dist[..., :3]
-            covs = torch.pow(dist[..., 3:], 2) + eps
+            covs = torch.pow(dist[..., 3:], 2) + EPS
         
             output_dist = distributions.multivariate_normal.MultivariateNormal(
                     loc = mus, scale_tril=torch.tril(torch.diag_embed(covs)))  
@@ -430,14 +433,13 @@ class TestHierachicalSSM(BaseLearnerModel):
             input_y, input_t: [bs, times, 1]
         '''
         
-        ipdb.set_trace()
+        # ipdb.set_trace()
         input_t, s_sampled = inputs 
         bs, num_steps, _ = input_t.shape
         bsn, num_s_steps, _ = s_sampled.shape
-        
         assert(num_samples == int(bsn // bs))
         
-        self.z0_dist = self._construct_normal_from_mean_cov(mean=self.z0_mean, var=self.z0_scale)
+        self.z0_dist = self._construct_normal_from_mean_cov(mean=self.z0_mean, cov=self.z0_scale)
         
         time_diff = torch.diff(input_t, dim=1)/T_SCALE + EPS 
         time_diff = torch.tile(time_diff, (num_samples, 1,1)) # [bs*n, num_steps, 1]
@@ -446,8 +448,9 @@ class TestHierachicalSSM(BaseLearnerModel):
         sampled_alpha = torch.relu(s_sampled[..., 0:1]) + EPS 
         sampled_mean = s_sampled[..., 1:2]
         sampled_vola = s_sampled[..., 2:3]
-        sampled_var = torch.pow(torch.sigmoid(sampled_vola)) + EPS 
-        # torch.sigmoid(torch.pow(sampled_vola, 2)) + EPS # TODO
+        sampled_var = torch.pow(sampled_vola, 2) * torch.exp(- sampled_alpha * time_diff) + EPS
+        # sampled_var = torch.pow(torch.sigmoid(sampled_vola)) + EPS # TODO whether to use sigmoid
+        # torch.sigmoid(torch.pow(sampled_vola, 2)) + EPS 
         
         z0_var = torch.tile(self.z0_dist.covariance_matrix, (bsn, 1, 1))
         z_var = torch.cat([z0_var, sampled_var], -2) # [bs*n, num_steps, 1]
@@ -482,9 +485,10 @@ class TestHierachicalSSM(BaseLearnerModel):
         
         
 
-    def forward(self, inputs, temperature=1.0, num_samples=50):
+    def forward(self, inputs, temperature=1.0):
         s_dim = self.dim_s
         z_dim = self.dim_z
+        num_samples = self.num_sample
         
         input_y = inputs['label_seq'].unsqueeze(-1)  # [bs, times] -> [bs, times, 1]
         input_t = inputs['time_seq'].unsqueeze(-1)
@@ -540,7 +544,6 @@ class TestHierachicalSSM(BaseLearnerModel):
                                                 [s_log_prob_q, z_log_prob_q],
                                                 [s_entropy, z_entropy], num_samples)
 
-
         # ipdb.set_trace()
         return_dict["label"] = input_y # [bs, times, 1]
         return_dict["prediction"] = recon_inputs  # [n, bs, times, 1]
@@ -551,6 +554,11 @@ class TestHierachicalSSM(BaseLearnerModel):
         return_dict['var_s'] = s_var # [n, bs, times, 3, 3]
         return_dict['mean_z'] = z_mean # [n, bs, times, 1]
         return_dict['var_z'] = z_var # [n, bs, times, 1, 1]
+        # ipdb.set_trace()
+        # test
+        return_dict['log_prob_st'] = log_prob_st.mean()
+        return_dict['log_prob_zt'] = log_prob_zt.mean()
+        return_dict['log_prob_yt'] = log_prob_yt.mean()
 
         return return_dict
     
@@ -591,7 +599,7 @@ class TestHierachicalSSM(BaseLearnerModel):
         return [pred_s, pred_z, pred_y]
     
     
-    def predictive_model(self, inputs, num_samples=50):
+    def predictive_model(self, inputs):
         # TODO it depends on the training mode, for now, it is only for splitting time 
         '''
         p(s_t+1, z_t+1 | y_1:t)
@@ -599,6 +607,7 @@ class TestHierachicalSSM(BaseLearnerModel):
             inputs: 
             num_samples
         '''
+        num_samples = self.num_sample
         # ipdb.set_trace()
         time_step = int(inputs['skill_seq'].shape[-1])
         train_step = int(time_step * self.args.train_time_ratio)
@@ -616,11 +625,11 @@ class TestHierachicalSSM(BaseLearnerModel):
         
         if self.directly_fit_vi:
             s_sampled, _, _, _, s_mean, s_var = self.s_infer(
-                [inputs['label_seq'].unsqueeze(-1), inputs['time_seq'].unsqueeze(-1), inputs['user_id'].unsqueeze(-1)], 
+                [inputs['label_seq'].unsqueeze(-1), inputs['time_seq'].unsqueeze(-1), inputs['user_id']], 
                 num_samples=num_samples
             )
         else:
-            s_sampled, _, _, _, s_mean, s_var = self.s_infer([past_y, past_t, user_id], num_samples)
+            s_sampled, _, _, _, s_mean, s_var = self.s_infer([past_y, past_t, inputs['user_id']], num_samples)
         
         s_step = s_sampled.shape[-2]
         s_sampled = s_sampled.reshape(-1, s_step, self.dim_s)
@@ -673,10 +682,12 @@ class TestHierachicalSSM(BaseLearnerModel):
         bceloss = loss_fn(pred, gt.float())
         losses['loss_bce'] = bceloss
         
-        elbo = outdict['elbo']
-        losses['loss_elbo'] = elbo
-        losses['loss_total'] = -elbo
+        for key in ['elbo', 'initial_likelihood', 'sequence_likelihood', 
+                    'st_entropy', 'zt_entropy',
+                    'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
+            losses[key] = outdict[key]
         
+        losses['loss_total'] = -outdict['elbo']
         # losses['loss_total'] = -elbo + bceloss
         
         if metrics != None:

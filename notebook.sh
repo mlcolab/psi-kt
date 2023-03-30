@@ -8,7 +8,7 @@
 #SBATCH --error=jupyter.err
 
 
-port=8889
+port=8888
 node=$(hostname -s)
 
 module load cuda

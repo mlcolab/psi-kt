@@ -1,17 +1,18 @@
-/var/spool/slurmd/job3193644/slurm_script: /usr/bin/modulecmd: No such file or directory
-/var/spool/slurmd/job3193644/slurm_script: /usr/bin/modulecmd: No such file or directory
-[I 20:44:22.584 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
-[I 20:44:22.585 NotebookApp] Jupyter Notebook 6.4.12 is running at:
-[I 20:44:22.585 NotebookApp] http://slurm-bm-23:8888/?token=3159506b798474a0bfa4244b577b807dc6069b0afbc7b8c8
-[I 20:44:22.585 NotebookApp]  or http://127.0.0.1:8888/?token=3159506b798474a0bfa4244b577b807dc6069b0afbc7b8c8
-[I 20:44:22.585 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
-[C 20:44:22.599 NotebookApp] 
+/var/spool/slurmd/job3195731/slurm_script: /usr/bin/modulecmd: No such file or directory
+/var/spool/slurmd/job3195731/slurm_script: /usr/bin/modulecmd: No such file or directory
+[I 15:09:13.513 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
+[I 15:09:15.279 NotebookApp] Jupyter Notebook 6.4.12 is running at:
+[I 15:09:15.279 NotebookApp] http://slurm-bm-23:8888/?token=a60cf371b30e67fb087caf0d96647ed90d654e973aeab405
+[I 15:09:15.279 NotebookApp]  or http://127.0.0.1:8888/?token=a60cf371b30e67fb087caf0d96647ed90d654e973aeab405
+[I 15:09:15.279 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 15:09:18.618 NotebookApp] 
     
     To access the notebook, open this file in a browser:
-        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-53801-open.html
+        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-49387-open.html
     Or copy and paste one of these URLs:
-        http://slurm-bm-23:8888/?token=3159506b798474a0bfa4244b577b807dc6069b0afbc7b8c8
-     or http://127.0.0.1:8888/?token=3159506b798474a0bfa4244b577b807dc6069b0afbc7b8c8
-[I 20:49:42.274 NotebookApp] 302 GET /?token=3159506b798474a0bfa4244b577b807dc6069b0afbc7b8c8 (192.168.212.63) 0.450000ms
-[I 20:53:49.655 NotebookApp] 302 GET /?token=3159506b798474a0bfa4244b577b807dc6069b0afbc7b8c8 (192.168.212.63) 4.660000ms
-[I 20:54:04.883 NotebookApp] 302 GET /?token=3159506b798474a0bfa4244b577b807dc6069b0afbc7b8c8 (192.168.212.63) 0.370000ms
+        http://slurm-bm-23:8888/?token=a60cf371b30e67fb087caf0d96647ed90d654e973aeab405
+     or http://127.0.0.1:8888/?token=a60cf371b30e67fb087caf0d96647ed90d654e973aeab405
+[I 15:14:24.593 NotebookApp] 302 GET /?token=a60cf371b30e67fb087caf0d96647ed90d654e973aeab405 (192.168.212.63) 0.440000ms
+[I 15:15:39.232 NotebookApp] 302 GET /?token=a60cf371b30e67fb087caf0d96647ed90d654e973aeab405 (192.168.212.63) 0.340000ms
+[I 16:00:10.797 NotebookApp] 302 GET /?token=a60cf371b30e67fb087caf0d96647ed90d654e973aeab405 (192.168.212.63) 8.420000ms
+[I 16:00:12.153 NotebookApp] 302 GET /?token=a60cf371b30e67fb087caf0d96647ed90d654e973aeab405 (192.168.212.63) 1364.010000ms

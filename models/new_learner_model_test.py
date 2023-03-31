@@ -42,20 +42,21 @@ class TestHierachicalSSM(BaseLearnerModel):
         self.dim_y = 1
         self.dim_z = 1
         self.dim_s = 3
-        self.num_sample = 50 
+        self.num_sample = 100 
         
-        self.directly_fit_vi = True
-        self.infer_global_s = False
-        self.infer_transition_s = False
+        self.directly_fit_vi, self.infer_global_s, self.infer_transition_s = 1, 0, 0
+        # options for self.directly_fit_vi
+        # 1. trainable covariance matrix for p(s_0), p(z_0), p(s_t)
+        # 2. covariance matrix is a time-dependent
 
-        self.s0_mean, self.s0_scale = self._construct_normal_mean_cov(self.dim_s, False)
-        self.z0_mean, self.z0_scale = self._construct_normal_mean_cov(self.dim_z, False) # self.z0_scale is std
+        self.s0_mean, self.s0_scale = self._initialize_normal_mean_cov(self.dim_s, False)
+        self.z0_mean, self.z0_scale = self._initialize_normal_mean_cov(self.dim_z, False) # self.z0_scale is std
         
         
         # FLAG
         # self.s_infer, self.z_infer = inference_network
         if self.directly_fit_vi:
-            self.s_trans_mean, self.s_trans_scale = self._construct_normal_mean_cov(self.dim_s, True, num_sample=num_seq) 
+            self.s_trans_mean, self.s_trans_scale = self._initialize_normal_mean_cov(self.dim_s, True, num_sample=num_seq) 
         
         elif self.infer_global_s:   
             self.embedding_network = nn.RNN(
@@ -76,7 +77,6 @@ class TestHierachicalSSM(BaseLearnerModel):
         # self.z_tran = z_transition_network
         # self.s_tran = s_transition_network
         
-
         # self.discrete_prior = self.s0_dist
         self.observation_dim = self.dim_y
         
@@ -143,7 +143,7 @@ class TestHierachicalSSM(BaseLearnerModel):
         return dist
     
     
-    def _construct_normal_mean_cov(self, dim: int, use_trainable_cov: bool, num_sample: int = 1):
+    def _initialize_normal_mean_cov(self, dim: int, use_trainable_cov: bool, num_sample: int = 1):
         """
         Construct the initial mean and covariance matrix for the multivariate Gaussian distribution.
 
@@ -342,6 +342,7 @@ class TestHierachicalSSM(BaseLearnerModel):
         '''
         input_y, input_t, user_id = inputs	
         bs, num_steps, _ = input_y.shape	
+        ipdb.set_trace()
         
         time_diff = torch.diff(input_t, dim=1)/T_SCALE + EPS  
         # TODO add time information p(s_t | s_t-1) variance should based on time difference
@@ -433,7 +434,7 @@ class TestHierachicalSSM(BaseLearnerModel):
             input_y, input_t: [bs, times, 1]
         '''
         
-        # ipdb.set_trace()
+        ipdb.set_trace()
         input_t, s_sampled = inputs 
         bs, num_steps, _ = input_t.shape
         bsn, num_s_steps, _ = s_sampled.shape

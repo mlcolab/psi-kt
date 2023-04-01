@@ -1,22 +1,79 @@
 # -*- coding: UTF-8 -*-
 
-import os, torch
-import logging
-import datetime
+import os, pickle, datetime
+import torch
 import numpy as np
 from collections import defaultdict
 
 import ipdb
 
+import os
+import pickle
+
+
+def load_corpus(logs, args):
+    '''
+    Load corpus from the corpus path, and split the data into k folds. 
+
+    Args:
+        logs: An object to write logs to.
+        args: An object that contains command-line arguments.
+
+    Returns:
+        The corpus object that contains the loaded data.
+    '''
+
+    # Construct the path to the corpus file based on the dataset and max_step arguments.
+    corpus_path = os.path.join(args.data_dir, args.dataset, 'Corpus_{}.pkl'.format(args.max_step))
+    logs.write_to_log_file(f"Load corpus from {corpus_path}")
+    
+    # Load the corpus object from the pickle file at the specified path.
+    with open(corpus_path, 'rb') as f:
+        corpus = pickle.load(f)
+    
+    # Check the value of the train_mode argument to determine the type of data split.
+    if 'split_learner' in args.train_mode:
+        # Generate folds of data for a learner-based split using the gen_fold_data method of the corpus object.
+        corpus.gen_fold_data(args.fold)
+        logs.write_to_log_file('# Training mode splits LEARNER')
+
+    elif 'split_time' in args.train_mode:
+        # Generate splits of data based on time ratios using the gen_time_split_data method of the corpus object.
+        corpus.gen_time_split_data(args.train_time_ratio, args.test_time_ratio)
+        logs.write_to_log_file('# Training mode splits TIME')
+        
+    # Write to logs the number of examples in the train, val, and test sets.
+    logs.write_to_log_file('# Train: {}, # val: {}, # Test: {}'.format(
+            len(corpus.data_df['train']), len(corpus.data_df['val']), len(corpus.data_df['test'])
+        ))
+
+    return corpus
+
+
+import torch
 
 def _get_feed_dict(keys, data, start, batch_size, pad_list=False):
+    '''
+    Creates a PyTorch feed_dict for a batch of data.
+
+    Args:
+        keys: A dictionary mapping keys to their corresponding column names in the input data.
+        data: A pandas DataFrame containing the input data.
+        start: The starting index of the batch.
+        batch_size: The size of the batch.
+        pad_list: A boolean indicating whether to pad the sequences in the input data.
+
+    Returns:
+        A dictionary containing the input data as PyTorch tensors.
+    '''
+
     # Create an empty dictionary to hold the feed_dict values
     feed_dict = {}
     
     # Iterate over the keys in the provided list
     for key, value in keys.items():
-        seq = data[value][start: start + batch_size].values
         # Extract the sequence of values for the current key from the input data
+        seq = data[value][start: start + batch_size].values
         
         # If the key ends in '_seq' and the pad_list flag is True, pad the sequence
         if '_seq' in key or 'num_' in key:
@@ -65,10 +122,24 @@ def format_metric(metric):
 
 
 def check_dir(file_name):
+    '''
+    Checks if the directory containing the specified file exists, and creates it if necessary.
+
+    Args:
+        file_name: The name of the file to check.
+
+    Returns:
+        None
+    '''
+
+    # Get the path to the directory containing the specified file.
     dir_path = os.path.dirname(file_name)
+
+    # If the directory doesn't exist, create it.
     if not os.path.exists(dir_path):
         print('make dirs:', dir_path)
         os.makedirs(dir_path)
+
 
 
 def get_time():

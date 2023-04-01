@@ -834,7 +834,7 @@ class VanillaOU(BaseLearnerModel):
         for i in range(1, time_step):
             cur_item = items[:, i]
             
-            cur_dt = (t[:,None,i] - whole_last_time[..., i])/dt_normalize +eps # [bs, num_node]
+            cur_dt = (t[:,None,i] - whole_last_time[..., i])/dt_normalize + eps # [bs, num_node]
 
             x_next = self.mean(x_last, cur_dt, speed=batch_speed, level=batch_level)  # [bs, num_node]
             x_next = x_next + noise[..., i-1] * scale[..., i-1]
@@ -1091,7 +1091,6 @@ class GraphOU(VanillaOU):
         
     def forward(self, feed_dict):
         skills = feed_dict['skill_seq']      # [batch_size, seq_len]
-        # problems = feed_dict['problem_seq']  # [batch_size, seq_len]
         times = feed_dict['time_seq']        # [batch_size, seq_len]
         labels = feed_dict['label_seq']      # [batch_size, seq_len]
 

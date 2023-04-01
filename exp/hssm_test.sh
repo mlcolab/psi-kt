@@ -13,12 +13,12 @@
 #SBATCH --array=0
 
 
-python exp_learner_predict.py --dataset junyi15/single_skill \
+python exp_learner_predict.py --dataset assistment12/multi_skill \
 --model_name TestHSSM \
 --max_step 200 --gpu 0 \
 --epoch 1000 --overfit 16 \
 --train_time_ratio 0.5 --test_time_ratio 0.4 --early_stop 0 \
 --batch_size 512 --eval_batch_size 512 \
---lr_decay 200 --lr 0.01 \
---train_mode ls_split_time --multi_node 0 \
---validate
+--lr_decay 100 --lr 0.08 \
+--train_mode ls_split_time --multi_node 1 \
+--validate --experiname testdata \

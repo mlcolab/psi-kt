@@ -7,9 +7,10 @@ import time
 import pickle
 import argparse
 import numpy as np
-import torch
 import datetime
+import shutil
 
+import torch
 from torch.autograd import profiler
 
 from data import data_loader
@@ -29,33 +30,6 @@ import ipdb
 # https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
 
 
-def load_corpus(logs, args):
-    '''
-    Load corupus from the corpus path, and split the data into k folds. 
-    Args:
-        logs:
-        args:
-    '''
-    corpus_path = os.path.join(args.data_dir, args.dataset, 'Corpus_{}.pkl'.format(args.max_step))
-    logs.write_to_log_file(f"Load corpus from {corpus_path}")
-    
-    with open(corpus_path, 'rb') as f:
-        corpus = pickle.load(f)
-    
-    if 'split_learner' in args.train_mode:
-        corpus.gen_fold_data(args.fold)
-        logs.write_to_log_file('# Training mode splits LEARNER')
-
-    elif 'split_time' in args.train_mode:
-        corpus.gen_time_split_data(args.train_time_ratio, args.test_time_ratio)
-        logs.write_to_log_file('# Training mode splits TIME')
-        
-    logs.write_to_log_file('# Train: {}, # Dev: {}, # Test: {}'.format(
-            len(corpus.data_df['train']), len(corpus.data_df['dev']), len(corpus.data_df['test'])
-        ))
-
-    return corpus
-
 
 if __name__ == '__main__':
     with profiler.profile(use_cuda=True, record_shapes=True) as prof:
@@ -65,13 +39,6 @@ if __name__ == '__main__':
         parser.add_argument('--model_name', type=str, help='Choose a model to run.')
         
         # Training options
-        parser.add_argument(
-            '--train_mode', type=str, default='train_split_time', 
-            help= 'simple_split_time' + 'simple_split_learner' 
-            + 'ls_split_time' 
-            + 'ns_split_time' + 'ns_split_learner'
-            + 'ln_split_time', 
-        )
         parser.add_argument('--vis_train', type=int, default=1)
         parser.add_argument('--vis_val', type=int, default=1)
         parser.add_argument('--multi_node', type=int, default=0)
@@ -95,7 +62,7 @@ if __name__ == '__main__':
             data.show_columns() 
             logs.write_to_log_file('Save corpus to {}'.format(corpus_path))
             pickle.dump(data, open(corpus_path, 'wb'))
-        corpus = load_corpus(logs, global_args) 
+        corpus = utils.load_corpus(logs, global_args) 
         
         # ----- logger information -----
         log_args = [global_args.model_name, global_args.dataset, str(global_args.random_seed)]
@@ -185,6 +152,8 @@ if __name__ == '__main__':
                 args=global_args,
                 logs=logs,
             )
+            shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/new_learner_model_test.py',
+                            global_args.log_path)
 
             
         if global_args.load > 0:

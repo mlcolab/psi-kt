@@ -45,7 +45,7 @@ def main(args,
     np.random.seed(args.random_seed)
 
     # Load data
-    corpus = load_corpus(logs, args) #junyi train 178276 dev 19808 test 49522
+    corpus = utils.load_corpus(logs, args) #junyi train 178276 dev 19808 test 49522
 
     # GPU & CUDA
     if args.device.type != "cpu":
@@ -149,32 +149,20 @@ def distributed_train(gpu, args, corpus, runner, model, logs):
     runner.train(model, corpus)
 
 
-def load_corpus(logs, args):
-    '''
-    Load corupus from the corpus path, and split the data into k folds. 
-    Args:
-        data_dir:
-        dataset:
-    Return:
-        corpus: 
-    '''
-    corpus_path = os.path.join(args.data_dir, args.dataset, 'Corpus_{}.pkl'.format(args.max_step))
-    logs.write_to_log_file('Load corpus from {}'.format(corpus_path))
-    with open(corpus_path, 'rb') as f:
-        corpus = pickle.load(f)
-    corpus.gen_fold_data(k=0)
-    logs.write_to_log_file('# Train: {}, # Dev: {}, # Test: {}'.format(
-            len(corpus.data_df['train']), len(corpus.data_df['dev']), len(corpus.data_df['test'])
-        ))
-    return corpus
-
-
 if __name__ == '__main__':
+    # Define an argument parser for the model name.
     init_parser = argparse.ArgumentParser(description='Model')
     init_parser.add_argument('--model_name', type=str, default='CausalKT', help='Choose a model to run.')
-
     init_args, init_extras = init_parser.parse_known_args()
+    
+    # Get the model name from the command-line arguments.
     model_name = init_args.model_name
+    
+    ipdb.set_trace()
+    # Evaluate the model name string as a Python expression to get the corresponding model class.
+    model_module = __import__(model_name)
+    model = getattr(model_module, model_name)
+    
     model = eval('{0}.{0}'.format(model_name))
 
     # ----- args -----

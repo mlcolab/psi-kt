@@ -133,13 +133,13 @@ class KTRunner(object):
         
         ##### prepare training data (if needs quick test then specify overfit arguments in the args);
         ##### prepare the batches of training data; this is specific to different KT models (different models may require different features)
-        set_name = ['train', 'dev', 'test', 'whole']
+        set_name = ['train', 'val', 'test', 'whole']
         if self.overfit > 0:
-            epoch_train_data, epoch_dev_data, epoch_test_data, epoch_whole_data = [
+            epoch_train_data, epoch_val_data, epoch_test_data, epoch_whole_data = [
                 copy.deepcopy(corpus.data_df[key][:self.overfit]) for key in set_name
             ]
         else:
-            epoch_train_data, epoch_dev_data, epoch_test_data, epoch_whole_data = [
+            epoch_train_data, epoch_val_data, epoch_test_data, epoch_whole_data = [
                 copy.deepcopy(corpus.data_df[key]) for key in set_name
             ]
 
@@ -151,7 +151,7 @@ class KTRunner(object):
         whole_batches = None
         
         if self.args.validate:
-            val_batches = model.module.prepare_batches(corpus, epoch_dev_data, self.eval_batch_size, phase='dev')
+            val_batches = model.module.prepare_batches(corpus, epoch_val_data, self.eval_batch_size, phase='val')
             test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
             
             if isinstance(model.module, HierachicalSSM) or isinstance(model.module, TestHierachicalSSM):
@@ -171,7 +171,7 @@ class KTRunner(object):
                 ##### output validation and write to logs
                 if self.args.validate & epoch % self.args.validate_every == 0:
                     with torch.no_grad():
-                        valid_result = self.evaluate(model, corpus, 'dev', val_batches, whole_batches, epoch=epoch+1)
+                        valid_result = self.evaluate(model, corpus, 'val', val_batches, whole_batches, epoch=epoch+1)
                         test_result = self.evaluate(model, corpus, 'test', test_batches, whole_batches, epoch=epoch+1)
                     testing_time = self._check_time()
                     
@@ -203,7 +203,7 @@ class KTRunner(object):
         for metric in self.metrics:
             valid_res_dict[metric] = self.logs.valid_results[metric][best_valid_epoch]
             test_res_dict[metric] = self.logs.test_results[metric][best_valid_epoch]
-        self.logs.write_to_log_file("\nBest Iter(dev)=  %5d\t valid=(%s) test=(%s) [%.1f s] "
+        self.logs.write_to_log_file("\nBest Iter(val)=  %5d\t valid=(%s) test=(%s) [%.1f s] "
                      % (best_valid_epoch + 1,
                         utils.format_metric(valid_res_dict),
                         utils.format_metric(test_res_dict),

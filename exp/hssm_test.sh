@@ -13,7 +13,7 @@
 #SBATCH --array=0
 
 
-python exp_learner_predict.py --dataset assistment12/multi_skill \
+python exp_learner_predict.py --dataset junyi15/multi_skill \
 --model_name TestHSSM \
 --max_step 200 --gpu 0 \
 --epoch 1000 --overfit 16 \

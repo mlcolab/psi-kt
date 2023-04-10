@@ -46,7 +46,7 @@ def parse_args(parser):
                 + 'ns_split_time' + 'ns_split_learner'
                 + 'ln_split_time', 
             )
-    parser.add_argument("--validate", action="store_true", default=0, help="validate results throughout training.")
+    parser.add_argument("--validate", default=0, type=int, help="validate results throughout training.")
     parser.add_argument("--validate_every", action="store_true", default=5, help="validate results throughout training.")
     parser.add_argument('--epoch', type=int, default=200, help='Number of epochs.')
     parser.add_argument('--early_stop', type=int, default=1, help='whether to early-stop.')

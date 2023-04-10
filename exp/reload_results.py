@@ -11,7 +11,7 @@ import torch
 import datetime
 import ipdb
 
-outdict_path = '/mnt/qb/work/mlcolab/hzhou52/kt/logs/TestHSSM/junyi/single_user_single_skill/2023-03-29T11:21:11.564182__overfit_16/out_dict/train_out_dict_epoch_100.pkg'
+outdict_path = '/mnt/qb/work/mlcolab/hzhou52/kt/logs/TestHSSM/junyi15/multi_skill/2023-04-10T22:29:53.908360__overfit_512/out_dict/train_out_dict_epoch_20.pkg'
 with open(outdict_path, 'rb') as f:
         outdict = pickle.load(f)
 ipdb.set_trace()

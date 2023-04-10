@@ -92,30 +92,23 @@ class KTRunner(object):
         optimizer_class = OPTIMIZER_MAP[optimizer_name]
         self.logs.write_to_log_file(f"Optimizer: {optimizer_name}")
         
-        # infer_params = []
-        # graph_params = []
-        # for param_group in list(model.module.named_parameters()):
-        #     if 'node_' in param_group[0] and param_group[1].requires_grad:
-        #         graph_params.append(param_group[1])
-        #     elif param_group[1].requires_grad:
-        #         infer_params.append(param_group[1])
-        # self.graph_params = graph_params
-        # self.infer_params = infer_params
+        infer_params = []
+        graph_params = []
+        for param_group in list(model.module.named_parameters()):
+            if 'node_' in param_group[0] and param_group[1].requires_grad:
+                graph_params.append(param_group[1])
+            elif param_group[1].requires_grad:
+                infer_params.append(param_group[1])
+        self.graph_params = graph_params
+        self.infer_params = infer_params
         
-        # optimizer_infer = optimizer_class(infer_params, lr=lr, weight_decay=weight_decay)
-        # optimizer_graph = optimizer_class(graph_params, lr=lr, weight_decay=weight_decay)
+        optimizer_infer = optimizer_class(infer_params, lr=lr, weight_decay=weight_decay)
+        optimizer_graph = optimizer_class(graph_params, lr=lr, weight_decay=weight_decay)
+
+        scheduler_infer = lr_scheduler.StepLR(optimizer_infer, step_size=lr_decay, gamma=lr_decay_gamma)
+        scheduler_graph = lr_scheduler.StepLR(optimizer_graph, step_size=lr_decay, gamma=lr_decay_gamma)
         
-        optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay) # TODO some parameters are not initialized
-        # name =  [param[0] for param in list(model.module.named_parameters())]
-        # params = model.module.customize_parameters()[0]['params']
-        # params = list(model.module.named_parameters())
-
-        # scheduler_infer = lr_scheduler.StepLR(optimizer_infer, step_size=lr_decay, gamma=lr_decay_gamma)
-        # scheduler_graph = lr_scheduler.StepLR(optimizer_graph, step_size=lr_decay, gamma=lr_decay_gamma)
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay, gamma=lr_decay_gamma)
-
-        return optimizer, scheduler
-        # return [optimizer_infer, optimizer_graph], [scheduler_infer, scheduler_graph]
+        return [optimizer_infer, optimizer_graph], [scheduler_infer, scheduler_graph]
 
 
     def _print_res(self, model, corpus): # TODO
@@ -186,7 +179,11 @@ class KTRunner(object):
                 model.train()
                 
                 self._check_time()
-                loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch+1)
+                
+                for mini_epoch in range(5):
+                    loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch+1, mini_epoch=mini_epoch, phase='infer')
+                for mini_epoch in range(5):
+                    loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch+1, mini_epoch=mini_epoch, phase='graph')
                 training_time = self._check_time()
 
                 ##### output validation and write to logs
@@ -247,7 +244,7 @@ class KTRunner(object):
         # model.load_model() #???
 
 
-    def fit(self, model, batches, epoch_train_data, epoch=-1): 
+    def fit(self, model, batches, epoch_train_data, epoch=-1, mini_epoch=-1, phase='infer'): 
         """
         Trains the given model on the given batches of data.
 
@@ -263,63 +260,53 @@ class KTRunner(object):
 
         # Build the optimizer if it hasn't been built already.
         if model.module.optimizer is None:
-            # [model.module.optimizer_infer, model.module.optimizer_graph], [model.module.scheduler_infer, model.module.scheduler_graph] = self._build_optimizer(model)
-            # model.module.optimizer = model.module.optimizer_infer
-            model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
+            [model.module.optimizer_infer, model.module.optimizer_graph], [model.module.scheduler_infer, model.module.scheduler_graph] = self._build_optimizer(model)
+            model.module.optimizer = model.module.optimizer_infer
             
         model.train()
         train_losses = defaultdict(list)
         
         # Iterate through each batch.
         out_dicts = []
+        if phase == 'infer':
+            opt = model.module.optimizer_infer
+            sch = model.module.scheduler_infer
+            for param in self.graph_params:
+                param.requires_grad = False
+            for param in self.infer_params:
+                param.requires_grad = True
+        else:
+            opt = model.module.optimizer_graph
+            sch = model.module.scheduler_graph
+            for param in self.graph_params:
+                param.requires_grad = True
+            for param in self.infer_params:
+                param.requires_grad = False
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
             
-            # Move the batch to the GPU.
-            batch = model.module.batch_to_gpu(batch, model.module.device)
-            
-            # Reset gradients.
-            model.module.optimizer.zero_grad()
-            
-            # Forward pass.
-            output_dict = model(batch)
-            out_dicts.append(output_dict)
-            
-            # Calculate loss and perform backward pass.
-            loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
-            loss_dict['loss_total'].backward()
-            
-            # Update parameters.
-            model.module.optimizer.step()
-            model.module.scheduler.step()
-
-
-            # for param in self.graph_params:
-            #     param.requires_grad = True
-            # for param in self.infer_params:
-            #     param.requires_grad = False
-            # model.module.optimizer_infer.zero_grad()
-            # model.module.optimizer_graph.zero_grad()
+            # # Move the batch to the GPU.
+            # batch = model.module.batch_to_gpu(batch, model.module.device)
+            # # Reset gradients.
+            # model.module.optimizer.zero_grad()
+            # # Forward pass.
             # output_dict = model(batch)
             # out_dicts.append(output_dict)
-            # loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
-            # loss_dict['loss_total'].backward(retain_graph=True)
-            # model.module.optimizer_graph.step()
-            # model.module.scheduler_graph.step()  
-            
-            # # ipdb.set_trace()
-            # for param in self.graph_params:
-            #     param.requires_grad = False
-            # for param in self.infer_params:
-            #     param.requires_grad = True
-            # model.module.optimizer_infer.zero_grad()
-            # model.module.optimizer_graph.zero_grad()
-            # output_dict = model(batch)
-            # out_dicts.append(output_dict)
+            # # Calculate loss and perform backward pass.
             # loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
             # loss_dict['loss_total'].backward()
-            # model.module.optimizer_infer.step()
-            # model.module.scheduler_infer.step()
-            
+            # # Update parameters.
+            # model.module.optimizer.step()
+            # model.module.scheduler.step()
+
+            model.module.optimizer_infer.zero_grad()
+            model.module.optimizer_graph.zero_grad()
+            output_dict = model(batch)
+            out_dicts.append(output_dict)
+            loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
+            loss_dict['loss_total'].backward()
+            opt.step()
+            if mini_epoch == 4:
+                model.module.scheduler_graph.step()  
             
             # Append the losses to the train_losses dictionary.
             train_losses = self.logs.append_batch_losses(train_losses, loss_dict)

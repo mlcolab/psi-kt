@@ -1,253 +1,37 @@
-/var/spool/slurmd/job3197825/slurm_script: /usr/bin/modulecmd: No such file or directory
-/var/spool/slurmd/job3197825/slurm_script: /usr/bin/modulecmd: No such file or directory
-[I 15:03:51.547 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
-[I 15:03:51.548 NotebookApp] Jupyter Notebook 6.4.12 is running at:
-[I 15:03:51.548 NotebookApp] http://slurm-bm-23:8888/?token=ae7a5502c7eaf545cd5af5b53d0c952b353fc8c6acad7f73
-[I 15:03:51.548 NotebookApp]  or http://127.0.0.1:8888/?token=ae7a5502c7eaf545cd5af5b53d0c952b353fc8c6acad7f73
-[I 15:03:51.548 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
-[C 15:03:51.582 NotebookApp] 
+ModuleCmd_Load.c(213):ERROR:105: Unable to locate a modulefile for 'cuda'
+ModuleCmd_Load.c(213):ERROR:105: Unable to locate a modulefile for 'nvhpc'
+[I 22:47:41.338 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
+[I 22:47:41.342 NotebookApp] Jupyter Notebook 6.4.12 is running at:
+[I 22:47:41.342 NotebookApp] http://slurm-bm-54:8888/?token=021a451ce98b21df985d0aa2bfba7666cac12e81eb5a89cd
+[I 22:47:41.342 NotebookApp]  or http://127.0.0.1:8888/?token=021a451ce98b21df985d0aa2bfba7666cac12e81eb5a89cd
+[I 22:47:41.342 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 22:47:41.378 NotebookApp] 
     
     To access the notebook, open this file in a browser:
-        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-243536-open.html
+        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-32261-open.html
     Or copy and paste one of these URLs:
-        http://slurm-bm-23:8888/?token=ae7a5502c7eaf545cd5af5b53d0c952b353fc8c6acad7f73
-     or http://127.0.0.1:8888/?token=ae7a5502c7eaf545cd5af5b53d0c952b353fc8c6acad7f73
-[I 15:06:43.182 NotebookApp] 302 GET /?token=ae7a5502c7eaf545cd5af5b53d0c952b353fc8c6acad7f73 (192.168.212.63) 0.820000ms
-[I 15:06:58.616 NotebookApp] Kernel started: ad17bb4d-d904-47b6-93b1-fd8c4b0b95a1, name: python3
-[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 6baacdd4-9bbf-49d8-8c16-10450784a5d5
-[I 15:07:49.307 NotebookApp] Kernel started: 26ba9518-b867-4b88-8fae-53d636534ec0, name: python3
-[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: a2fcf494-5cd2-4689-af1e-b11bfc39e13c
-[I 15:08:58.688 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:09:50.454 NotebookApp] Saving file at /data/preprocess/Untitled.ipynb
+        http://slurm-bm-54:8888/?token=021a451ce98b21df985d0aa2bfba7666cac12e81eb5a89cd
+     or http://127.0.0.1:8888/?token=021a451ce98b21df985d0aa2bfba7666cac12e81eb5a89cd
+[I 23:57:30.955 NotebookApp] 302 GET /?token=021a451ce98b21df985d0aa2bfba7666cac12e81eb5a89cd (192.168.212.63) 0.500000ms
+[W 23:57:42.035 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 23:57:42.349 NotebookApp] Kernel started: 1fe42d4a-408e-4147-adab-be623d868ed2, name: python3
+[W 23:59:16.655 NotebookApp] WebSocket ping timeout after 90001 ms.
+[I 23:59:21.658 NotebookApp] Starting buffering for 1fe42d4a-408e-4147-adab-be623d868ed2:bc9233b2cd474a15b31b2ae66bd58362
+[I 23:59:46.136 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 23:59:46.139 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 23:59:47.328 NotebookApp] Restoring connection for 1fe42d4a-408e-4147-adab-be623d868ed2:bc9233b2cd474a15b31b2ae66bd58362
+[I 00:03:45.860 NotebookApp] Kernel interrupted: 1fe42d4a-408e-4147-adab-be623d868ed2
+[I 00:05:42.234 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 00:05:42.236 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 00:21:42.311 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 00:21:42.327 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
 /mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/nbformat/__init__.py:128: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
   validate(nb)
 /mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/notebook/services/contents/manager.py:353: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
   validate_nb(model['content'])
-[I 15:10:58.716 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:16:58.684 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:18:58.665 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:20:58.668 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:22:58.692 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:24:58.701 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:26:58.687 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:28:58.690 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:30:58.884 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:36:58.757 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:38:49.526 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:40:58.817 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:42:58.921 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:44:58.835 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:46:58.797 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:48:58.757 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:50:58.775 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:56:59.355 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 15:58:59.524 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:00:58.782 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:02:58.753 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:04:58.749 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:06:58.775 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:07:49.309 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[I 16:08:59.621 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:09:49.301 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[I 16:10:59.401 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:11:49.303 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[I 16:13:48.484 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:13:49.310 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[I 16:15:48.432 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:17:48.353 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:19:49.022 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:21:48.384 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:23:48.330 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:25:48.662 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:27:17.324 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:28:58.865 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:30:58.827 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:32:58.830 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:34:58.836 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:36:58.830 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:38:58.837 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:40:58.984 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:42:58.810 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:44:58.930 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:46:58.765 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:48:58.765 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:50:58.738 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:52:58.749 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:54:58.887 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:56:58.810 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 16:58:58.713 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:00:58.939 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:02:58.886 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:04:59.574 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:06:58.992 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:08:59.119 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:10:58.826 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:12:58.990 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:14:58.956 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:16:59.762 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:18:58.969 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:20:58.971 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:22:58.889 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:24:58.746 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:26:59.036 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:28:58.709 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:30:59.135 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:31:56.425 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[I 17:31:59.811 NotebookApp] Starting buffering for 26ba9518-b867-4b88-8fae-53d636534ec0:6c6948c2d54a40f683380ca250d2d5ec
-[I 17:32:15.327 NotebookApp] Kernel started: f3af16cd-5e7a-4fe1-8444-bc5e034b5586, name: python3
-[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 8956e59c-2b8b-4e35-94b0-bb60e07b9734
-[I 17:32:59.525 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:34:15.371 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 17:34:59.755 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:36:15.353 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 17:36:59.891 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:38:59.639 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:41:48.468 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:43:48.812 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:44:15.706 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 17:44:59.711 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:46:15.499 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 17:46:59.607 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:48:15.384 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 17:48:59.742 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:51:48.557 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:53:48.648 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:55:48.632 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:57:48.446 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 17:59:00.147 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:00:59.407 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:02:59.552 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:05:48.527 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:07:48.492 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:09:48.596 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:11:49.399 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:13:48.267 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:15:48.324 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:17:48.442 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:19:48.780 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:21:48.443 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:23:48.818 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:24:15.360 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 18:25:48.525 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:27:48.511 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:29:48.589 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:31:48.485 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:33:48.308 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:35:48.342 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:37:48.555 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:39:48.343 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:41:48.427 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:43:48.580 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 18:45:48.524 NotebookApp] Starting buffering for ad17bb4d-d904-47b6-93b1-fd8c4b0b95a1:e5b5f41dbfd742b086ae025709b954d2
-[I 18:45:48.526 NotebookApp] Starting buffering for f3af16cd-5e7a-4fe1-8444-bc5e034b5586:142d237e826645268b7b0ff691fb0cef
-[I 18:56:58.803 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 20:33:01.777 NotebookApp] Restoring connection for ad17bb4d-d904-47b6-93b1-fd8c4b0b95a1:e5b5f41dbfd742b086ae025709b954d2
-[I 20:33:01.786 NotebookApp] Replaying 5157 buffered messages
-[W 20:33:02.787 NotebookApp] IOPub message rate exceeded.
-    The notebook server will temporarily stop sending output
-    to the client in order to avoid crashing it.
-    To change this limit, set the config variable
-    `--NotebookApp.iopub_msg_rate_limit`.
-    
-    Current values:
-    NotebookApp.iopub_msg_rate_limit=1000.0 (msgs/sec)
-    NotebookApp.rate_limit_window=3.0 (secs)
-    
-[W 20:33:06.090 NotebookApp] iopub messages resumed
-[I 20:33:17.955 NotebookApp] Restoring connection for f3af16cd-5e7a-4fe1-8444-bc5e034b5586:142d237e826645268b7b0ff691fb0cef
-[I 20:35:00.736 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 20:37:00.794 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 20:38:59.905 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 20:40:59.992 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 20:41:35.070 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 20:42:15.484 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 20:42:59.895 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 20:44:15.502 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 20:45:00.684 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 20:46:15.511 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 20:47:00.759 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 20:48:15.680 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 20:49:00.320 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 20:51:49.138 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 20:53:48.569 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 20:55:48.663 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 20:56:15.348 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 20:57:49.061 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 20:58:15.817 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 20:59:48.342 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:01:48.723 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:03:02.190 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:03:42.607 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:03:48.659 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:04:15.404 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:05:48.375 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:06:15.520 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:07:48.542 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:08:15.503 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:09:48.556 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:10:15.330 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:11:48.457 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:12:15.383 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:13:48.486 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:14:15.392 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:15:48.682 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:17:49.631 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:18:15.302 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:19:48.111 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:20:15.348 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:21:48.457 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:22:59.547 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:24:15.312 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:24:59.402 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:26:58.804 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:28:58.752 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:30:58.607 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:32:59.450 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:34:58.617 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:36:58.628 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:38:58.811 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:40:58.737 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:42:58.634 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:44:58.781 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:46:15.338 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:46:59.920 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:48:59.361 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:51:48.355 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:53:13.130 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:53:22.604 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:54:15.293 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:54:59.363 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:56:15.321 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:56:59.169 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 21:58:15.297 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 21:59:48.257 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:00:15.299 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 22:01:48.222 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:02:15.329 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 22:03:48.344 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:04:15.355 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 22:05:48.440 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:06:15.297 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 22:07:48.427 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:08:15.298 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 22:09:48.481 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:10:15.281 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 22:11:48.307 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:12:15.305 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 22:13:48.596 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:14:15.471 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 22:15:48.423 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:16:15.339 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 22:17:48.415 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:18:15.325 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 22:19:29.288 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:20:15.459 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 22:20:59.066 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:22:15.296 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 22:22:59.222 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:24:15.991 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
-[I 22:24:59.313 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[I 22:26:15.292 NotebookApp] Saving file at /data/preprocess/Untitled1.ipynb
+[I 00:23:42.432 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 00:23:42.434 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 01:22:43.536 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 01:22:43.552 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 01:22:44.563 NotebookApp] Starting buffering for 1fe42d4a-408e-4147-adab-be623d868ed2:bc9233b2cd474a15b31b2ae66bd58362
+slurmstepd: error: *** JOB 3203130 ON slurm-bm-54 CANCELLED AT 2023-04-04T01:23:03 ***

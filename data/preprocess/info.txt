@@ -1,0 +1,12 @@
+keys:
+
+user_id
+skill_id
+problem_id
+NOTE: the ids should be start from 0 unique 
+
+correct
+timestamp
+dwell_time
+skill_text
+problem_text

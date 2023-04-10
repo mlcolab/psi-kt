@@ -44,6 +44,8 @@ class DataReader(object):
         self.data_df = {'train': pd.DataFrame(), 'val': pd.DataFrame(), 'test': pd.DataFrame()}
         
         for user, user_df in self.inter_df.groupby('user_id'):
+            user_df = user_df.sort_values('timestamp', ascending=True)
+            
             df = user_df[:self.max_step]  
 
             # TODO current only work with binary correct
@@ -72,9 +74,9 @@ class DataReader(object):
             n_inters += len(df)
         ipdb.set_trace()
         self.user_seq_df = pd.DataFrame.from_dict(user_wise_dict, orient='index')
-        self.n_users = self.inter_df['user_id'].nunique()
-        self.n_skills = self.inter_df['skill_id'].nunique()
-        self.n_problems = self.inter_df['problem_id'].nunique()
+        self.n_users = max(self.inter_df['user_id']) + 1
+        self.n_skills = max(self.inter_df['skill_id']) + 1
+        self.n_problems = max(self.inter_df['problem_id']) + 1
 
         ##### load the ground-truth graph if available TODO 
         graph_path = os.path.join(self.prefix, self.dataset, 'adj.npy')

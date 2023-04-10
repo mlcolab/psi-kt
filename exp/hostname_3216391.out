@@ -1,0 +1,6 @@
+> [0;32m/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/KTRunner.py[0m(110)[0;36m_build_optimizer[0;34m()[0m
+[0;32m    109 [0;31m        [0mipdb[0m[0;34m.[0m[0mset_trace[0m[0;34m([0m[0;34m)[0m[0;34m[0m[0;34m[0m[0m
+[0m[0;32m--> 110 [0;31m        [0mname[0m [0;34m=[0m  [0;34m[[0m[0mparam[0m[0;34m[[0m[0;36m0[0m[0;34m][0m [0;32mfor[0m [0mparam[0m [0;32min[0m [0mlist[0m[0;34m([0m[0mmodel[0m[0;34m.[0m[0mmodule[0m[0;34m.[0m[0mnamed_parameters[0m[0;34m([0m[0;34m)[0m[0;34m)[0m[0;34m][0m[0;34m[0m[0;34m[0m[0m
+[0m[0;32m    111 [0;31m        [0;31m# params = model.module.customize_parameters()[0]['params'][0m[0;34m[0m[0;34m[0m[0m
+[0m
+ipdb> 

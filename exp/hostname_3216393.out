@@ -1,0 +1,4 @@
+s_emb_rnn_inputs cuda:0
+src cuda:0
+self.src_mask cpu
+output cuda:0

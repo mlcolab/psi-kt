@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torch import nn
 
 import ipdb
-
+EPS = 1e-6
 class VarGT(nn.Module):
     def __init__(self, device, num_nodes, gt_adj_path=None):
         super(VarGT, self).__init__()
@@ -272,4 +272,99 @@ class VarDIBS(VarDistribution):
         # # NOTE: this is not technically log(p), but the way `edge_log_probs_` is used, this is correct
         # log_probs = log_probs.at[..., jnp.arange(log_probs.shape[-1]), jnp.arange(log_probs.shape[-1])].set(0.0)
         # log_probs_neg = log_probs_neg.at[..., jnp.arange(log_probs_neg.shape[-1]), jnp.arange(log_probs_neg.shape[-1])].set(0.0)
+        return torch.stack([log_probs, log_probs_neg])
+
+
+class VarSPHERE(VarDistribution):
+    def __init__(self, device, num_nodes, tau_gumbel, dense_init = False, 
+                            latent_prior_std = None, latent_dim = 128):
+        """
+        Args:
+            device: Device used.
+            num_nodes: dimension.
+            tau_gumbel: temperature used for gumbel softmax sampling.
+            alpha_linear (float): slope of of linear schedule for inverse temperature :math:`\\alpha`
+                                    of sigmoid in latent graph model :math:`p(G | Z)`
+            dense_init: whether the initialization of latent variables is from a uniform distribution (False) or torch.ones(True)
+        """
+        super().__init__(device, num_nodes, tau_gumbel)
+        self.dense_init = dense_init # start from all 1?
+        self.latent_prior_std = latent_prior_std
+        self.latent_dim = latent_dim
+
+        alpha_linear = 0.05
+        self.alpha = lambda t: (alpha_linear * t)
+
+        self.u = self._initial_random_particles()
+        
+        self.query_layer = nn.Linear(self.latent_dim, self.latent_dim)#, device=self.device)
+        self.key_layer = nn.Linear(self.latent_dim, self.latent_dim)#, device=self.device)
+        self.value_layer = nn.Linear(self.latent_dim, self.latent_dim)#, device=self.device)
+        self.attention_layer = torch.nn.MultiheadAttention(embed_dim=self.latent_dim, num_heads=4, dropout=0.0, bias=True, batch_first=True)#, device=self.device)
+        # the attention in pytorch has softmax across all nodes, which is not what we want
+        # https://pytorch.org/docs/stable/generated/torch.nn.MultiheadAttention.html
+        # https://discuss.pytorch.org/t/what-does-increasing-number-of-heads-do-in-the-multi-head-attention/101294/7
+        # num_heads – Number of parallel attention heads. Note that embed_dim will be split across num_heads (i.e. each head will have dimension embed_dim // num_heads).
+
+
+    def _initial_random_particles(self):
+        """
+        Args:
+            n_particles (int): number of particles inferred
+            n_dim (int): size of latent dimension :math:`k`. Defaults to ``n_vars``, s.t. :math:`k = d`
+
+        Returns:
+            batch of latent tensors ``[n_particles, d, k, 2]``
+        """
+        # sample points uniformly from a sphere surface 
+        if not self.dense_init:
+            u = torch.randn(size=(self.num_nodes, self.latent_dim))#, device=self.device)
+            u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
+        else:
+            u = torch.rand(size=(self.num_nodes, self.latent_dim))#, device=self.device)
+            u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
+        u = nn.Parameter(u, requires_grad=True)
+        return u
+
+
+    def _get_atten_weights(self):
+        """
+        Edge log probabilities encoded by latent representation
+        Args:
+            z (ndarray): latent tensors :math:`Z` ``[..., d, k, 2]``
+        Returns:
+            tuple of tensors ``[..., d, d], [..., d, d]`` corresponding to ``log(p)`` and ``log(1-p)``
+        """
+        u = self.u
+        u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
+       
+        query_u = self.query_layer(u)
+        key_u = self.key_layer(u)
+        value_u = self.value_layer(u) 
+        
+        attn_output, attn_output_weights = self.attention_layer(query_u, key_u, value_u) 
+        
+        return query_u, key_u, value_u, attn_output, attn_output_weights
+
+
+    def _get_node_embedding(self):
+        u = self.u
+        u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
+        return u
+        
+    def edge_log_probs(self):
+        """
+        Edge log probabilities encoded by latent representation
+        Args:
+            z (ndarray): latent tensors :math:`Z` ``[..., d, k, 2]``
+        Returns:
+            tuple of tensors ``[..., d, d], [..., d, d]`` corresponding to ``log(p)`` and ``log(1-p)``
+        """
+        query_u, key_u, value_u, attn_output, attn_output_weights = self._get_atten_weights()
+        # TODO need to mask acyclic edges
+        # TODO constrain the sparsity of edges: https://aclanthology.org/2021.acl-short.17.pdf; https://arxiv.org/pdf/2110.11299.pdf; https://arxiv.org/abs/1705.07704
+        # https://github.com/datnnt1997/multi-head_self-attention/blob/master/SelfAttention.ipynb
+        
+        log_probs, log_probs_neg = torch.log(attn_output_weights), torch.log(1-attn_output_weights) # TODO in dibs paper, there is an alpha control the temperature here
+        
         return torch.stack([log_probs, log_probs_neg])

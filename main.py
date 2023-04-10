@@ -7,12 +7,13 @@ import argparse
 import numpy as np
 import torch
 import datetime
-import builtins
+import shutil
+import inspect
 
 from data import data_loader
 from models import *
 from KTRunner import *
-from VCLRunner import *
+# from VCLRunner import *
 from utils import utils, arg_parser, logger
 
 import torch.distributed as dist
@@ -34,30 +35,6 @@ def main(args,
         logs:
         fun
     '''
-    logs.write_to_log_file('-' * 45 + ' BEGIN: ' + utils.get_time() + ' ' + '-' * 45)
-    exclude = ['check_epoch', 'log_file', 'model_path', 'path', 'pin_memory',
-               'regenerate', 'sep', 'train', 'verbose']
-    logs.write_to_log_file(utils.format_arg_str(args, exclude_lst=exclude))
-
-    # Random seed
-    torch.manual_seed(args.random_seed)
-    torch.cuda.manual_seed(args.random_seed)
-    np.random.seed(args.random_seed)
-
-    # Load data
-    corpus = utils.load_corpus(logs, args) #junyi train 178276 dev 19808 test 49522
-
-    # GPU & CUDA
-    if args.device.type != "cpu":
-        if args.GPU_to_use is not None:
-            torch.cuda.set_device(args.GPU_to_use)
-        args.num_GPU = torch.cuda.device_count()
-        args.batch_size_multiGPU = args.batch_size * args.num_GPU
-    else:
-        args.num_GPU = None
-        args.batch_size_multiGPU = args.batch_size
-    logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
-
     # # DDP setting
     # if "WORLD_SIZE" in os.environ:
     #     args.world_size = int(os.environ["WORLD_SIZE"])
@@ -79,8 +56,8 @@ def main(args,
     #     builtins.print = print_pass
 
     # Running
-    # runner = KTRunner(args, logs)
-    runner = VCLRunner(args, logs)
+    runner = KTRunner(args, logs)
+    # runner = VCLRunner(args, logs)
 
     # if args.distributed:
     #     mp.spawn(fun, nprocs=args.num_GPU, args=(args, corpus, runner, model, logs)) 
@@ -156,15 +133,10 @@ if __name__ == '__main__':
     init_args, init_extras = init_parser.parse_known_args()
     
     # Get the model name from the command-line arguments.
-    model_name = init_args.model_name
-    
-    ipdb.set_trace()
     # Evaluate the model name string as a Python expression to get the corresponding model class.
-    model_module = __import__(model_name)
-    model = getattr(model_module, model_name)
-    
+    model_name = init_args.model_name
     model = eval('{0}.{0}'.format(model_name))
-
+    
     # ----- args -----
     parser = argparse.ArgumentParser(description='Global')
     parser = arg_parser.parse_args(parser)
@@ -172,25 +144,68 @@ if __name__ == '__main__':
     global_args, extras = parser.parse_known_args() # https://docs.python.org/3/library/argparse.html?highlight=parse_known_args#argparse.ArgumentParser.parse_known_args
     global_args.model_name = model_name
     global_args.time = datetime.datetime.now().isoformat()
-    
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+    # ----- log -----
     logs = logger.Logger(global_args)
     
     # ----- data part -----
     corpus_path = os.path.join(global_args.data_dir, global_args.dataset, 'Corpus_{}.pkl'.format(global_args.max_step))
     if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
         data = data_loader.DataReader(global_args, logs)
-        data.gen_fold_data(k=0)
         data.show_columns() 
         logs.write_to_log_file('Save corpus to {}'.format(corpus_path))
         pickle.dump(data, open(corpus_path, 'wb'))
+    corpus = utils.load_corpus(logs, global_args) 
 
     # ----- logger information -----
-    log_args = [init_args.model_name, global_args.dataset, str(global_args.random_seed)]
-    for arg in ['lr', 'l2', 'fold'] + model.extra_log_args:
-        log_args.append(arg + '=' + str(eval('global_args.' + arg))) 
+    log_args = [global_args.model_name, global_args.dataset, str(global_args.random_seed)]
+    logs.write_to_log_file('-' * 45 + ' BEGIN: ' + utils.get_time() + ' ' + '-' * 45)
+    logs.write_to_log_file(utils.format_arg_str(global_args, exclude_lst=[]))
     # os.environ['MASTER_ADDR'] = 'localhost'
     # os.environ['MASTER_PORT'] = '44144'
+
+    # ----- random seed -----
+    torch.manual_seed(global_args.random_seed)
+    torch.cuda.manual_seed(global_args.random_seed)
+    np.random.seed(global_args.random_seed)
+        
+    # ----- GPU & CUDA -----
+    if global_args.device.type != "cpu":
+        if global_args.GPU_to_use is not None:
+            torch.cuda.set_device(global_args.GPU_to_use)
+        global_args.num_GPU = torch.cuda.device_count()
+        global_args.batch_size_multiGPU = global_args.batch_size * global_args.num_GPU
+    else:
+        global_args.num_GPU = None
+        global_args.batch_size_multiGPU = global_args.batch_size
+    logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
+        
+    # ----- Model initialization -----
+    if 'ls_' or 'ln_' in global_args.train_mode:
+        num_seq = corpus.n_users
+    else: num_seq = 1
+    
+    adj = np.load(global_args.graph_path)
+        
+    # Define model
+    model = model(global_args, corpus, logs)#, dev0, dev1)
+    logs.write_to_log_file(model)
+    model = model.double()
+    model.apply(model.init_weights)
+    model.actions_before_train()
+    
+    
+    
+    shutil.copy(inspect.getmodule(model).__file__, global_args.log_path)
+
+
+
+
+
+
+
+
+
 
     main(global_args, model, logs, distributed_train)

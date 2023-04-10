@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --ntasks=1                # Number of tasks (see below)
-#SBATCH --cpus-per-task=1         # Number of CPU cores per task
+#SBATCH --cpus-per-task=4         # Number of CPU cores per task
 #SBATCH --nodes=1                 # Ensure that all cores are on one machine
 #SBATCH --time=0-12:00            # Runtime in D-HH:MM
 #SBATCH --partition=gpu-v100
@@ -12,13 +12,12 @@
 #SBATCH --mail-type=END           # Type of email notification- BEGIN,END,FAIL,ALL
 #SBATCH --array=0
 
-
 python exp_learner_predict.py --dataset junyi15/multi_skill \
 --model_name TestHSSM \
---max_step 200 --gpu 0 \
+--max_step 100 --gpu 0 \
 --epoch 1000 --overfit 16 \
---train_time_ratio 0.5 --test_time_ratio 0.4 --early_stop 0 \
---batch_size 512 --eval_batch_size 512 \
---lr_decay 100 --lr 0.08 \
+--train_time_ratio 0.1 --test_time_ratio 0.5 --early_stop 0 \
+--batch_size 8 --eval_batch_size 16 \
+--lr_decay 50 --lr 0.04 \
 --train_mode ls_split_time --multi_node 1 \
---validate --experiname testdata \
+--validate 0 --experiname whole \

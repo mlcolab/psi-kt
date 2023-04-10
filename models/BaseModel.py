@@ -50,7 +50,7 @@ class BaseModel(torch.nn.Module):
             torch.nn.init.normal_(m.weight, mean=0.0, std=0.01)
             if m.bias is not None:
                 torch.nn.init.normal_(m.bias, mean=0.0, std=0.01)
-        elif isinstance(m, torch.nn.RNNBase):
+        elif isinstance(m, torch.nn.RNNCell) or isinstance(m, torch.nn.GRUCell) or isinstance(m, torch.nn.RNN):
             for name, param in m.named_parameters():
                 if 'weight_ih' in name:
                     torch.nn.init.xavier_uniform_(param.data)
@@ -58,7 +58,7 @@ class BaseModel(torch.nn.Module):
                     torch.nn.init.orthogonal_(param.data)
                 elif 'bias' in name:
                     param.data.fill_(0)
-        elif isinstance(m, torch.nn.LSTMBase):
+        elif isinstance(m, torch.nn.LSTMCell) or isinstance(m, torch.nn.LSTM):
             for name, param in m.named_parameters():
                 if 'weight_ih' in name or 'weight_ch' in name:
                     torch.nn.init.xavier_uniform_(param.data)
@@ -68,10 +68,10 @@ class BaseModel(torch.nn.Module):
                     param.data.fill_(0)
                     
     @staticmethod
-    def batch_to_gpu(batch):
+    def batch_to_gpu(batch, device):
         if torch.cuda.device_count() > 0:
             for key in batch:
-                batch[key] = batch[key].cuda()
+                batch[key] = batch[key].to(device)
         return batch
 
 
@@ -137,7 +137,7 @@ class BaseModel(torch.nn.Module):
         torch.save(self.state_dict(), model_path)
         self.logs.write_to_log_file('Save model to ' + model_path)
 
-        self.model_path = model_path
+        # self.model_path = model_path
 
 
     def load_model(self, model_path: str = None) -> None:

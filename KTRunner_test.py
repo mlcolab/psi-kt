@@ -18,8 +18,7 @@ import ipdb
     
 from models.new_learner_model import HierachicalSSM
 from models.learner_hssm_model import HSSM
-        
-CUDA_LAUNCH_BLOCKING=1
+
 
 OPTIMIZER_MAP = {
     'gd': optim.SGD,
@@ -91,18 +90,23 @@ class KTRunner(object):
 
         optimizer_class = OPTIMIZER_MAP[optimizer_name]
         self.logs.write_to_log_file(f"Optimizer: {optimizer_name}")
-        
-        infer_params = []
+        name =  [param[0] for param in list(model.module.named_parameters())]
+        ipdb.set_trace()
+        inference_params = []
         graph_params = []
+        generative_params = []
         for param_group in list(model.module.named_parameters()):
             if 'node_' in param_group[0] and param_group[1].requires_grad:
                 graph_params.append(param_group[1])
+            elif 'infer_' in param_group[0] and param_group[1].requires_grad:
+                inference_params.append(param_group[1])
             elif param_group[1].requires_grad:
-                infer_params.append(param_group[1])
+                generative_params.append(param_group[1])
+        ipdb.set_trace()
         self.graph_params = graph_params
-        self.infer_params = infer_params
+        self.infer_params = inference_params
         
-        optimizer_infer = optimizer_class(infer_params, lr=lr, weight_decay=weight_decay)
+        optimizer_infer = optimizer_class(inference_params, lr=lr, weight_decay=weight_decay)
         optimizer_graph = optimizer_class(graph_params, lr=lr, weight_decay=weight_decay)
 
         scheduler_infer = lr_scheduler.StepLR(optimizer_infer, step_size=lr_decay, gamma=lr_decay_gamma)
@@ -298,15 +302,15 @@ class KTRunner(object):
             # model.module.optimizer.step()
             # model.module.scheduler.step()
 
-            model.module.optimizer_infer.zero_grad()
-            model.module.optimizer_graph.zero_grad()
+            model.module.optimizer_infer.zero_grad(set_to_none=True)
+            model.module.optimizer_graph.zero_grad(set_to_none=True)
             output_dict = model(batch)
             out_dicts.append(output_dict)
             loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
             loss_dict['loss_total'].backward()
             opt.step()
             if mini_epoch == 4:
-                model.module.scheduler_graph.step()  
+                sch.step()  
             
             # Append the losses to the train_losses dictionary.
             train_losses = self.logs.append_batch_losses(train_losses, loss_dict)

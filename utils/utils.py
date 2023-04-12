@@ -10,6 +10,14 @@ import ipdb
 import os
 import pickle
 
+# a dict to store the activations
+activation = {}
+def getActivation(name):
+    # the hook signature
+    def hook(model, input, output):
+        activation[name] = output.detach()
+    return hook
+ 
 
 def load_corpus(logs, args):
     '''

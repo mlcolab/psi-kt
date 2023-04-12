@@ -1,27 +1,0 @@
-Prepare Batches:   0%|                                                        | 0/8 [00:00<?, ?it/s]                                                                                                    Traceback (most recent call last):
-  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/exp_learner_predict.py", line 189, in <module>
-    runner.train(model, corpus)
-  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/../KTRunner.py", line 190, in train
-    loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch+1)
-  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/../KTRunner.py", line 269, in fit
-    model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
-  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/../KTRunner.py", line 110, in _build_optimizer
-    name =  [param[0] for param in list(model.module.named_parameters())]
-  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/../KTRunner.py", line 110, in _build_optimizer
-    name =  [param[0] for param in list(model.module.named_parameters())]
-  File "/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/bdb.py", line 88, in trace_dispatch
-    return self.dispatch_line(frame)
-  File "/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/bdb.py", line 113, in dispatch_line
-    if self.quitting: raise BdbQuit
-bdb.BdbQuit
-
-If you suspect this is an IPython 8.5.0 bug, please report it at:
-    https://github.com/ipython/ipython/issues
-or send an email to the mailing list at ipython-dev@python.org
-
-You can print a more detailed traceback right now with "%tb", or use "%debug"
-to interactively debug it.
-
-Extra-detailed tracebacks for bug-reporting purposes can be enabled via:
-    %config Application.verbose_crash=True
-

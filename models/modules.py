@@ -10,6 +10,34 @@ from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 import ipdb
 
+
+"""
+    A simple implementation of Gaussian MLP Encoder and Decoder
+"""
+# https://github.com/Jackson-Kang/Pytorch-VAE-tutorial/blob/master/01_Variational_AutoEncoder.ipynb
+class VAEEncoder(nn.Module):
+    
+    def __init__(self, input_dim, hidden_dim, latent_dim):
+        super(VAEEncoder, self).__init__()
+
+        self.FC_input = nn.Linear(input_dim, hidden_dim)
+        self.FC_input2 = nn.Linear(hidden_dim, hidden_dim)
+        self.FC_mean  = nn.Linear(hidden_dim, latent_dim)
+        self.FC_var   = nn.Linear (hidden_dim, latent_dim)
+        
+        self.LeakyReLU = nn.LeakyReLU(0.2)
+        
+        self.training = True
+        
+    def forward(self, x):
+        h_       = self.LeakyReLU(self.FC_input(x))
+        h_       = self.LeakyReLU(self.FC_input2(h_))
+        mean     = self.FC_mean(h_)
+        log_var  = self.FC_var(h_)                     #
+        
+        return mean, log_var
+
+
 # Temporarily leave PositionalEncoding module here. Will be moved somewhere else.
 # https://github.com/pytorch/examples/blob/main/word_language_model/model.py
 class PositionalEncoding(nn.Module):
@@ -59,17 +87,17 @@ class PositionalEncoding(nn.Module):
 class CausalTransformerModel(nn.Module):
     """Container module with an encoder, a recurrent or transformer module, and a decoder."""
 
-    def __init__(self, ntoken, ninp, nhead=4, nhid=32, nlayers=2, dropout=0.5):
+    def __init__(self, ntoken, ninp, nhead=4, nhid=32, nlayers=2, dropout=0.0):
         super(CausalTransformerModel, self).__init__()
         
         self.model_type = 'Transformer'
         self.src_mask = None
-        self.pos_encoder = PositionalEncoding(ninp, dropout)
         encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout, batch_first=True)
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
-        # self.encoder = nn.Embedding(ntoken, ninp)
         self.ninp = ninp
         self.hidden_dim = nhid
+        # self.pos_encoder = PositionalEncoding(ninp, dropout)
+        # self.encoder = nn.Embedding(ntoken, ninp)
         # self.decoder = nn.Linear(ninp, ntoken)
 
         # self.init_weights()
@@ -100,8 +128,6 @@ class CausalTransformerModel(nn.Module):
         # src = self.encoder(src) * math.sqrt(self.ninp)
         # src = self.pos_encoder(src)
         # device = self.transformer_encoder.state_dict()['layers.0.self_attn.in_proj_weight'].device
-        print('src', src.device)
-        print('self.src_mask', self.src_mask.device)
         output = self.transformer_encoder(src, self.src_mask.to(src.device)) # (batch_size, seq_len, hidden_dim)
         # output = self.decoder(output)
         return output# F.log_softmax(output, dim=-1)

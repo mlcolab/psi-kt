@@ -107,6 +107,7 @@ class KTRunner(object):
         
         optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay) # TODO some parameters are not initialized
         # name =  [param[0] for param in list(model.module.named_parameters())]
+        # ipdb.set_trace()
         # params = model.module.customize_parameters()[0]['params']
         # params = list(model.module.named_parameters())
 
@@ -278,7 +279,7 @@ class KTRunner(object):
             batch = model.module.batch_to_gpu(batch, model.module.device)
             
             # Reset gradients.
-            model.module.optimizer.zero_grad()
+            model.module.optimizer.zero_grad(set_to_none=True)
             
             # Forward pass.
             output_dict = model(batch)
@@ -330,18 +331,18 @@ class KTRunner(object):
         
         model.eval()
         
-        # Save the output dict for visualization
-        if self.args.vis_train & epoch % 5 == 0:
-            flat_outdicts = {}
-            for key in out_dicts[0].keys():
-                if key not in ['elbo', 'iwae', 'initial_likelihood', 'sequence_likelihood', 
-                               'st_entropy', 'zt_entropy',
-                               'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
-                    flat_outdicts[key] = torch.cat([out[key] for out in out_dicts], )
-                    # ipdb.set_trace()
+        # # Save the output dict for visualization
+        # if self.args.vis_train & epoch % 5 == 0:
+        #     flat_outdicts = {}
+        #     for key in out_dicts[0].keys():
+        #         if key not in ['elbo', 'iwae', 'initial_likelihood', 'sequence_likelihood', 
+        #                        'st_entropy', 'zt_entropy',
+        #                        'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
+        #             flat_outdicts[key] = torch.cat([out[key] for out in out_dicts], )
+        #             # ipdb.set_trace()
             
-            with open(os.path.join(self.args.visdir, 'train_out_dict_epoch_{}.pkg'.format(epoch)), 'wb') as f:
-                pickle.dump(flat_outdicts, f)
+        #     with open(os.path.join(self.args.visdir, 'train_out_dict_epoch_{}.pkg'.format(epoch)), 'wb') as f:
+        #         pickle.dump(flat_outdicts, f)
             
             
         # TODO DEBUG: to visualize the difference of synthetic data adj

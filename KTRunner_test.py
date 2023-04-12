@@ -90,8 +90,8 @@ class KTRunner(object):
 
         optimizer_class = OPTIMIZER_MAP[optimizer_name]
         self.logs.write_to_log_file(f"Optimizer: {optimizer_name}")
-        name =  [param[0] for param in list(model.module.named_parameters())]
-        ipdb.set_trace()
+        # name =  [param[0] for param in list(model.module.named_parameters())]
+        # ipdb.set_trace()
         inference_params = []
         graph_params = []
         generative_params = []
@@ -102,17 +102,20 @@ class KTRunner(object):
                 inference_params.append(param_group[1])
             elif param_group[1].requires_grad:
                 generative_params.append(param_group[1])
-        ipdb.set_trace()
+
         self.graph_params = graph_params
         self.infer_params = inference_params
+        self.gen_params = generative_params
         
         optimizer_infer = optimizer_class(inference_params, lr=lr, weight_decay=weight_decay)
         optimizer_graph = optimizer_class(graph_params, lr=lr, weight_decay=weight_decay)
+        optimizer_gen = optimizer_class(generative_params, lr=lr, weight_decay=weight_decay)
 
         scheduler_infer = lr_scheduler.StepLR(optimizer_infer, step_size=lr_decay, gamma=lr_decay_gamma)
         scheduler_graph = lr_scheduler.StepLR(optimizer_graph, step_size=lr_decay, gamma=lr_decay_gamma)
+        scheduler_gen = lr_scheduler.StepLR(optimizer_gen, step_size=lr_decay, gamma=lr_decay_gamma)
         
-        return [optimizer_infer, optimizer_graph], [scheduler_infer, scheduler_graph]
+        return [optimizer_gen, optimizer_infer, optimizer_graph], [scheduler_gen, scheduler_infer, scheduler_graph]
 
 
     def _print_res(self, model, corpus): # TODO
@@ -184,10 +187,12 @@ class KTRunner(object):
                 
                 self._check_time()
                 
-                for mini_epoch in range(5):
+                for mini_epoch in range(10):
                     loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch+1, mini_epoch=mini_epoch, phase='infer')
                 for mini_epoch in range(5):
                     loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch+1, mini_epoch=mini_epoch, phase='graph')
+                for mini_epoch in range(5):
+                    loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch+1, mini_epoch=mini_epoch, phase='gen')
                 training_time = self._check_time()
 
                 ##### output validation and write to logs
@@ -264,48 +269,41 @@ class KTRunner(object):
 
         # Build the optimizer if it hasn't been built already.
         if model.module.optimizer is None:
-            [model.module.optimizer_infer, model.module.optimizer_graph], [model.module.scheduler_infer, model.module.scheduler_graph] = self._build_optimizer(model)
+            opt, sch = self._build_optimizer(model)
+            model.module.optimizer_gen, model.module.optimizer_infer, model.module.optimizer_graph = opt
+            model.module.scheduler_gen, model.module.scheduler_infer, model.module.scheduler_graph = sch
             model.module.optimizer = model.module.optimizer_infer
             
         model.train()
         train_losses = defaultdict(list)
         
         # Iterate through each batch.
-        out_dicts = []
         if phase == 'infer':
             opt = model.module.optimizer_infer
             sch = model.module.scheduler_infer
-            for param in self.graph_params:
+            for param in self.gen_params + self.graph_params:
+                param.requires_grad = False
+            for param in self.infer_params:
+                param.requires_grad = True
+        elif phase == 'gen':
+            opt = model.module.optimizer_gen
+            sch = model.module.scheduler_gen
+            for param in self.infer_params + self.graph_params:
                 param.requires_grad = False
             for param in self.infer_params:
                 param.requires_grad = True
         else:
             opt = model.module.optimizer_graph
             sch = model.module.scheduler_graph
-            for param in self.graph_params:
-                param.requires_grad = True
-            for param in self.infer_params:
+            for param in self.gen_params + self.infer_params:
                 param.requires_grad = False
+            for param in self.infer_params:
+                param.requires_grad = True
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
-            
-            # # Move the batch to the GPU.
-            # batch = model.module.batch_to_gpu(batch, model.module.device)
-            # # Reset gradients.
-            # model.module.optimizer.zero_grad()
-            # # Forward pass.
-            # output_dict = model(batch)
-            # out_dicts.append(output_dict)
-            # # Calculate loss and perform backward pass.
-            # loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
-            # loss_dict['loss_total'].backward()
-            # # Update parameters.
-            # model.module.optimizer.step()
-            # model.module.scheduler.step()
-
             model.module.optimizer_infer.zero_grad(set_to_none=True)
             model.module.optimizer_graph.zero_grad(set_to_none=True)
+            model.module.optimizer_gen.zero_grad(set_to_none=True)
             output_dict = model(batch)
-            out_dicts.append(output_dict)
             loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
             loss_dict['loss_total'].backward()
             opt.step()
@@ -320,20 +318,7 @@ class KTRunner(object):
         self.logs.append_epoch_losses(train_losses, 'train')
         
         model.eval()
-        
-        # Save the output dict for visualization
-        if self.args.vis_train & epoch % 5 == 0:
-            flat_outdicts = {}
-            for key in out_dicts[0].keys():
-                if key not in ['elbo', 'iwae', 'initial_likelihood', 'sequence_likelihood', 
-                               'st_entropy', 'zt_entropy',
-                               'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
-                    flat_outdicts[key] = torch.cat([out[key] for out in out_dicts], )
-                    # ipdb.set_trace()
-            
-            with open(os.path.join(self.args.visdir, 'train_out_dict_epoch_{}.pkg'.format(epoch)), 'wb') as f:
-                pickle.dump(flat_outdicts, f)
-            
+    
             
         # TODO DEBUG: to visualize the difference of synthetic data adj
         if 'synthetic' in self.args.dataset and epoch%2 == 0:

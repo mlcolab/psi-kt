@@ -1,37 +1,15 @@
-ModuleCmd_Load.c(213):ERROR:105: Unable to locate a modulefile for 'cuda'
-ModuleCmd_Load.c(213):ERROR:105: Unable to locate a modulefile for 'nvhpc'
-[I 22:47:41.338 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
-[I 22:47:41.342 NotebookApp] Jupyter Notebook 6.4.12 is running at:
-[I 22:47:41.342 NotebookApp] http://slurm-bm-54:8888/?token=021a451ce98b21df985d0aa2bfba7666cac12e81eb5a89cd
-[I 22:47:41.342 NotebookApp]  or http://127.0.0.1:8888/?token=021a451ce98b21df985d0aa2bfba7666cac12e81eb5a89cd
-[I 22:47:41.342 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
-[C 22:47:41.378 NotebookApp] 
+/var/spool/slurmd/job3221185/slurm_script: /usr/bin/modulecmd: No such file or directory
+/var/spool/slurmd/job3221185/slurm_script: /usr/bin/modulecmd: No such file or directory
+[I 22:32:16.836 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
+[I 22:32:16.847 NotebookApp] Jupyter Notebook 6.4.12 is running at:
+[I 22:32:16.847 NotebookApp] http://slurm-bm-06:8888/?token=d4e8b3a27b688e6a78c3999062e7ebbad694f856b9be6aa0
+[I 22:32:16.847 NotebookApp]  or http://127.0.0.1:8888/?token=d4e8b3a27b688e6a78c3999062e7ebbad694f856b9be6aa0
+[I 22:32:16.847 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 22:32:16.882 NotebookApp] 
     
     To access the notebook, open this file in a browser:
-        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-32261-open.html
+        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-95684-open.html
     Or copy and paste one of these URLs:
-        http://slurm-bm-54:8888/?token=021a451ce98b21df985d0aa2bfba7666cac12e81eb5a89cd
-     or http://127.0.0.1:8888/?token=021a451ce98b21df985d0aa2bfba7666cac12e81eb5a89cd
-[I 23:57:30.955 NotebookApp] 302 GET /?token=021a451ce98b21df985d0aa2bfba7666cac12e81eb5a89cd (192.168.212.63) 0.500000ms
-[W 23:57:42.035 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
-[I 23:57:42.349 NotebookApp] Kernel started: 1fe42d4a-408e-4147-adab-be623d868ed2, name: python3
-[W 23:59:16.655 NotebookApp] WebSocket ping timeout after 90001 ms.
-[I 23:59:21.658 NotebookApp] Starting buffering for 1fe42d4a-408e-4147-adab-be623d868ed2:bc9233b2cd474a15b31b2ae66bd58362
-[I 23:59:46.136 NotebookApp] Saving file at /exp/debug_variants.ipynb
-[W 23:59:46.139 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
-[I 23:59:47.328 NotebookApp] Restoring connection for 1fe42d4a-408e-4147-adab-be623d868ed2:bc9233b2cd474a15b31b2ae66bd58362
-[I 00:03:45.860 NotebookApp] Kernel interrupted: 1fe42d4a-408e-4147-adab-be623d868ed2
-[I 00:05:42.234 NotebookApp] Saving file at /exp/debug_variants.ipynb
-[W 00:05:42.236 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
-[I 00:21:42.311 NotebookApp] Saving file at /exp/debug_variants.ipynb
-[W 00:21:42.327 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
-/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/nbformat/__init__.py:128: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
-  validate(nb)
-/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/notebook/services/contents/manager.py:353: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
-  validate_nb(model['content'])
-[I 00:23:42.432 NotebookApp] Saving file at /exp/debug_variants.ipynb
-[W 00:23:42.434 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
-[I 01:22:43.536 NotebookApp] Saving file at /exp/debug_variants.ipynb
-[W 01:22:43.552 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
-[I 01:22:44.563 NotebookApp] Starting buffering for 1fe42d4a-408e-4147-adab-be623d868ed2:bc9233b2cd474a15b31b2ae66bd58362
-slurmstepd: error: *** JOB 3203130 ON slurm-bm-54 CANCELLED AT 2023-04-04T01:23:03 ***
+        http://slurm-bm-06:8888/?token=d4e8b3a27b688e6a78c3999062e7ebbad694f856b9be6aa0
+     or http://127.0.0.1:8888/?token=d4e8b3a27b688e6a78c3999062e7ebbad694f856b9be6aa0
+[I 22:34:27.296 NotebookApp] 302 GET /?token=d4e8b3a27b688e6a78c3999062e7ebbad694f856b9be6aa0 (192.168.212.63) 0.530000ms

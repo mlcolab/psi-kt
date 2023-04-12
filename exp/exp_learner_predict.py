@@ -40,6 +40,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Global')
     parser.add_argument('--model_name', type=str, help='Choose a model to run.')
     
+    # debug
+    parser.add_argument('--alpha_minimum', type=float, default=20)
+    
     # Training options
     parser.add_argument('--vis_train', type=int, default=1)
     parser.add_argument('--vis_val', type=int, default=1)

@@ -1,12 +1,25 @@
-import sys,time
-import numpy as np
-import torch
-from copy import deepcopy
-import torch.nn.functional as F
+import gc, pickle
+import copy
+import os
 
-import utils
+from time import time
+from tqdm import tqdm
+import numpy as np
+import matplotlib.pyplot as plt
+from collections import defaultdict
+
+import torch
+import torch.optim as optim
+from torch.optim import lr_scheduler
+
+from utils import utils
 import ipdb
-from KTRunner import *
+
+from models.new_learner_model import HierachicalSSM
+from models.learner_hssm_model import HSSM
+        
+import ipdb
+from KTRunner import KTRunner
 
 OPTIMIZER_MAP = {
     'gd': optim.SGD,
@@ -33,33 +46,60 @@ class VCLRunner(KTRunner):
 
     def train(self, model, corpus):
         '''
+        Trains the KT model instance with parameters.
+
         Args:
-            model: KT model instance with parameters to train
+            model: the KT model instance with parameters to train
             corpus: data
         '''
-        
         assert(corpus.data_df['train'] is not None)
         self._check_time(start=True)
+        ipdb.set_trace()
         
-        ipdb.set_trace()
-
-        ##### prepare training data (if needs quick test then specify overfit arguments in the args);
-        ##### prepare the batches of training data; this is specific to different KT models (different models may require different features)
         if self.overfit > 0:
-            epoch_train_data = copy.deepcopy(corpus.data_df['train'])[:self.overfit] # Index(['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq'], dtype='object')
+            epoch_whole_data = copy.deepcopy(corpus.data_df['whole'][:self.overfit])
         else:
-            epoch_train_data = copy.deepcopy(corpus.data_df['train'])
-        epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) # Return a random sample of items from an axis of object.
-        batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
+            epoch_whole_data = copy.deepcopy(corpus.data_df['whole'])
 
-        ipdb.set_trace()
+        # Return a random sample of items from an axis of object.
+        epoch_whole_data = epoch_whole_data.sample(frac=1).reset_index(drop=True) 
+        whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
+        # Move the batch to the GPU.
+        whole_batches = [model.module.batch_to_gpu(batch, model.module.device) for batch in whole_batches]
+        
         try:
-            for t in range():
-                if t != 0:
-                    #update posterior to prior for everything except the first task
-                    self.model.add_task_body_params([t-1])
-            
+            for epoch in range(self.epoch):
+                gc.collect()
+                model.train()
+                
+                self._check_time()
+                loss = self.fit(model, whole_batches, epoch_whole_data, epoch=epoch+1)
+                training_time = self._check_time()
 
+                ##### output validation and write to logs
+                if (self.args.validate) & (epoch % self.args.validate_every == 0):
+                    with torch.no_grad():
+                        valid_result = self.evaluate(model, corpus, 'val', val_batches, whole_batches, epoch=epoch+1)
+                        test_result = self.evaluate(model, corpus, 'test', test_batches, whole_batches, epoch=epoch+1)
+                    testing_time = self._check_time()
+                    
+                    self.logs.append_epoch_losses(test_result, 'test')
+                    self.logs.append_epoch_losses(valid_result, 'val')
+                    self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
+                                epoch + 1, loss, training_time, utils.format_metric(valid_result),
+                                utils.format_metric(test_result), testing_time))
+                                
+                    if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
+                        # ipdb.set_trace()
+                        model.module.save_model(epoch=epoch)
+                    if self._eva_termination(model) and self.early_stop:
+                        self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
+                        break
+                else:
+                    if epoch % 10 == 0:
+                        model.module.save_model(epoch=epoch)
+                    
+                self.logs.draw_loss_curves()
 
         except KeyboardInterrupt:
             self.logs.write_to_log_file("Early stop manually")
@@ -67,6 +107,31 @@ class VCLRunner(KTRunner):
             if exit_here.lower().startswith('y'):
                 self.logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)
                 exit(1)
+
+        # Find the best validation result across iterations
+        best_valid_epoch = self.logs.valid_results[self.metrics[0]].argmax()
+        valid_res_dict, test_res_dict = dict(), dict()
+        
+        for metric in self.metrics:
+            valid_res_dict[metric] = self.logs.valid_results[metric][best_valid_epoch]
+            test_res_dict[metric] = self.logs.test_results[metric][best_valid_epoch]
+        self.logs.write_to_log_file("\nBest Iter(val)=  %5d\t valid=(%s) test=(%s) [%.1f s] "
+                     % (best_valid_epoch + 1,
+                        utils.format_metric(valid_res_dict),
+                        utils.format_metric(test_res_dict),
+                        self.time[1] - self.time[0]))
+
+        best_test_epoch = self.logs.test_results[self.metrics[0]].argmax()
+        for metric in self.metrics:
+            valid_res_dict[metric] = self.logs.valid_results[metric][best_test_epoch]
+            test_res_dict[metric] = self.logs.test_results[metric][best_test_epoch]
+        self.logs.write_to_log_file("Best Iter(test)= %5d\t valid=(%s) test=(%s) [%.1f s] \n"
+                     % (best_test_epoch + 1,
+                        utils.format_metric(valid_res_dict),
+                        utils.format_metric(test_res_dict),
+                        self.time[1] - self.time[0]))
+                        
+        # model.load_model() #???
 
 
 
@@ -83,7 +148,7 @@ class VCLRunner(KTRunner):
         Returns:
             A dictionary containing the training losses.
         """
-
+        ipdb.set_trace()
         # Build the optimizer if it hasn't been built already.
         if model.module.optimizer is None:
             model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
@@ -91,43 +156,42 @@ class VCLRunner(KTRunner):
         model.train()
         train_losses = defaultdict(list)
         
-        # Iterate through each batch.
-        out_dicts = []
-        for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
+        time_step = batches[0]['skill_seq'].shape[-1]
+        
+        for t in range(0, 10): # time_step
             
-            # Move the batch to the GPU.
-            batch = model.module.batch_to_gpu(batch, model.module.device)
-            
-            # Reset gradients.
-            model.module.optimizer.zero_grad(set_to_none=True)
-            
-            # Forward pass.
-            output_dict = model(batch)
-            out_dicts.append(output_dict)
-            
-            # Calculate loss and perform backward pass.
-            loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
-            loss_dict['loss_total'].backward()
-            
-            # Update parameters.
-            model.module.optimizer.step()
-            model.module.scheduler.step()
-            
-            # Append the losses to the train_losses dictionary.
-            train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
-            
-        string = self.logs.result_string("train", epoch, train_losses, t=epoch) # TODO
-        self.logs.write_to_log_file(string)
-        self.logs.append_epoch_losses(train_losses, 'train')
+            # Iterate through each batch.
+            for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
+                
+                # Reset gradients.
+                model.module.optimizer.zero_grad(set_to_none=True)
+                
+                # Predictive Model
+                s_prior_dist, z_prior_dist = model.predictive_model(inputs=batch, idx=t)
+                
+                # Forward pass.
+                s_vp_dist, z_vp_dist = model.module.inference_model(feed_dict=batch, idx=t)
+                
+                # Calculate loss and perform backward pass.
+                output_dict = model.module.objective_function(s_prior_dist, z_prior_dist, s_vp_dist, z_vp_dist, batch)
+                loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
+                loss_dict['loss_total'].backward()
+                
+                # Update parameters.
+                model.module.optimizer.step()
+                model.module.scheduler.step()
+                
+                # Append the losses to the train_losses dictionary.
+                train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
+                
+            string = self.logs.result_string("train", epoch, train_losses, t=epoch) # TODO
+            self.logs.write_to_log_file(string)
+            self.logs.append_epoch_losses(train_losses, 'train')
         
         model.eval()
             
             
         return self.logs.train_results['loss_total'][-1]
-
-
-
-
 
 
 

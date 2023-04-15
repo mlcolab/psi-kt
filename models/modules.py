@@ -108,7 +108,7 @@ class CausalTransformerModel(nn.Module):
         return mask
 
     def _to_device(self, device):
-        for key, value in self.transformer_encoder.state_dict().items():
+        for _, value in self.transformer_encoder.state_dict().items():
             value = value.to(device)
     # def init_weights(self):
     #     initrange = 0.1

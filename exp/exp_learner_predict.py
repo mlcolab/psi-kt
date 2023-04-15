@@ -16,12 +16,12 @@ from torch.autograd import profiler
 from data import data_loader
 # from models import *
 # from KTRunner_test import *
-from KTRunner import *
-# from VCLRunner import *
+import KTRunner
+import VCLRunner
 from utils import utils, arg_parser, logger
 from models.learner_model import HLR, PPE, VanillaOU, GraphOU
-from models.new_learner_model import *
-from models.learner_hssm_model import *
+from models.learner_hssm_model import GraphHSSM
+from models.learner_hssm_vcl_model import GraphContinualHSSM
 
 # import torch.distributed as dist
 # import torch.multiprocessing as mp
@@ -41,6 +41,7 @@ if __name__ == '__main__':
     # debug
     parser.add_argument('--alpha_minimum', type=float, default=20)
     parser.add_argument('--learned_graph', type=str, default='w_gt')
+    parser.add_argument('--vcl', type=int, default=1)
     
     # Training options
     parser.add_argument('--vis_train', type=int, default=1)
@@ -160,18 +161,31 @@ if __name__ == '__main__':
         shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_model.py',
                         global_args.log_path)
     elif global_args.model_name == 'TestHierachicalSSM' or global_args.model_name == 'TestHSSM':
-        model = GraphHSSM( # TestHierachicalSSM(
-            mode=global_args.train_mode, 
-            num_seq=num_seq,
-            num_node=1 if not global_args.multi_node else corpus.n_skills,
-            nx_graph=None if not global_args.multi_node else adj,
-            device=global_args.device, 
-            args=global_args,
-            logs=logs,
-        )
+        
+        if global_args.vcl == 0:
+            model = GraphHSSM( # TestHierachicalSSM(
+                mode=global_args.train_mode, 
+                num_seq=num_seq,
+                num_node=1 if not global_args.multi_node else corpus.n_skills,
+                nx_graph=None if not global_args.multi_node else adj,
+                device=global_args.device, 
+                args=global_args,
+                logs=logs,
+            )
+        else:
+            model = GraphContinualHSSM(
+                mode=global_args.train_mode, 
+                num_seq=num_seq,
+                num_node=1 if not global_args.multi_node else corpus.n_skills,
+                nx_graph=None if not global_args.multi_node else adj,
+                device=global_args.device, 
+                args=global_args,
+                logs=logs,
+            )
         shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_model.py',
                         global_args.log_path)
-
+        shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_vcl_model.py',
+                        global_args.log_path)
         
     if global_args.load > 0:
         model.load_model(model_path=global_args.load_folder)
@@ -186,7 +200,10 @@ if __name__ == '__main__':
             model = model.to(global_args.device)
             
     # Running
-    runner = KTRunner(global_args, logs)
+    if global_args.vcl:
+        runner = VCLRunner.VCLRunner(global_args, logs)
+    else:
+        runner = KTRunner.KTRunner(global_args, logs)
 
 # runner = VCLRunner(global_args, logs)
 runner.train(model, corpus)

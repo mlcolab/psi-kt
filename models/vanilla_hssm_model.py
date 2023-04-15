@@ -315,6 +315,108 @@ class VanillaHSSM(HSSM):
         return s_sampled, s_entropy, s_log_prob_q, rnn_states, mus, stds
     
     
+
+    def predictive_model(self, inputs):
+        # TODO it depends on the training mode, for now, it is only for splitting time 
+        '''
+        p(s_t+1, z_t+1 | y_1:t)
+        Args:
+            inputs: 
+            num_sample
+        '''
+        
+        time_step = int(inputs['skill_seq'].shape[-1])
+        train_step = int(time_step * self.args.train_time_ratio)
+        test_step = int(time_step * self.args.test_time_ratio)
+        
+        past_y = inputs['label_seq'][:, :train_step].unsqueeze(-1)
+        past_t = inputs['time_seq'][:, :train_step].unsqueeze(-1)
+        
+        # future_t = inputs['time_seq'][:, train_step-1:].unsqueeze(-1)
+        # future_t = torch.tile(future_t, (num_sample,1,1))
+        
+        bs = past_y.shape[0]
+        num_sample = self.num_sample
+        bsn = bs * num_sample
+        
+        # TODO which way to sample? from q(z) or from q(s)? or prior distribution?
+        # ideally they should be the same, but currently because the 
+        if self.fit_vi_global_s:
+            test_out_dict = self.forward(inputs)
+            recon_inputs = test_out_dict['sampled_y'][...,train_step:,:]
+            
+            tmp_recon_inputs = recon_inputs.flatten(0,1)
+            future_item = inputs['skill_seq'][:, train_step:].tile(num_sample,1)
+            recon_inputs_items = torch.cat(
+                [tmp_recon_inputs[torch.arange(bsn), future_item[:,i], i] for i in range(future_item.shape[-1])], -1
+            )
+            recon_inputs_items = recon_inputs_items.reshape(bs, num_sample, 1, -1, 1)
+            label = inputs['label_seq'][:, train_step:].reshape(bs, 1, 1, -1, 1).tile(1,num_sample,1,1,1)
+            
+            
+        elif self.fit_vi_transition_s:
+            s_sampled, _, _, _, s_mean, s_var = self.s_infer(
+                [inputs['label_seq'].unsqueeze(-1), inputs['time_seq'].unsqueeze(-1), inputs['user_id']], 
+                num_sample=num_sample
+            )
+            s_step = s_sampled.shape[-2]
+            s_sampled = s_sampled.reshape(-1, s_step, self.dim_s)
+            
+            z_sampled, _, _, z_mean, z_var = self.z_infer(
+                    [inputs['time_seq'].unsqueeze(-1), s_sampled], 
+                    num_sample=num_sample
+                )
+            z_step = z_sampled.shape[-2]
+            z_sampled = torch.reshape(z_sampled, [-1, z_step, self.dim_z])
+            
+            recon_inputs = self.get_reconstruction(
+                z_sampled,
+                observation_shape=z_sampled.shape,
+                sample_for_reconstruction=False, 
+            )
+            
+        elif self.fit_vi_global_s:
+            test_out_dict = self.forward(inputs)
+            recon_inputs = test_out_dict['sampled_y'][...,train_step:,:]
+            
+            tmp_recon_inputs = recon_inputs.flatten(0,1)
+            future_item = inputs['skill_seq'][:, train_step:].tile(num_sample,1)
+            recon_inputs_items = torch.cat(
+                [tmp_recon_inputs[torch.arange(bsn), future_item[:,i], i] for i in range(future_item.shape[-1])], -1
+            )
+            recon_inputs_items = recon_inputs_items.reshape(bs, num_sample, 1, -1, 1)
+            label = inputs['label_seq'][:, train_step:].reshape(bs, 1, 1, -1, 1).tile(1,num_sample,1,1,1)
+        
+        elif self.infer_transition_s:
+            test_out_dict = self.forward(inputs)
+            recon_inputs = test_out_dict['sampled_y'][...,train_step:,:]
+            
+            tmp_recon_inputs = recon_inputs.flatten(0,1)
+            future_item = inputs['skill_seq'][:, train_step:].tile(num_sample,1)
+            recon_inputs_items = torch.cat(
+                [tmp_recon_inputs[torch.arange(bsn), future_item[:,i], i] for i in range(future_item.shape[-1])], -1
+            )
+            recon_inputs_items = recon_inputs_items.reshape(bs, num_sample, 1, -1, 1)
+            label = inputs['label_seq'][:, train_step:].reshape(bs, 1, 1, -1, 1).tile(1,num_sample,1,1,1)
+            
+        else:
+            s_sampled, _, _, _, s_mean, s_var = self.s_infer([past_y, past_t, inputs['user_id']], num_sample)
+        
+
+        # ipdb.set_trace()
+        pred_dict = {
+            'prediction': recon_inputs_items,
+            'label': label,
+            'pred_y': recon_inputs,
+            'pred_z': test_out_dict['sampled_z'][..., train_step:,:],
+            'pred_s': test_out_dict['sampled_s'][..., train_step:,:],
+            'mean_s': test_out_dict['mean_s'],
+            'var_s': test_out_dict['var_s'],
+            'mean_z': test_out_dict['mean_z'],
+            'var_z': test_out_dict['var_z'],
+        }
+        
+        return pred_dict
     
     
     def z_infer(self, inputs, num_samples=1): # FLAG

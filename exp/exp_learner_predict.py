@@ -27,8 +27,6 @@ from models.learner_hssm_model import *
 # import torch.multiprocessing as mp
 # from torch.nn.parallel import DistributedDataParallel as DDP
 
-# CUDA_LAUNCH_BLOCKING=1
-
 import ipdb
 # https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
 
@@ -42,6 +40,7 @@ if __name__ == '__main__':
     
     # debug
     parser.add_argument('--alpha_minimum', type=float, default=20)
+    parser.add_argument('--learned_graph', type=str, default='w_gt')
     
     # Training options
     parser.add_argument('--vis_train', type=int, default=1)

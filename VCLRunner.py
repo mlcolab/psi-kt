@@ -8,6 +8,12 @@ import utils
 import ipdb
 from KTRunner import *
 
+OPTIMIZER_MAP = {
+    'gd': optim.SGD,
+    'adagrad': optim.Adagrad,
+    'adadelta': optim.Adadelta,
+    'adam': optim.Adam
+}
 
 class VCLRunner(KTRunner):
     """ 
@@ -20,33 +26,10 @@ class VCLRunner(KTRunner):
             args:
             logs
         '''
-        # model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,
-        # lr_factor=3,lr_patience=5,clipgrad=100,lamb = 1, beta = 1, use_film = False):
         super().__init__(args=args, logs=logs)
+        
         self.equalize_epochs = True
         
-        # self.model=model
-        # self.model_old=None
-        # self.fisher=None
-        # self.nepochs=nepochs
-        # self.sbatch=sbatch
-        # self.lr=lr
-        # self.lr_min=lr_min
-        # self.lr_factor=lr_factor
-        # self.lr_patience=lr_patience
-        # self.clipgrad=clipgrad
-        # self.beta = beta
-        # self.lamb = lamb
-        # self.exp = args.experiment
-        
-        # self.ce=torch.nn.CrossEntropyLoss()
-        # self.optimizer=self._get_optimizer()
-            
-    def _get_optimizer(self, parameters = None, lr=None):
-        if lr is None: lr=self.lr
-        if parameters is None: parameters = self.model.parameters()
-        return torch.optim.Adam(parameters, lr = self.lr)
-
 
     def train(self, model, corpus):
         '''
@@ -87,37 +70,67 @@ class VCLRunner(KTRunner):
 
 
 
+    def fit(self, model, batches, epoch_train_data, epoch=-1): 
+        """
+        Trains the given model on the given batches of data.
 
-        if t != 0:
-            #update posterior to prior for everything except the first task
-            self.model.add_task_body_params([t-1])
+        Args:
+            model: The model to train.
+            batches: A list of data, where each element is a batch to train.
+            epoch_train_data: A pandas DataFrame containing the training data.
+            epoch: The current epoch number.
 
-        #making sure every dataset has the same # of gradient passes irrespective of dataset size
-        if t == 0:
-            self.first_train_size = len(xtrain)
-            num_epochs_to_train = self.nepochs
+        Returns:
+            A dictionary containing the training losses.
+        """
 
-            #correction if the task order is permuted (for mixture)
-            if 'mixture' == self.exp:
-                self.first_train_size = 20600 #size of facescrub
-                num_epochs_to_train = int(round(self.nepochs * self.first_train_size/len(xtrain)))
-        if t > 0 and self.equalize_epochs:
-            num_epochs_to_train = int(round(self.nepochs * self.first_train_size/len(xtrain)))
+        # Build the optimizer if it hasn't been built already.
+        if model.module.optimizer is None:
+            model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
+            
+        model.train()
+        train_losses = defaultdict(list)
+        
+        # Iterate through each batch.
+        out_dicts = []
+        for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
+            
+            # Move the batch to the GPU.
+            batch = model.module.batch_to_gpu(batch, model.module.device)
+            
+            # Reset gradients.
+            model.module.optimizer.zero_grad(set_to_none=True)
+            
+            # Forward pass.
+            output_dict = model(batch)
+            out_dicts.append(output_dict)
+            
+            # Calculate loss and perform backward pass.
+            loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
+            loss_dict['loss_total'].backward()
+            
+            # Update parameters.
+            model.module.optimizer.step()
+            model.module.scheduler.step()
+            
+            # Append the losses to the train_losses dictionary.
+            train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
+            
+        string = self.logs.result_string("train", epoch, train_losses, t=epoch) # TODO
+        self.logs.write_to_log_file(string)
+        self.logs.append_epoch_losses(train_losses, 'train')
+        
+        model.eval()
+            
+            
+        return self.logs.train_results['loss_total'][-1]
 
-        print('training for {} epochs'.format(num_epochs_to_train))
 
-        # Loop epochs
-        for e in range(num_epochs_to_train):
-            # Train
-            clock0=time.time()
-            class_loss, kl_loss, total_loss, train_acc  = self.train_epoch(t,xtrain,ytrain)
-            clock1=time.time()
 
-            clock2=time.time()
-            print('| Epoch {:3d}, time={:5.1f}ms| Train: class_loss={:.3f}  kl_loss={:.3f}  total_loss={:.3f}, acc={:5.1f}% |'.format(
-                e+1,1000*self.sbatch*(clock1-clock0)/xtrain.size(0),class_loss, kl_loss, total_loss,100*train_acc))
 
-        return
+
+
+
 
     def train_epoch(self,t,x,y):
         self.model.train()

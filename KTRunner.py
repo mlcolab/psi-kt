@@ -15,12 +15,9 @@ from torch.optim import lr_scheduler
 from utils import utils
 import ipdb
 
-    
 from models.new_learner_model import HierachicalSSM
 from models.learner_hssm_model import HSSM
         
-CUDA_LAUNCH_BLOCKING=1
-
 OPTIMIZER_MAP = {
     'gd': optim.SGD,
     'adagrad': optim.Adagrad,
@@ -92,31 +89,15 @@ class KTRunner(object):
         optimizer_class = OPTIMIZER_MAP[optimizer_name]
         self.logs.write_to_log_file(f"Optimizer: {optimizer_name}")
         
-        # infer_params = []
-        # graph_params = []
-        # for param_group in list(model.module.named_parameters()):
-        #     if 'node_' in param_group[0] and param_group[1].requires_grad:
-        #         graph_params.append(param_group[1])
-        #     elif param_group[1].requires_grad:
-        #         infer_params.append(param_group[1])
-        # self.graph_params = graph_params
-        # self.infer_params = infer_params
-        
-        # optimizer_infer = optimizer_class(infer_params, lr=lr, weight_decay=weight_decay)
-        # optimizer_graph = optimizer_class(graph_params, lr=lr, weight_decay=weight_decay)
-        
         optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay) # TODO some parameters are not initialized
         # name =  [param[0] for param in list(model.module.named_parameters())]
         # ipdb.set_trace()
         # params = model.module.customize_parameters()[0]['params']
         # params = list(model.module.named_parameters())
 
-        # scheduler_infer = lr_scheduler.StepLR(optimizer_infer, step_size=lr_decay, gamma=lr_decay_gamma)
-        # scheduler_graph = lr_scheduler.StepLR(optimizer_graph, step_size=lr_decay, gamma=lr_decay_gamma)
         scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay, gamma=lr_decay_gamma)
 
         return optimizer, scheduler
-        # return [optimizer_infer, optimizer_graph], [scheduler_infer, scheduler_graph]
 
 
     def _print_res(self, model, corpus): # TODO
@@ -134,11 +115,29 @@ class KTRunner(object):
 
 
     def _eva_termination(self, model):
+        """
+        A private method that determines whether the training should be terminated based on the validation results.
+
+        Args:
+        - self: the object itself
+        - model: the trained model
+
+        Returns:
+        - True if the training should be terminated, False otherwise
+        """
+
+        # Extract the validation results from the logs
         valid = list(self.logs.valid_results[self.metrics[0]])
+
+        # Check if the last 10 validation results have not improved
         if len(valid) > 20 and utils.non_increasing(valid[-10:]):
             return True
+
+        # Check if the maximum validation result has not improved for the past 20 epochs
         elif len(valid) - valid.index(max(valid)) > 20:
             return True
+
+        # Otherwise, return False to continue the training
         return False
     
 

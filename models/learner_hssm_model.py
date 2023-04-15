@@ -17,7 +17,7 @@ from models.BaseModel import BaseModel
 from models.learner_model import BaseLearnerModel
 from models.new_learner_model import build_dense_network
 from models.modules import CausalTransformerModel, VAEEncoder
-from models.variational_distributions import VarDIBS, VarSPHERE
+from models.variational_distributions import VarDIBS, VarTransformation, VarAttention
 
 from enum import Enum
 
@@ -176,7 +176,6 @@ class HSSM(BaseLearnerModel):
             sequence_likelihood=t1_mean,
             st_entropy=t3_mean,
             zt_entropy=t4_mean)
-
 
 
     def get_reconstruction(self,
@@ -393,18 +392,28 @@ class GraphHSSM(HSSM):
         self.fit_vi_global_s, self.fit_vi_transition_s, self.infer_global_s, self.infer_transition_s = 0,0,0,1
         
         # ----- specify dimensions of all latents -----
-        self.node_dim = 32
+        self.node_dim = 16
         self.emb_mean_var_dim = 16
 
-
         # ----- initialize graph parameters -----
-        assert(num_node > 1)
-        self.dim_s = 4 # [alpha, mu, sigma, gamma]
-        self.adj = torch.tensor(nx_graph)#, device=self.device) 
-        assert(self.adj.shape[-1] >= num_node)
+        self.learned_graph = self.args.learned_graph
+        if self.learned_graph == 'none' or self.num_node == 1:
+            self.dim_s = 3
+        else: 
+            self.dim_s = 4
+            if self.learned_graph == 'w_gt':
+                pass
+            elif self.learned_graph == 'no_gt':
+                pass
+            self.dim_s = 4 # [alpha, mu, sigma, gamma]
+            self.adj = torch.tensor(nx_graph)
+            assert(self.adj.shape[-1] >= num_node)
         
-        self.node_dist = VarSPHERE(device=self.device, num_nodes=self.num_node, tau_gumbel=1, dense_init = False, 
+        # self.node_dist = VarSPHERE(device=self.device, num_nodes=self.num_node, tau_gumbel=1, dense_init = False, 
+        #                 latent_prior_std=None, latent_dim=self.node_dim)
+        self.node_dist = VarTransformation(device=self.device, num_nodes=self.num_node, tau_gumbel=1, dense_init = False, 
                         latent_prior_std=None, latent_dim=self.node_dim)
+        self.edge_log_probs = self.node_dist.edge_log_probs()
         
         # ----- for parameters Theta -----
         # the initial distribution p(s0) p(z0), the transition distribution p(s|s') p(z|s,z'), the emission distribution p(y|s,z)
@@ -420,9 +429,9 @@ class GraphHSSM(HSSM):
         # TODO: should incoporate pe of s and time t
         if self.s_transit_w_slast: 
             self.gen_network_transition_s = build_dense_network( 
-                    self.dim_s,
-                    [self.dim_s, self.dim_s],
-                    [nn.ReLU(), None]
+                self.dim_s,
+                [self.dim_s, self.dim_s],
+                [nn.ReLU(), None]
             )
         elif self.s_transit_w_slast_yc: 
             self.gen_network_transition_s = nn.LSTM(
@@ -432,7 +441,7 @@ class GraphHSSM(HSSM):
                 batch_first = True,
             )
             self.gen_network_prior_mean_var_s = VAEEncoder(
-                    self.node_dim, self.emb_mean_var_dim, self.dim_s
+                self.node_dim, self.emb_mean_var_dim, self.dim_s
             ) 
         else:
             raise NotImplementedError
@@ -475,6 +484,7 @@ class GraphHSSM(HSSM):
             self.infer_network_posterior_s = CausalTransformerModel(
                 ntoken=self.num_node,
                 ninp=self.infer_network_emb.hidden_size*2 if self.infer_network_emb.bidirectional else self.infer_network_emb.hidden_size,
+                nhid=self.node_dim,
             )
         self.infer_network_posterior_mean_var_s = VAEEncoder(
             self.infer_network_posterior_s.hidden_dim, self.emb_mean_var_dim, self.dim_s
@@ -536,7 +546,7 @@ class GraphHSSM(HSSM):
             position = actual_time.unsqueeze(-1) # [bs, times, 1]
         else:
             position = torch.arange(0, length).unsqueeze(1)
-        # ipdb.set_trace()
+
         div_term = torch.exp((torch.arange(0, d_model, 2, dtype=torch.float) *
                             -(math.log(10000.0) / d_model))).reshape(1,1,-1).to(device)
         pe[..., 0::2] = torch.sin(position.float() * div_term)
@@ -656,8 +666,9 @@ class GraphHSSM(HSSM):
         omega = 0.5
         
         # ----- Simulate the path of `z_t` -----
-        attn_output_weights = self.node_dist._get_atten_weights()
-        adj = attn_output_weights[-1].to(sampled_z.device)
+        # attn_output_weights = self.node_dist._get_atten_weights()
+        # adj = attn_output_weights[-1].to(sampled_z.device)
+        adj = torch.exp(self.node_dist.edge_log_probs()).to(sampled_z.device) 
         adj_t = adj # torch.transpose(adj, -1, -2).contiguous() # TODO test with multiple power of adj
         in_degree = adj_t.sum(dim=-1)
         ind = torch.where(in_degree == 0)[0] 
@@ -751,7 +762,7 @@ class GraphHSSM(HSSM):
             # Store the posterior mean, log variance, and output states
             s_mus = mean
             s_log_var = log_var
-            s_posterior_states = output.reshape(self.batch_size * 1, time_step, output.shape[-1])
+            s_posterior_states = output.reshape(bs * 1, time_step, output.shape[-1])
 
                 
         elif self.rnn:
@@ -933,8 +944,8 @@ class GraphHSSM(HSSM):
         return log_prob_yt, log_prob_zt, log_prob_st, emission_dist
     
     
-    
     def forward(self, feed_dict):
+        ipdb.set_trace()
         temperature = 1.0
         t_input = feed_dict['time_seq'] # [bs, times]
         y_input = feed_dict['label_seq']
@@ -1062,7 +1073,7 @@ class GraphHSSM(HSSM):
         losses['loss_total'] = -outdict['elbo'].mean()
         
         # Still NOT for optimization
-        pred_att = self.node_dist._get_atten_weights()[-1].clone().detach()
+        pred_att = torch.exp(self.edge_log_probs)# self.node_dist._get_atten_weights()[-1].clone().detach()
         gt_adj = self.adj.to(pred.device).transpose(-1,-2)
         losses['spasity'] = (pred_att >= 0.5).sum()
         losses['adj_0_att_1'] = (1 * (pred_att >= 0.5) * (1-gt_adj)).sum()

@@ -140,26 +140,6 @@ class VarENCO(VarDistribution):
         logits = torch.stack([logits_0, logits_1])  # Shape (2, num_nodes, num_nodes)
         return logits
 
-    # def sample_A(self, num_graph=1): # TODO num_graph
-    #     """
-    #     Sample an adjacency matrix from the variational distribution. It uses the gumbel_softmax trick,
-    #     and returns hard samples (straight through gradient estimator). Adjacency returned always has
-    #     zeros in its diagonal (no self loops).
-
-    #     V1: Returns one sample to be used for the whole batch.
-    #     """
-    #     logits = self.edge_log_probs()
-
-    #     off_diag_mask = 1 - torch.eye(self.num_nodes, device=self.device)
-
-    #     probs = F.gumbel_softmax(logits, tau=self.tau_gumbel, hard=False, dim=0)
-    #     probs = probs * off_diag_mask.unsqueeze(0)
-
-    #     sample = F.gumbel_softmax(logits, tau=self.tau_gumbel, hard=True, dim=0)  # (2, n, n) binary
-    #     sample = sample[1]  # (n, n)
-    #     adj = sample # * off_diag_mask  # Force zero diagonals
-    #     return logits, probs, adj
-
     def log_prob_A(self, A):
         """
         Evaluates the variational distribution q(A) at a sampled adjacency A.
@@ -275,7 +255,7 @@ class VarDIBS(VarDistribution):
         return torch.stack([log_probs, log_probs_neg])
 
 
-class VarSPHERE(VarDistribution):
+class VarAttention(VarDistribution):
     def __init__(self, device, num_nodes, tau_gumbel, dense_init = False, 
                             latent_prior_std = None, latent_dim = 128):
         """
@@ -366,5 +346,77 @@ class VarSPHERE(VarDistribution):
         # https://github.com/datnnt1997/multi-head_self-attention/blob/master/SelfAttention.ipynb
         
         log_probs, log_probs_neg = torch.log(attn_output_weights), torch.log(1-attn_output_weights) # TODO in dibs paper, there is an alpha control the temperature here
+        
+        return torch.stack([log_probs, log_probs_neg])
+
+
+class VarTransformation(VarDistribution):
+    def __init__(self, device, num_nodes, tau_gumbel, dense_init = False, 
+                            latent_prior_std = None, latent_dim = 128):
+        """
+        Args:
+            device: Device used.
+            num_nodes: dimension.
+            tau_gumbel: temperature used for gumbel softmax sampling.
+            alpha_linear (float): slope of of linear schedule for inverse temperature :math:`\\alpha`
+                                    of sigmoid in latent graph model :math:`p(G | Z)`
+            dense_init: whether the initialization of latent variables is from a uniform distribution (False) or torch.ones(True)
+        """
+        super().__init__(device, num_nodes, tau_gumbel)
+        self.dense_init = dense_init # start from all 1?
+        self.latent_prior_std = latent_prior_std
+        self.latent_dim = latent_dim
+
+        alpha_linear = 0.05
+        self.alpha = lambda t: (alpha_linear * t)
+
+        self.u = self._initial_random_particles()
+        
+        transformation_layer = torch.randn(size=(self.latent_dim, self.latent_dim))
+        self.transformation_layer = nn.Parameter(transformation_layer, requires_grad=True)
+        
+
+    def _initial_random_particles(self):
+        """
+        Args:
+            n_particles (int): number of particles inferred
+            n_dim (int): size of latent dimension :math:`k`. Defaults to ``n_vars``, s.t. :math:`k = d`
+
+        Returns:
+            batch of latent tensors ``[n_particles, d, k, 2]``
+        """
+        # sample points uniformly from a sphere surface 
+        if not self.dense_init:
+            u = torch.randn(size=(self.num_nodes, self.latent_dim))#, device=self.device)
+            u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
+        else:
+            u = torch.rand(size=(self.num_nodes, self.latent_dim))#, device=self.device)
+            u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
+        u = nn.Parameter(u, requires_grad=True)
+        return u
+
+ 
+    def _get_node_embedding(self):
+        u = self.u
+        u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
+        return u
+        
+        
+    def edge_log_probs(self):
+        """
+        Edge log probabilities encoded by latent representation
+        Args:
+            z (ndarray): latent tensors :math:`Z` ``[..., d, k, 2]``
+        Returns:
+            tuple of tensors ``[..., d, d], [..., d, d]`` corresponding to ``log(p)`` and ``log(1-p)``
+        """
+        u = self._get_node_embedding()
+        
+        prob_edge_existing = torch.sigmoid(u @ u.transpose(-1,-2))
+        prob_edge_directed_ab = torch.sigmoid(u @ (self.transformation_layer-self.transformation_layer.transpose(-1,-2)) @ u.transpose(-1,-2))
+        # prob_edge_directed_ba = 1 - prob_edge_directed_ab
+        
+        probs = prob_edge_existing * prob_edge_directed_ab
+        log_probs, log_probs_neg = torch.log(probs), torch.log(1-probs) 
         
         return torch.stack([log_probs, log_probs_neg])

@@ -1,15 +1,14 @@
-/var/spool/slurmd/job3221185/slurm_script: /usr/bin/modulecmd: No such file or directory
-/var/spool/slurmd/job3221185/slurm_script: /usr/bin/modulecmd: No such file or directory
-[I 22:32:16.836 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
-[I 22:32:16.847 NotebookApp] Jupyter Notebook 6.4.12 is running at:
-[I 22:32:16.847 NotebookApp] http://slurm-bm-06:8888/?token=d4e8b3a27b688e6a78c3999062e7ebbad694f856b9be6aa0
-[I 22:32:16.847 NotebookApp]  or http://127.0.0.1:8888/?token=d4e8b3a27b688e6a78c3999062e7ebbad694f856b9be6aa0
-[I 22:32:16.847 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
-[C 22:32:16.882 NotebookApp] 
+/var/spool/slurmd/job3222538/slurm_script: /usr/bin/modulecmd: No such file or directory
+/var/spool/slurmd/job3222538/slurm_script: /usr/bin/modulecmd: No such file or directory
+[I 15:20:12.025 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
+[I 15:20:12.027 NotebookApp] Jupyter Notebook 6.4.12 is running at:
+[I 15:20:12.027 NotebookApp] http://slurm-bm-23:8887/?token=5be883a86707256b9a8e103f5fb3916a1e71ea10b6640e3c
+[I 15:20:12.027 NotebookApp]  or http://127.0.0.1:8887/?token=5be883a86707256b9a8e103f5fb3916a1e71ea10b6640e3c
+[I 15:20:12.027 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 15:20:12.182 NotebookApp] 
     
     To access the notebook, open this file in a browser:
-        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-95684-open.html
+        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-203365-open.html
     Or copy and paste one of these URLs:
-        http://slurm-bm-06:8888/?token=d4e8b3a27b688e6a78c3999062e7ebbad694f856b9be6aa0
-     or http://127.0.0.1:8888/?token=d4e8b3a27b688e6a78c3999062e7ebbad694f856b9be6aa0
-[I 22:34:27.296 NotebookApp] 302 GET /?token=d4e8b3a27b688e6a78c3999062e7ebbad694f856b9be6aa0 (192.168.212.63) 0.530000ms
+        http://slurm-bm-23:8887/?token=5be883a86707256b9a8e103f5fb3916a1e71ea10b6640e3c
+     or http://127.0.0.1:8887/?token=5be883a86707256b9a8e103f5fb3916a1e71ea10b6640e3c

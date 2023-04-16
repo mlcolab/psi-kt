@@ -2,6 +2,7 @@ import sys
 sys.path.append('..')
 
 import math 
+from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
 import torch
 from torch import nn, distributions
@@ -31,19 +32,17 @@ T_SCALE = 60*60*24
 class HSSM(BaseLearnerModel):
     def __init__(
         self,
-        mode='train', 
-        num_node=1,
-        num_seq=1,
+        mode: str = 'train',
+        num_node: int = 1,
+        num_seq: int = 1,
         args=None,
         device='cpu',
         logs=None,
         nx_graph=None,
     ):
         super().__init__(mode=mode, device=device, logs=logs)
-        self.num_sample = 30
-        self.dim_y = 1
-        self.dim_z = 1
-        self.observation_dim = self.dim_y
+        
+        self.dim_y, self.dim_z, self.dim_s = 1, 1, 3
         
         self.fit_vi_global_s, self.fit_vi_transition_s, self.infer_global_s, self.infer_transition_s = 0,0,0,1
         self.user_time_dependent_covariance = 1
@@ -54,13 +53,14 @@ class HSSM(BaseLearnerModel):
         self.device = device
         self.args = args
         self.num_seq = num_seq
+        self.num_sample = args.num_sample
         
-        # ----- FLAG -----
-        # self.y_emit = emission_network
-        self.y_emit = torch.sigmoid
+        self.y_emit = torch.nn.Sigmoid() 
         
     @staticmethod	
-    def normalize_timestamps(timestamps):	
+    def normalize_timestamps(
+        timestamps: torch.Tensor,
+    ):	
         '''	
         timestamps: [bs, T, ...]?	
         '''	
@@ -69,8 +69,11 @@ class HSSM(BaseLearnerModel):
         normalized_timestamps = (timestamps - mean_val) / std_val	
         return normalized_timestamps
     
-    
-    def _construct_normal_from_mean_std(self, mean, std):
+    @staticmethod	
+    def _construct_normal_from_mean_std(
+        mean: torch.Tensor,
+        std: torch.Tensor,
+    ):
         """
         Construct a multivariate Gaussian distribution from a mean and covariance matrix.
 
@@ -117,8 +120,12 @@ class HSSM(BaseLearnerModel):
             dist = distributions.MultivariateNormal(mean, scale_tril=torch.tril(cov_pdm))
         return dist
     
-    
-    def _initialize_normal_mean_log_var(self, dim: int, use_trainable_cov: bool, num_sample: int = 1):
+    @staticmethod
+    def _initialize_normal_mean_log_var(
+        dim: int, 
+        use_trainable_cov: bool, 
+        num_sample: int = 1
+    ):
         """
         Construct the initial mean and covariance matrix for the multivariate Gaussian distribution.
 
@@ -145,11 +152,12 @@ class HSSM(BaseLearnerModel):
         return x0_mean, x0_log_var
 
 
-    def get_objective_values(self,
-                            log_probs, 
-                            log_prob_q,
-                            posterior_entropies,
-                            num_sample):
+    def get_objective_values(
+        self,
+        log_probs: List[torch.Tensor], 
+        log_prob_q: torch.Tensor = None,
+        posterior_entropies: List[torch.Tensor] = None,
+    ):
         [log_prob_st, log_prob_zt, log_prob_yt] = log_probs 
         
         sequence_likelihood = (log_prob_st[:, 1:] + log_prob_zt[:, 1:] + log_prob_yt[:, 1:]).mean(-1)/3 # [bs,]
@@ -159,10 +167,8 @@ class HSSM(BaseLearnerModel):
         t2_mean = torch.mean(initial_likelihood, dim=0)
         
         t3_mean = torch.mean(posterior_entropies[0]) 
-        # t3_mean = torch.mean(t3, dim=0)
         
         t4_mean = torch.mean(posterior_entropies[1]) 
-        # t4_mean = torch.mean(t4, dim=0)
         
         elbo = t1_mean + t2_mean - t3_mean - t4_mean
         
@@ -178,22 +184,21 @@ class HSSM(BaseLearnerModel):
             zt_entropy=t4_mean)
 
 
-    def get_reconstruction(self,
-                            hidden_state_sequence,
-                            observation_shape=None,
-                            sample_for_reconstruction=True,
-                            sample_hard=False,
-                            num_sample=1): # TODO
+    def get_reconstruction(
+        self,
+        hidden_state_sequence: torch.Tensor,
+        observation_shape: torch.Size = None,
+        sample_for_reconstruction: bool = True,
+        sample_hard: bool = False,
+    ): 
         
-        
-        eps = 1e-6
         emission_dist = self.y_emit(hidden_state_sequence)
         mean = emission_dist
 
         if sample_for_reconstruction:
             # reconstructed_obs = emission_dist.sample() # NOTE: no gradient!
             probs = torch.cat([1-mean, mean], dim=-1)
-            reconstructed_obs = F.gumbel_softmax(torch.log(probs + eps), tau=1, hard=sample_hard, eps=1e-10, dim=-1)
+            reconstructed_obs = F.gumbel_softmax(torch.log(probs + EPS), tau=1, hard=sample_hard, eps=1e-10, dim=-1)
             reconstructed_obs = reconstructed_obs[..., 1:]
         else:
             reconstructed_obs = mean
@@ -204,7 +209,11 @@ class HSSM(BaseLearnerModel):
         return reconstructed_obs
 
 
-    def get_s_prior(self, sampled_s, inputs):
+    def get_s_prior(
+        self, 
+        sampled_s: torch.Tensor,
+        inputs: torch.Tensor = None
+    ):
         """
         p(s[t] | s[t-1]) transition.
         """ 
@@ -218,7 +227,12 @@ class HSSM(BaseLearnerModel):
         return log_prob_st
     
     
-    def get_z_prior(self, sampled_z_set, sampled_s, inputs):
+    def get_z_prior(
+        self, 
+        sampled_z_set: List[torch.Tensor],
+        sampled_s: torch.Tensor,
+        inputs: Dict[str, torch.Tensor],
+    ):
         """
         p(z[t] | z[t-1], s[t]) transition.
         z_sampled_scalar = z_sampled @ self.value_u.transpose(-1,-2)
@@ -234,7 +248,12 @@ class HSSM(BaseLearnerModel):
         return log_prob_zt
     
     
-    def loss(self, feed_dict, outdict, metrics=None):
+    def loss(
+        self, 
+        feed_dict: Dict[str, torch.Tensor],
+        outdict: Dict[str, torch.Tensor],
+        metrics: List[str] = None,
+    ):
         losses = defaultdict(lambda: torch.zeros(()))#, device=self.device))
         
         gt = outdict["label"] 
@@ -264,11 +283,8 @@ class HSSM(BaseLearnerModel):
         losses['ou_speed'] = outdict["sampled_s"][...,0].mean()
         losses['ou_mean'] = outdict["sampled_s"][...,1].mean()
         losses['ou_vola'] = outdict["sampled_s"][...,2].mean()
-        # ipdb.set_trace()
+
         return losses
-    
-    
-    
     
     
 
@@ -299,7 +315,7 @@ class GraphHSSM(HSSM):
         else: 
             self.dim_s = 4
             self.dim_z = self.node_dim
-            if self.learned_graph == 'w_gt':
+            if self.learned_graph == 'w_gt': # TODO
                 pass
             elif self.learned_graph == 'no_gt':
                 pass
@@ -321,8 +337,7 @@ class GraphHSSM(HSSM):
         
         # 2. transition distribution p(s|s') or p(s|s',y',c'); p(z|s,z') (OU)
         self.s_transit_w_slast = 0
-        self.s_transit_w_slast_yc = 1 - self.s_transit_w_slast
-        # TODO: should incoporate pe of s and time t
+        self.s_transit_w_slast_yc = 1 - self.s_transit_w_slast # TODO: should incoporate pe of s and time t
         if self.s_transit_w_slast: 
             self.gen_network_transition_s = build_dense_network( 
                 self.dim_s,
@@ -390,6 +405,7 @@ class GraphHSSM(HSSM):
         self.infer_network_posterior_z = CausalTransformerModel(
             ntoken=self.num_node,
             ninp=self.infer_network_emb.hidden_size*2 if self.infer_network_emb.bidirectional else self.infer_network_emb.hidden_size,
+            nhid=self.node_dim,
         )
         # TODO MoE; normalization unir sphere
         self.infer_network_posterior_mean_var_z = VAEEncoder(
@@ -425,7 +441,10 @@ class GraphHSSM(HSSM):
 
 
     @staticmethod
-    def positionalencoding1d(d_model, length, actual_time=None):
+    def positionalencoding1d(
+        d_model, 
+        length, 
+        actual_time=None):
         """
         :param d_model: dimension of the model
         :param length: length of positions
@@ -450,7 +469,11 @@ class GraphHSSM(HSSM):
         return pe
     
     
-    def get_time_embedding(self, time, type='dt'):
+    def get_time_embedding(
+        self, 
+        time: torch.Tensor,
+        type: str = 'dt',
+    ):
         if type == 'dt':
             dt = torch.diff(time, dim=1) # ?
             t_pe = self.positionalencoding1d(self.node_dim, dt.shape[1], dt) # [bs, times, dim]
@@ -460,7 +483,11 @@ class GraphHSSM(HSSM):
         return t_pe
     
     
-    def st_transition_func(self, sampled_s, feed_dict):
+    def st_transition_func(
+        self, 
+        sampled_s: torch.Tensor,
+        feed_dict: Dict[str, torch.Tensor],
+    ):
         '''
         Compute the transition function of the latent skills `s_t` in the model.
 
@@ -493,7 +520,7 @@ class GraphHSSM(HSSM):
             self.gen_network_transition_s.flatten_parameters()
             skill_value_emb = value_u[items][:,:-1] # [bs, times-1, dim_node]
             label_emb = input_y.unsqueeze(-1)[:, :-1] # .to(sampled_s.device)[:, :-1]
-            time_emb = t_pe.to(sampled_s.device)[:, :-1]
+            time_emb = t_pe.to(sampled_s.device)[:, :-1] # TODO think!!!!
             rnn_input_emb = skill_value_emb + label_emb + time_emb # TODO is there any other way to concat?
             
             output, _ = self.gen_network_transition_s(rnn_input_emb)
@@ -520,7 +547,12 @@ class GraphHSSM(HSSM):
         return s_prior_dist # , s_sampled, s_entropy, s_log_prob_q, rnn_states, s_mean, s_var
     
     
-    def zt_transition_func(self, sampled_z_set, sampled_s, feed_dict):
+    def zt_transition_func(
+        self, 
+        sampled_z_set: Tuple[torch.Tensor, torch.Tensor],
+        sampled_s: torch.Tensor,
+        feed_dict: Dict[str, torch.Tensor],
+    ):
         '''
         Compute the transition function of the scalar outcomes `z_t` in the ST-DKT model.
 
@@ -606,7 +638,12 @@ class GraphHSSM(HSSM):
         pass
     
     
-    def s_transition_infer(self, feed_dict, num_sample=1, emb_inputs=None):
+    def s_transition_infer(
+        self, 
+        feed_dict: Dict[str, torch.Tensor],
+        num_sample: int = 1,
+        emb_inputs: Optional[torch.Tensor] = None,
+    ):
 
         """
         Recursively sample z[t] ~ q(z[t]|h[t]=f_RNN(h[t-1], z[t-1], h[t]^b)).
@@ -734,7 +771,12 @@ class GraphHSSM(HSSM):
         return s_sampled, s_entropy, s_log_prob_q, s_posterior_states, s_mus, s_log_var
  
 
-    def z_transition_infer(self, inputs, num_sample=1, emb_inputs=None):
+    def z_transition_infer(
+        self, 
+        inputs: Tuple[torch.Tensor, torch.Tensor],
+        num_sample: int,
+        emb_inputs: Optional[torch.Tensor] = None,
+    ):
         '''
         Compute the posterior distribution of the latent variable `z_t` given the input and output sequences.
 
@@ -785,11 +827,13 @@ class GraphHSSM(HSSM):
         return z_sampled, z_entropy, z_log_prob_q, rnn_states, z_mean, z_log_var 
  
  
-    def calculate_likelihoods(self,
-                                inputs,
-                                sampled_s,
-                                sampled_z_set,
-                                temperature=1.0):
+    def calculate_likelihoods(
+        self,
+        inputs: Dict[str, torch.Tensor],
+        sampled_s: torch.Tensor,
+        sampled_z_set: Tuple[torch.Tensor, torch.Tensor],
+        temperature: float = 1.0,
+    ):
         """
         Calculates the log likelihood of the given inputs given the sampled s and z.
 
@@ -840,7 +884,10 @@ class GraphHSSM(HSSM):
         return log_prob_yt, log_prob_zt, log_prob_st, emission_dist
     
 
-    def predictive_model(self, inputs):
+    def predictive_model(
+        self, 
+        inputs
+    ):
         
         time_step = int(inputs['skill_seq'].shape[-1])
         train_step = int(time_step * self.args.train_time_ratio)
@@ -867,8 +914,7 @@ class GraphHSSM(HSSM):
         recon_inputs_items = recon_inputs_items.reshape(bs, num_sample, 1, -1, 1)
         label = inputs['label_seq'][:, train_step:].reshape(bs, 1, 1, -1, 1).tile(1,num_sample,1,1,1)
             
-
-        # ipdb.set_trace()
+            
         pred_dict = {
             'prediction': recon_inputs_items,
             'label': label,
@@ -884,7 +930,10 @@ class GraphHSSM(HSSM):
         return pred_dict
     
     
-    def forward(self, feed_dict):
+    def forward(
+        self, 
+        feed_dict
+    ):
         ipdb.set_trace()
         temperature = 1.0
         t_input = feed_dict['time_seq'] # [bs, times]
@@ -984,7 +1033,12 @@ class GraphHSSM(HSSM):
         return return_dict
     
     
-    def loss(self, feed_dict, outdict, metrics=None):
+    def loss(
+        self, 
+        feed_dict, 
+        outdict, 
+        metrics=None
+    ):
         """
         Calculates the loss of the model based on the ground truth label and predicted label.
 

@@ -54,7 +54,6 @@ class VCLRunner(KTRunner):
         '''
         assert(corpus.data_df['train'] is not None)
         self._check_time(start=True)
-        ipdb.set_trace()
         
         if self.overfit > 0:
             epoch_whole_data = copy.deepcopy(corpus.data_df['whole'][:self.overfit])
@@ -148,7 +147,6 @@ class VCLRunner(KTRunner):
         Returns:
             A dictionary containing the training losses.
         """
-        ipdb.set_trace()
         # Build the optimizer if it hasn't been built already.
         if model.module.optimizer is None:
             model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
@@ -167,13 +165,13 @@ class VCLRunner(KTRunner):
                 model.module.optimizer.zero_grad(set_to_none=True)
                 
                 # Predictive Model
-                s_prior_dist, z_prior_dist = model.predictive_model(inputs=batch, idx=t)
-                
-                # Forward pass.
-                s_vp_dist, z_vp_dist = model.module.inference_model(feed_dict=batch, idx=t)
+                pred_dict = model.module.predictive_model(feed_dict=batch, idx=t)
+                infer_dict = model.module.inference_model(feed_dict=batch, idx=t)
+                # pred_dict = model.module.predictive_model(feed_dict=batch, idx=1)
+                # infer_dict = model.module.inference_model(feed_dict=batch, idx=1)
                 
                 # Calculate loss and perform backward pass.
-                output_dict = model.module.objective_function(s_prior_dist, z_prior_dist, s_vp_dist, z_vp_dist, batch)
+                output_dict = model.module.objective_function(batch, idx=t)
                 loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
                 loss_dict['loss_total'].backward()
                 

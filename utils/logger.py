@@ -92,7 +92,7 @@ class Logger:
             results_df.at[str(results_idx), k] = np.mean(v)
         
         
-    def result_string(self, trainvaltest, epoch, losses, t=None): # TODO
+    def result_string(self, trainvaltest, epoch, losses, t=None, mini_epoch=''): # TODO
         string = ""
         if trainvaltest == "test":
             string += (
@@ -101,7 +101,7 @@ class Logger:
                 "-------------------------------- \n"
             )
         else:
-            string += str(epoch) + " " + trainvaltest + "\t \t"
+            string += str(epoch) + " " + str(mini_epoch) + trainvaltest + "\t \t"
 
         for loss, value in losses.items():
             if type(value) == defaultdict:

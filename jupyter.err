@@ -1,388 +1,112 @@
-/var/spool/slurmd/job3256678/slurm_script: /usr/bin/modulecmd: No such file or directory
-/var/spool/slurmd/job3256678/slurm_script: /usr/bin/modulecmd: No such file or directory
-[I 10:58:41.000 NotebookApp] The port 8887 is already in use, trying another port.
-[I 10:58:41.002 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
-[I 10:58:41.002 NotebookApp] Jupyter Notebook 6.4.12 is running at:
-[I 10:58:41.003 NotebookApp] http://slurm-bm-23:8888/?token=f00a14e08f817ad86bdcba4f081308e3f3f0c0470607c073
-[I 10:58:41.003 NotebookApp]  or http://127.0.0.1:8888/?token=f00a14e08f817ad86bdcba4f081308e3f3f0c0470607c073
-[I 10:58:41.003 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
-[C 10:58:41.031 NotebookApp] 
+/var/spool/slurmd/job3295681/slurm_script: /usr/bin/modulecmd: No such file or directory
+/var/spool/slurmd/job3295681/slurm_script: /usr/bin/modulecmd: No such file or directory
+[I 12:57:00.617 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
+[I 12:57:00.626 NotebookApp] Jupyter Notebook 6.4.12 is running at:
+[I 12:57:00.626 NotebookApp] http://slurm-bm-34:8887/?token=72a02ae33462bc9d6b78b8c38a3b05716d5e0afacf775f31
+[I 12:57:00.626 NotebookApp]  or http://127.0.0.1:8887/?token=72a02ae33462bc9d6b78b8c38a3b05716d5e0afacf775f31
+[I 12:57:00.626 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 12:57:00.668 NotebookApp] 
     
     To access the notebook, open this file in a browser:
-        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-97792-open.html
+        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-144226-open.html
     Or copy and paste one of these URLs:
-        http://slurm-bm-23:8888/?token=f00a14e08f817ad86bdcba4f081308e3f3f0c0470607c073
-     or http://127.0.0.1:8888/?token=f00a14e08f817ad86bdcba4f081308e3f3f0c0470607c073
-[I 11:01:21.141 NotebookApp] 302 GET /?token=f00a14e08f817ad86bdcba4f081308e3f3f0c0470607c073 (192.168.212.63) 0.620000ms
-[W 11:01:45.407 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 11:01:45.914 NotebookApp] Kernel started: f856616e-9bf4-463b-bfc7-36f935c0ef41, name: python3
+        http://slurm-bm-34:8887/?token=72a02ae33462bc9d6b78b8c38a3b05716d5e0afacf775f31
+     or http://127.0.0.1:8887/?token=72a02ae33462bc9d6b78b8c38a3b05716d5e0afacf775f31
+[I 12:59:43.889 NotebookApp] 302 GET /?token=72a02ae33462bc9d6b78b8c38a3b05716d5e0afacf775f31 (192.168.212.63) 0.440000ms
+[W 13:00:01.482 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 13:00:01.818 NotebookApp] Kernel started: fff62efa-d68e-43c0-9af9-e84b56aec0ff, name: python3
 [IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 509f8b3d-517c-4fae-8f6e-ceba09cea2b8
-[I 11:03:47.460 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 11:03:47.463 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 11:05:47.180 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 11:05:47.183 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 11:07:46.085 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 11:07:46.088 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 11:09:46.718 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 11:09:46.721 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 11:10:39.181 NotebookApp] Kernel interrupted: f856616e-9bf4-463b-bfc7-36f935c0ef41
-[I 11:11:46.652 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 11:11:46.655 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 11:51:46.318 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 11:51:46.343 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 11:55:45.962 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 11:55:45.965 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 11:57:46.027 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 11:57:46.036 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 11:59:46.278 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 11:59:46.281 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:01:46.257 NotebookApp] Starting buffering for f856616e-9bf4-463b-bfc7-36f935c0ef41:4c0c6596e72243baa0e92dc0b1ad28cd
-[I 12:23:21.080 NotebookApp] Restoring connection for f856616e-9bf4-463b-bfc7-36f935c0ef41:4c0c6596e72243baa0e92dc0b1ad28cd
-[I 12:23:21.089 NotebookApp] Replaying 1114 buffered messages
-[I 12:23:46.589 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:23:46.592 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:25:46.156 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:25:46.159 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:27:46.333 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:27:46.342 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:29:46.343 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:29:46.347 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:31:46.507 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:31:46.510 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:33:46.413 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:33:46.416 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:35:46.996 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:35:46.999 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:37:46.383 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:37:46.386 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:39:47.589 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:39:47.592 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:41:46.271 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:41:46.274 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:43:46.904 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:43:46.907 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:45:46.107 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:45:46.110 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:47:46.238 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:47:46.242 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:49:46.096 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:49:46.099 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:51:46.361 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:51:46.364 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:53:46.029 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:53:46.032 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:55:46.071 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:55:46.074 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:57:46.131 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:57:46.137 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 12:59:46.776 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 12:59:46.779 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:01:46.156 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:01:46.159 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:03:46.865 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:03:46.869 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:05:47.015 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:05:47.018 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:08:35.241 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:08:35.248 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:10:34.768 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:10:34.772 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:12:35.240 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:12:35.243 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:14:35.189 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:14:35.192 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:16:34.946 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:16:34.949 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:18:34.840 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:18:34.843 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:20:34.944 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:20:34.947 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:22:35.469 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:22:35.473 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:24:35.034 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:24:35.037 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:26:35.218 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:26:35.221 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:28:34.951 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:28:34.955 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:30:35.287 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:30:35.290 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:32:34.933 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:32:34.936 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:34:35.962 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:34:35.965 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:36:35.158 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:36:35.161 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:38:35.382 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:38:35.385 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:40:35.091 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:40:35.094 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:42:35.024 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:42:35.027 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:44:35.517 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:44:35.520 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:46:35.294 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:46:35.297 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:48:34.839 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:48:34.842 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:50:35.206 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:50:35.208 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:52:35.002 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:52:35.005 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:54:35.406 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:54:35.409 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:56:35.129 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:56:35.131 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 13:58:35.214 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 13:58:35.217 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:00:35.112 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:00:35.115 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:02:35.054 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:02:35.057 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:04:34.855 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:04:34.858 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:06:35.179 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:06:35.185 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:08:35.731 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:08:35.734 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:09:46.528 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:09:46.531 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:11:46.258 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:11:46.262 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:13:46.194 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:13:46.197 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:15:46.382 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:15:46.385 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:17:46.292 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:17:46.296 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:19:46.268 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:19:46.272 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:21:46.177 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:21:46.180 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:23:46.097 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:23:46.100 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:25:46.927 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:25:46.930 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:27:46.222 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:27:46.225 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:29:46.601 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:29:46.604 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:31:46.095 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:31:46.098 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:33:46.099 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:33:46.102 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:35:46.192 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:35:46.195 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:37:46.186 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:37:46.189 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:39:46.242 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:39:46.245 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:41:46.061 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:41:46.065 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:43:47.058 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:43:47.061 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:45:46.291 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:45:46.294 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:47:46.122 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:47:46.125 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:49:47.220 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:49:47.223 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:51:47.146 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:51:47.150 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:54:35.313 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:54:35.316 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:56:35.399 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:56:35.402 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 14:58:35.175 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 14:58:35.178 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:00:35.110 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:00:35.113 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:01:47.032 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:01:47.035 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:03:46.160 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:03:46.163 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:06:35.190 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:06:35.194 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:08:35.182 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:08:35.185 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:10:35.740 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:10:35.743 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:12:35.276 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:12:35.280 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:13:46.287 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:13:46.291 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:15:46.112 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:15:46.115 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:17:46.518 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:17:46.522 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:19:45.963 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:19:45.966 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-slurmstepd: error: *** JOB 3222538 ON slurm-bm-23 CANCELLED AT 2023-04-15T15:19:52 DUE TO TIME LIMIT ***
-[I 15:21:46.361 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:21:46.364 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:23:46.065 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:23:46.068 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:25:46.159 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:25:46.162 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:27:46.118 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:27:46.121 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:29:46.205 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:29:46.208 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:31:46.187 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:31:46.190 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:33:46.110 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:33:46.114 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:35:46.034 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:35:46.037 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:37:46.033 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:37:46.036 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:39:46.443 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:39:46.446 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:41:46.062 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:41:46.065 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:43:46.396 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:43:46.403 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:45:46.150 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:45:46.153 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:47:46.150 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:47:46.153 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:49:46.233 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:49:46.236 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:51:47.142 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:51:47.145 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:53:46.297 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:53:46.304 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:56:35.036 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:56:35.039 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 15:58:35.532 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 15:58:35.535 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:00:35.334 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:00:35.338 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:02:36.696 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:02:36.699 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:04:35.425 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:04:35.428 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:06:35.764 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:06:35.768 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:08:35.354 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:08:35.358 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:10:35.078 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:10:35.081 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:12:35.506 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:12:35.509 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:14:34.952 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:14:34.956 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:16:35.226 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:16:35.230 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:18:35.239 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:18:35.242 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:20:35.319 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:20:35.323 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:22:35.080 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:22:35.083 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:24:35.006 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:24:35.009 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:26:34.983 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:26:34.986 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:28:34.990 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:28:34.997 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:30:35.074 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:30:35.077 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:31:46.192 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:31:46.196 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:33:46.893 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:33:46.897 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:35:45.974 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:35:45.978 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:37:46.038 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:37:46.044 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:39:46.053 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:39:46.057 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:41:46.529 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:41:46.533 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:43:46.646 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:43:46.650 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:45:47.794 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:45:47.799 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:47:46.361 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:47:46.365 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:50:35.076 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:50:35.082 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:52:35.235 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:52:35.239 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:53:46.035 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:53:46.039 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:55:47.463 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:55:47.467 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 16:57:46.136 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 16:57:46.140 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:00:34.921 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:00:34.925 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:02:35.272 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:02:35.275 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:04:35.304 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:04:35.308 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:06:35.231 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:06:35.235 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:08:35.818 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:08:35.821 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:10:35.036 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:10:35.040 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:12:38.842 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:12:38.847 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:14:35.819 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:14:35.822 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:16:34.996 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:16:35.000 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:18:35.205 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:18:35.209 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:20:35.481 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:20:35.485 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:22:35.305 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:22:35.308 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:24:35.077 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:24:35.081 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:26:35.206 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:26:35.210 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:28:35.380 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:28:35.384 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:30:35.258 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:30:35.261 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:32:35.634 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:32:35.638 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:34:34.983 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:34:34.987 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:35:37.310 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:35:37.313 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 17:35:39.322 NotebookApp] Kernel interrupted: f856616e-9bf4-463b-bfc7-36f935c0ef41
-[I 17:35:40.184 NotebookApp] Kernel interrupted: f856616e-9bf4-463b-bfc7-36f935c0ef41
-[I 17:35:47.508 NotebookApp] Saving file at /data/preprocess/junyi.ipynb
-[W 17:35:47.520 NotebookApp] Notebook data/preprocess/junyi.ipynb is not trusted
-[I 18:57:44.292 NotebookApp] Starting buffering for f856616e-9bf4-463b-bfc7-36f935c0ef41:4c0c6596e72243baa0e92dc0b1ad28cd
-[I 18:57:46.069 NotebookApp] Restoring connection for f856616e-9bf4-463b-bfc7-36f935c0ef41:4c0c6596e72243baa0e92dc0b1ad28cd
-[W 19:00:16.070 NotebookApp] WebSocket ping timeout after 119910 ms.
-[I 19:00:21.076 NotebookApp] Starting buffering for f856616e-9bf4-463b-bfc7-36f935c0ef41:4c0c6596e72243baa0e92dc0b1ad28cd
-[I 21:46:14.158 NotebookApp] Kernel shutdown: f856616e-9bf4-463b-bfc7-36f935c0ef41
-[W 21:46:25.437 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 21:46:26.003 NotebookApp] Kernel started: af8093e6-a68a-4b31-b272-307823a4f21e, name: python3
-[W 21:48:09.445 NotebookApp] WebSocket ping timeout after 90002 ms.
-[I 21:48:14.448 NotebookApp] Starting buffering for af8093e6-a68a-4b31-b272-307823a4f21e:ff65133f1c9b4180b7f6af704de34b1a
-[I 21:50:54.841 NotebookApp] Restoring connection for af8093e6-a68a-4b31-b272-307823a4f21e:ff65133f1c9b4180b7f6af704de34b1a
-[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 9294d25d-2a31-43f7-996b-733096165e95
-[I 22:32:26.952 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[I 23:10:26.530 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[I 01:05:01.704 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 01:07:05.410 NotebookApp] Notebook data/preprocess/ednet_kt1-Copy1.ipynb is not trusted
-[I 01:07:05.618 NotebookApp] Kernel started: 9a6abb90-8f69-40ee-bf45-9eef02589c9b, name: python3
-[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: d8eb8b0d-710e-4e7e-9962-a2bfa9f5775d
-[I 01:07:21.635 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
+[IPKernelApp] WARNING | No such comm: adb77a6b-da42-4bf7-9f65-6bc45c13730b
+[I 13:00:40.881 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 13:00:40.884 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 13:02:01.982 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 13:02:01.984 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 13:04:02.009 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 13:04:02.016 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
 /mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/nbformat/__init__.py:128: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
   validate(nb)
 /mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/notebook/services/contents/manager.py:353: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
   validate_nb(model['content'])
-[I 01:08:20.575 NotebookApp] Starting buffering for 9a6abb90-8f69-40ee-bf45-9eef02589c9b:31607a159fb745e282fd367c9b9d795c
-[I 01:08:25.608 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[I 01:10:26.784 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
+[I 13:08:01.821 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 13:08:01.824 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 13:08:42.526 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 13:08:42.528 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 13:10:01.800 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 13:10:01.802 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 13:10:47.366 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 13:10:47.368 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 13:12:01.816 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 13:12:01.818 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 13:33:44.686 NotebookApp] Starting buffering for fff62efa-d68e-43c0-9af9-e84b56aec0ff:f3f5e14cdf604ddd979e6f9d9b5dbe1a
+[I 13:33:46.633 NotebookApp] Restoring connection for fff62efa-d68e-43c0-9af9-e84b56aec0ff:f3f5e14cdf604ddd979e6f9d9b5dbe1a
+[W 13:35:16.636 NotebookApp] WebSocket ping timeout after 90003 ms.
+[I 13:35:21.647 NotebookApp] Starting buffering for fff62efa-d68e-43c0-9af9-e84b56aec0ff:f3f5e14cdf604ddd979e6f9d9b5dbe1a
+[I 13:41:50.599 NotebookApp] Restoring connection for fff62efa-d68e-43c0-9af9-e84b56aec0ff:f3f5e14cdf604ddd979e6f9d9b5dbe1a
+[W 13:44:20.600 NotebookApp] WebSocket ping timeout after 119965 ms.
+[I 13:44:25.605 NotebookApp] Starting buffering for fff62efa-d68e-43c0-9af9-e84b56aec0ff:f3f5e14cdf604ddd979e6f9d9b5dbe1a
+[I 13:47:43.338 NotebookApp] Restoring connection for fff62efa-d68e-43c0-9af9-e84b56aec0ff:f3f5e14cdf604ddd979e6f9d9b5dbe1a
+[W 13:50:13.340 NotebookApp] WebSocket ping timeout after 119951 ms.
+[I 13:50:18.345 NotebookApp] Starting buffering for fff62efa-d68e-43c0-9af9-e84b56aec0ff:f3f5e14cdf604ddd979e6f9d9b5dbe1a
+[I 13:55:00.170 NotebookApp] Restoring connection for fff62efa-d68e-43c0-9af9-e84b56aec0ff:f3f5e14cdf604ddd979e6f9d9b5dbe1a
+[I 13:59:56.613 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 13:59:56.616 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:01:56.490 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:01:56.492 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:15:56.903 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:15:56.907 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:16:45.070 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:16:45.081 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:16:50.882 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:16:50.883 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:17:56.979 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:17:56.981 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:19:56.516 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:19:56.525 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:38:57.928 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:38:57.952 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:39:00.968 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:39:00.969 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:39:05.938 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:39:05.945 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:39:56.549 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:39:56.551 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:41:56.662 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:41:56.671 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:43:57.330 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:43:57.332 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:45:56.738 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:45:56.740 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:47:56.709 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:47:56.713 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:49:56.299 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:49:56.303 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:51:56.039 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:51:56.042 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:53:56.930 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:53:56.933 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:55:55.991 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:55:55.996 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:57:56.051 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:57:56.054 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 14:59:56.110 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 14:59:56.112 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 15:01:56.097 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 15:01:56.099 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 15:09:55.977 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 15:09:55.981 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 15:11:28.076 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 15:11:28.086 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 15:11:55.976 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 15:11:55.978 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[W 16:31:52.735 NotebookApp] Notebook data/preprocess/ednet_kt1-Copy1.ipynb is not trusted
+[W 16:31:52.834 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
+[I 16:31:53.248 NotebookApp] Kernel started: 5814243a-43e6-49ed-b7b9-c5260e4204f6, name: python3
+[I 16:31:53.338 NotebookApp] Kernel started: 58bd84f7-65cc-4c4d-9d34-b9b8001b6349, name: python3
+[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
+[IPKernelApp] WARNING | No such comm: 96d6e4d6-776b-4763-9204-eb101ee6e1ef
+[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
+[IPKernelApp] WARNING | No such comm: feff051f-e091-4972-aee0-7df0c4153315
+[I 16:50:38.933 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
+[W 16:50:38.937 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
+[I 17:55:53.502 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
+[W 17:55:53.514 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted

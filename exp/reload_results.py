@@ -11,7 +11,7 @@ import torch
 import datetime
 import ipdb
 
-pt_path = '/mnt/qb/work/mlcolab/hzhou52/kt/logs/TestHSSM/junyi15/multi_skill/2023-04-12T17:02:36.408270__overfit_64/Model/Model_150.pt'
+pt_path = '/mnt/qb/work/mlcolab/hzhou52/kt/logs/TestHSSM/junyi15/single_skill/2023-04-16T10:51:40.847443__overfit_32/Model/Model_10.pt'
 model = torch.load(pt_path)
 ipdb.set_trace()
 

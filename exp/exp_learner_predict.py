@@ -186,6 +186,10 @@ if __name__ == '__main__':
                         global_args.log_path)
         shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_vcl_model.py',
                         global_args.log_path)
+        shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/VCLRunner.py',
+                        global_args.log_path)
+        shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/KTRunner.py',
+                        global_args.log_path)
         
     if global_args.load > 0:
         model.load_model(model_path=global_args.load_folder)

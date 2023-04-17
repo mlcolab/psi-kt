@@ -56,7 +56,7 @@ def parse_args(parser):
     parser.add_argument('--dropout', type=float, default=0.0, help='Dropout probability for each deep layer')
     parser.add_argument('--l2', type=float, default=0., help='Weight of l2_regularize in loss.')
     parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer: GD, Adam, Adagrad, Adadelta')
-    parser.add_argument('--metric', type=str, default='F1, AUC, Accuracy, Recall, Precision',
+    parser.add_argument('--metric', type=str, default='F1, Accuracy, Recall, Precision', # AUC, 
                         help='metrics: AUC, F1, Accuracy, Recall, Presicion;'
                                 'The first one will be used to determine whether to early stop')
     parser.add_argument('--fold', type=int, default=0, help='Select a fold to run.')

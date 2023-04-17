@@ -31,7 +31,7 @@ class BaseLearnerModel(BaseModel):
         self.logs = logs
         self.optimizer = None
         
-        self.model_path = os.path.join(logs.args.log_path, 'Model/Model_{}.pt')
+        self.model_path = os.path.join(logs.args.log_path, 'Model/Model_{}_{}.pt')
         
     @staticmethod
     def _find_whole_stats(all_feature, t, items, num_node):

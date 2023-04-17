@@ -75,7 +75,7 @@ class BaseModel(torch.nn.Module):
         return batch
 
 
-    def __init__(self, model_path='../model/Model/Model_{}.pt'):
+    def __init__(self, model_path='../model/Model/Model_{}_{}.pt'):
         super(BaseModel, self).__init__()
         self.model_path = model_path
         self._init_weights()
@@ -121,7 +121,12 @@ class BaseModel(torch.nn.Module):
         return total_parameters
     
 
-    def save_model(self, epoch: int, model_path: str = None) -> None:
+    def save_model(
+        self, 
+        epoch: int, 
+        mini_epoch: int = 0,
+        model_path: str = None
+    ) -> None:
         """
         Save the model to a file.
 
@@ -131,7 +136,7 @@ class BaseModel(torch.nn.Module):
         """
         if model_path is None:
             model_path = self.model_path
-        model_path = model_path.format(epoch)
+        model_path = model_path.format(epoch, mini_epoch)
 
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
         torch.save(self.state_dict(), model_path)

@@ -685,12 +685,12 @@ class GraphHSSM(HSSM):
             )
             
             # Sample the latent skills `s_t` using Monte Carlo estimation
-            sampleds = dist_s.rsample((num_sample,))  # [num_sample, batch_size, time_step, dim_s]
-            s_sampled = sampleds.transpose(1, 0).reshape(bsn, 1, time_step, self.dim_s).contiguous() 
+            samples = dist_s.rsample((num_sample,))  # [num_sample, batch_size, time_step, dim_s]
+            s_sampled = samples.transpose(1, 0).reshape(bsn, 1, time_step, self.dim_s).contiguous() 
             
             # Compute the entropy and log probability of the posterior distribution of `s_t`
             s_entropy = dist_s.entropy()  # [batch_size, time_step]
-            s_log_prob_q = dist_s.log_prob(sampleds).mean(0)
+            s_log_prob_q = dist_s.log_prob(samples).mean(0)
             
             # Store the posterior mean, log variance, and output states
             s_mus = mean

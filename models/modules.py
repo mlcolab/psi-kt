@@ -119,8 +119,8 @@ class CausalTransformerModel(nn.Module):
     def forward(self, src, has_mask=True):
         if has_mask:
             device = src.device
-            if self.src_mask is None or self.src_mask.size(0) != len(src):
-                mask = self._generate_square_subsequent_mask(src.shape[1])# .to(device)
+            if self.src_mask is None or self.src_mask.size(0) != src.shape[1]:
+                mask = self._generate_square_subsequent_mask(src.shape[1]) 
                 self.src_mask = mask
         else:
             self.src_mask = None

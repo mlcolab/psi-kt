@@ -45,34 +45,54 @@ class GraphContinualHSSM(GraphHSSM):
         self.fit_vi_global_s, self.fit_vi_transition_s, self.infer_global_s, self.infer_transition_s = 0,0,0,1
         
         time_step_save = 50 # args.max_step
-        num_seq_save = 512 # num_seq
+        num_seq_save = num_seq
 
-        self.pred_s_means = Parameter(torch.zeros((num_seq_save, self.num_sample, time_step_save, self.dim_s), device=self.device), requires_grad=False)
-        self.pred_s_vars = Parameter(torch.zeros((num_seq_save, self.num_sample, time_step_save, self.dim_s), device=self.device), requires_grad=False)
-        self.infer_s_means = Parameter(torch.zeros((num_seq_save, 1, time_step_save, self.dim_s), device=self.device), requires_grad=False)
-        self.infer_s_vars = Parameter(torch.zeros((num_seq_save, 1, time_step_save, self.dim_s), device=self.device), requires_grad=False)
+        s_shape = (num_seq_save, 1, time_step_save, self.dim_s)
+        z_shape = (num_seq_save, 1, time_step_save, self.dim_z)
+        z_shape_pred = (num_seq_save, 1, time_step_save, 1)
         
-        self.pred_z_means = Parameter(torch.zeros((num_seq_save, self.num_sample, time_step_save, self.dim_z), device=self.device), requires_grad=False)
-        self.pred_z_vars = Parameter(torch.zeros((num_seq_save, self.num_sample, time_step_save, self.dim_z), device=self.device), requires_grad=False)
-        self.infer_z_means = Parameter(torch.zeros((num_seq_save, 1, time_step_save, self.dim_z), device=self.device), requires_grad=False)
-        self.infer_z_vars = Parameter(torch.zeros((num_seq_save, 1, time_step_save, self.dim_z), device=self.device), requires_grad=False)
+        self.pred_s_means = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        self.pred_s_vars = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        self.infer_s_means = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        self.infer_s_vars = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
         
-        self.pred_s_means_update = Parameter(torch.zeros((num_seq_save, self.num_sample, time_step_save, self.dim_s), device=self.device), requires_grad=False)
-        self.pred_s_vars_update = Parameter(torch.zeros((num_seq_save, self.num_sample, time_step_save, self.dim_s), device=self.device), requires_grad=False)
-        self.infer_s_means_update = Parameter(torch.zeros((num_seq_save, 1, time_step_save, self.dim_s), device=self.device), requires_grad=False)
-        self.infer_s_vars_update = Parameter(torch.zeros((num_seq_save, 1, time_step_save, self.dim_s), device=self.device), requires_grad=False)
+        self.pred_s_means_update = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        self.pred_s_vars_update = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        self.infer_s_means_update = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        self.infer_s_vars_update = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
         
-        self.pred_z_means_update = Parameter(torch.zeros((num_seq_save, self.num_sample, time_step_save, self.dim_z), device=self.device), requires_grad=False)
-        self.pred_z_vars_update = Parameter(torch.zeros((num_seq_save, self.num_sample, time_step_save, self.dim_z), device=self.device), requires_grad=False)
-        self.infer_z_means_update = Parameter(torch.zeros((num_seq_save, 1, time_step_save, self.dim_z), device=self.device), requires_grad=False)
-        self.infer_z_vars_update = Parameter(torch.zeros((num_seq_save, 1, time_step_save, self.dim_z), device=self.device), requires_grad=False)
+        self.pred_z_means = Parameter(torch.zeros(z_shape_pred, device=self.device), requires_grad=False)
+        self.pred_z_vars = Parameter(torch.zeros(z_shape_pred, device=self.device), requires_grad=False)
+        self.infer_z_means = Parameter(torch.zeros(z_shape, device=self.device), requires_grad=False)
+        self.infer_z_vars = Parameter(torch.zeros(z_shape, device=self.device), requires_grad=False)
         
+        self.pred_z_means_update = Parameter(torch.zeros(z_shape_pred, device=self.device), requires_grad=False)
+        self.pred_z_vars_update = Parameter(torch.zeros(z_shape_pred, device=self.device), requires_grad=False)
+        self.infer_z_means_update = Parameter(torch.zeros(z_shape, device=self.device), requires_grad=False)
+        self.infer_z_vars_update = Parameter(torch.zeros(z_shape, device=self.device), requires_grad=False)
+        
+        # TODO
         self.var_minimum = torch.log(torch.tensor(0.05).to(self.device))
+        
         self.gen_network_transition_s = build_dense_network(                
                 self.node_dim,
                 [self.node_dim, self.node_dim],
                 [nn.ReLU(), None]
             )
+        
+        self.transformer, self.rnn = 0,1
+        self.infer_network_posterior_s = nn.LSTM(
+                        input_size=self.node_dim, 
+                        hidden_size=self.node_dim,  
+                        bidirectional = False, 
+                        batch_first = True,
+                    )
+        self.infer_network_posterior_z = nn.LSTM(
+                        input_size=self.node_dim, 
+                        hidden_size=self.node_dim,  
+                        bidirectional = False, 
+                        batch_first = True,
+                    )
             
             
     def s_transition_infer(
@@ -85,22 +105,20 @@ class GraphContinualHSSM(GraphHSSM):
         emb_rnn_inputs = emb_inputs
         
         if self.transformer:
-            # Compute the output of the posterior network
             output = self.infer_network_posterior_s(emb_rnn_inputs)
-            
-            # Compute the mean and covariance matrix of the posterior distribution of `s_t`
-            output = output[:, -1:]
-            mean, log_var = self.infer_network_posterior_mean_var_s(output)  # [batch_size, time_step, dim_s]
-            log_var = torch.minimum(log_var, self.var_minimum)
-            cov_mat = torch.diag_embed(torch.exp(log_var) + EPS)
-            dist_s = distributions.multivariate_normal.MultivariateNormal(
-                loc=mean, 
-                scale_tril=torch.tril(cov_mat)
-            )
                 
         elif self.rnn:
-            raise NotImplementedError
-
+            output, _ = self.infer_network_posterior_s(emb_rnn_inputs)
+            
+        output = output[:, -1:]
+        mean, log_var = self.infer_network_posterior_mean_var_s(output)  # [batch_size, time_step, dim_s]
+        log_var = torch.minimum(log_var, self.var_minimum)
+        cov_mat = torch.diag_embed(torch.exp(log_var) + EPS)
+        dist_s = distributions.multivariate_normal.MultivariateNormal(
+            loc=mean, 
+            scale_tril=torch.tril(cov_mat)
+        )
+            
         return dist_s
  
 
@@ -127,19 +145,25 @@ class GraphContinualHSSM(GraphHSSM):
             z_log_var (torch.Tensor): Log variance of the posterior distribution of `z_t`.
         '''
         
-        # Embed the input sequence, if needed
-        emb_rnn_inputs = emb_inputs
-        output = self.infer_network_posterior_z(emb_rnn_inputs)
+        # NOTE: Embed the input sequence, if needed
         
-        # Compute the mean and covariance matrix of the posterior distribution of `z_t`
-        output = output[:, -1:] # [bs, 1, out_dim]
-        mean, log_var = self.infer_network_posterior_mean_var_z(output) # [bs, times, out_dim]
-        cov_mat = torch.diag_embed(torch.exp(log_var) + EPS) 
+        emb_rnn_inputs = emb_inputs
+        
+        if self.transformer:
+            output = self.infer_network_posterior_z(emb_rnn_inputs)
+            
+        elif self.rnn:
+            output, _ = self.infer_network_posterior_z(emb_rnn_inputs)
+            
+        output = output[:, -1:]
+        mean, log_var = self.infer_network_posterior_mean_var_z(output)  # [batch_size, time_step, dim_s]
+        log_var = torch.minimum(log_var, self.var_minimum)
+        cov_mat = torch.diag_embed(torch.exp(log_var) + EPS)
         dist_z = distributions.multivariate_normal.MultivariateNormal(
             loc=mean, 
             scale_tril=torch.tril(cov_mat)
         )
-        
+            
         return dist_z
 
 
@@ -153,51 +177,63 @@ class GraphContinualHSSM(GraphHSSM):
         z_prior: torch.distributions.MultivariateNormal = None,
     ):
         user = feed_dict['user_id']
-        y_idx = feed_dict['label_seq'][:, idx].unsqueeze(-1) # [bs, 1]
+        y_idx = feed_dict['label_seq'][:, idx:idx+1] # [bs, 1]
         t_idx = feed_dict['time_seq'][:, idx-1: idx+1] # [bs, 2]
         dt = torch.diff(t_idx, dim=-1)/T_SCALE + EPS 
         device = y_idx.device
         bs = y_idx.shape[0]
         
         if idx == 0:
+            # p_theta(s_0)
             s_tilde_dist = distributions.MultivariateNormal(
-                self.gen_s0_mean.to(device), 
+                self.gen_s0_mean.to(device),  
                 scale_tril=torch.tril(torch.diag_embed(torch.exp(self.gen_s0_log_var.to(device)) + EPS))
             )
+            s_tilde_dist_mean = s_tilde_dist.mean[None,...] # [1, 1, dim_s]
+            s_tilde_dist_var = torch.diagonal(s_tilde_dist.scale_tril, dim1=1, dim2=2)[None,...]
             
+            # p_theta(z_0)
             z_tilde_dist = distributions.MultivariateNormal(
                 self.gen_z0_mean.to(device), 
                 scale_tril=torch.tril(torch.diag_embed(torch.exp(self.gen_z0_log_var.to(device)) + EPS))
             )
-            z_last_sample = z_tilde_dist.sample((self.num_sample, )).unsqueeze(0).repeat(bs, 1, 1, 1) # [bs, num_sample, 1, dim_z]
-            
-            s_tilde_dist_mean = s_tilde_dist.mean[None,...]
-            s_tilde_dist_var = torch.diagonal(s_tilde_dist.scale_tril, dim1=1, dim2=2)[None,...]
-            z_tilde_dist_mean = z_tilde_dist.mean[None,...]
-
+            z_tilde_dist_mean = z_tilde_dist.mean[None,...] # [1, 1, dim_z]
             z_tilde_dist_var = torch.diagonal(z_tilde_dist.scale_tril, dim1=1, dim2=2)[None,...]
-            
+
+            if self.dim_z > 1:
+                # choose and save the items' mean and var 
+                item_idx = feed_dict['skill_seq'][:, idx]# [bs, 1]
+                node_emb = self.node_dist._get_node_embedding() # [bs, num_node]   [item_idx] # [bs, 1, dim_item]
+                
+                z_tilde_dist_mean_all = (z_tilde_dist_mean * node_emb).sum(-1, keepdim=True) # [1, num_node, 1]
+                z_tilde_dist_mean = z_tilde_dist_mean_all[0][item_idx].unsqueeze(-1) # [bs, 1, 1]
+                
+                z_tilde_dist_var_all = (z_tilde_dist_var * node_emb).sum(-1, keepdim=True) # [1, num_node, 1]
+                z_tilde_dist_var_all = torch.minimum(torch.maximum(z_tilde_dist_var_all, torch.tensor(EPS).to(self.device)), torch.exp(self.var_minimum)) # [1, num_node, 1]
+                z_tilde_dist_var = z_tilde_dist_var_all[0][item_idx].unsqueeze(-1) # [bs, 1, 1]
+
+                z_tilde_dist = distributions.MultivariateNormal(
+                    z_tilde_dist_mean_all,
+                    scale_tril=torch.tril(torch.diag_embed(z_tilde_dist_var_all))
+                )
+
         else:
             # q_phi(s_t-1) the posterior of last time step is the prior of this time step
             if s_prior != None:
-                s_prior_dist = s_prior
-            else:
-                s_prior_mean = self.infer_s_means_update[user,:,idx-1]
-                s_prior_cov =  self.infer_s_vars_update[user,:,idx-1]
+                s_prior_mean = s_prior.mean
+                s_prior_cov = torch.diagonal(s_prior.scale_tril, dim1=1, dim2=2)
                 
-                s_prior_dist = torch.distributions.MultivariateNormal( 
-                    loc=s_prior_mean,
-                    scale_tril=torch.diag_embed(s_prior_cov),
-                )
-            
-            # p_theta(s_t | s_t-1)
-            s_last_sample = s_prior_dist.sample((self.num_sample,)).transpose(0,1).squeeze(2) # [bs, num_sample, dim_s]
+            else:
+                s_prior_mean = self.infer_s_means_update[user, :, idx-1]
+                s_prior_cov =  self.infer_s_vars_update[user, :, idx-1]
+    
+            # ----- p_theta(s_t | s_t-1) -----
             dt_emb = self.positionalencoding1d(self.node_dim, dt.shape[1], dt) # [bs, 1, dim_node]
             label_emb = y_idx[..., None] # [bs, 1, 1]
             if self.dim_z > 1:
-                raise NotImplementedError
-                # value_u = self.node_dist._get_node_embedding().to(sampled_s.device)# .clone().detach()
-                # skill_value_emb = value_u[items][:,:-1] # [bs, times-1, dim_node]
+                items = feed_dict['skill_seq'][:, idx:idx+1] # [bs, 1]
+                node_emb = self.node_dist._get_node_embedding().to(dt_emb.device) # [num_nodes, dim_node]
+                skill_value_emb = node_emb[items] # [bs, 1, dim_node]
             else:
                 skill_value_emb = torch.zeros_like(dt_emb)
             rnn_input_emb = skill_value_emb + label_emb + dt_emb 
@@ -206,62 +242,83 @@ class GraphContinualHSSM(GraphHSSM):
             # output = self.gen_network_transition_s(rnn_input_emb)
             output = rnn_input_emb
             mean_div, log_var = self.gen_network_prior_mean_var_s(output) 
-
-            s_tilde_dist_mean = mean_div + s_last_sample # [bs, num_sample, dim_s]
+            
+            # # 1. use MCMC to sample s_t
+            # s_last_sample = s_prior_dist.sample((self.num_sample,)).transpose(0,1).squeeze(2) # [bs, num_sample, dim_s]
+            # s_tilde_dist_mean = mean_div + s_last_sample # [bs, num_sample, dim_s]
+            # 2. analytical solution
+            # x ~ N (m, P), y|x ~ N (Hx + u, R) -> y ~ N (Hm + u, HPH^T + R)
+            s_tilde_dist_mean = mean_div + s_prior_mean # [bs, dim_s]
             log_var = torch.minimum(log_var, self.var_minimum)
-            s_tilde_dist_var = torch.exp(log_var) + EPS # [bs, 1, dim_s]
-
+            s_tilde_dist_var = torch.exp(log_var) + s_prior_cov + EPS # [bs, dim_s]
+            # s_tilde_dist_var = torch.minimum(s_tilde_dist_var, torch.exp(self.var_minimum))
             s_tilde_dist = distributions.multivariate_normal.MultivariateNormal(
                 loc=s_tilde_dist_mean, 
                 scale_tril=torch.tril(torch.diag_embed(s_tilde_dist_var))
             )
 
+
             # q_phi(z_t-1) the posterior of last time step is the prior of this time step
             if z_prior != None:
-                z_prior_dist = z_prior
+                z_prior_mean = z_prior.mean
+                z_prior_cov = torch.diagonal(z_prior.scale_tril, dim1=1, dim2=2) # TODO
             else:
-                z_prior_mean = self.infer_z_means_update[user,:,idx-1]
+                z_prior_mean = self.infer_z_means_update[user,:,idx-1] # [bs, 1, dim_z]
                 z_prior_cov = self.infer_z_vars_update[user,:,idx-1]
-                z_prior_dist = torch.distributions.MultivariateNormal(
-                    loc=z_prior_mean,
-                    scale_tril=torch.diag_embed(z_prior_cov),
-                )
-            # p_theta(z_t | s_t, z_t-1)
-            z_last_sample = z_prior_dist.sample((self.num_sample,)).transpose(0,1)[..., 0] # [bs, num_sample, 1, dim_z] -> [bs, num_sample, 1]
-            s_next_sample = s_tilde_dist.rsample() # [bs, num_sample, dim_s]
-            
-            sampled_alpha = torch.relu(s_next_sample[...,0:1]) + EPS*100 # TODO change
-            decay = torch.exp(-sampled_alpha * dt.reshape(bs, 1, 1))
+                
+            # ----- p_theta(z_t | s_t, z_t-1) -----
+            # 1. MCMC
+            # z_last_sample = z_prior_dist.sample((self.num_sample,)).transpose(0,1)[..., 0] # [bs, num_sample, 1, dim_z] -> [bs, num_sample, 1]
+            # s_next_sample = s_tilde_dist.rsample() # [bs, num_sample, dim_s]
+            # 2. analytical solution
+            s_next_sample = s_tilde_dist_mean # [bs, 1, dim_s]
+            z_last_sample = z_prior_mean # [bs, 1, dim_z]
+             
+            sampled_alpha = torch.relu(s_next_sample[...,0:1]) + EPS*self.args.alpha_minimum # TODO change # [bs, 1, 1]
+            decay = torch.exp(-sampled_alpha * dt.reshape(bs, 1, 1)) # [bs, 1, 1]
             sampled_mean = s_next_sample[..., 1:2]
-            z_tilde_dist_mean = z_last_sample * decay + (1.0 - decay) * sampled_mean
-            
-            sampled_log_var = s_next_sample[..., 2:3]
-            sampled_log_var = torch.minimum(sampled_log_var, self.var_minimum)
-            z_tilde_dist_var = torch.exp(sampled_log_var) * decay + EPS
-            # sampled_gamma = torch.sigmoid(s_next_sample[..., 3])
-            # omega = 0.5
-            # adj = torch.exp(self.node_dist.edge_log_probs()).to(sampled_z.device) 
-            # adj_t = adj # torch.transpose(adj, -1, -2).contiguous() # TODO test with multiple power of adj
-            # in_degree = adj_t.sum(dim=-1)
-            # ind = torch.where(in_degree == 0)[0] 
-            # w_adj_t = adj_t
-            # # adj = self.adj.float().to(sampled_s.device)
-            # # adj_t = torch.transpose(adj, -1, -2).contiguous() # TODO test with multiple power of adj
-            # # in_degree = adj_t.sum(dim=-1)
-            # # ind = torch.where(in_degree == 0)[0] # [284,]
-            # # attn_output_weights = self.node_dist._get_atten_weights()
-            # # w_adj_t = adj_t * attn_output_weights[-1].to(sampled_z.device) # .clone().detach()
-            # empower = torch.einsum('ij, ajm->aim', w_adj_t, z_last) # [bs*n, num_node, times-1]
-            # empower = (1 / (in_degree[None, :, None] + EPS)) * sampled_gamma * empower # [bs*n, num_node, 1]
-            # empower[:,ind] = 0
-            # stable = sampled_mean
-            # tmp_mean_level = omega * stable + (1-omega) * empower
-            # z_pred = z_last * decay + (1.0 - decay) * tmp_mean_level
-            
-            z_tilde_dist = distributions.multivariate_normal.MultivariateNormal(
-                loc=z_tilde_dist_mean, 
-                scale_tril=torch.tril(torch.diag_embed(z_tilde_dist_var))
-            )
+            if self.dim_z > 1:
+                item_idx = feed_dict['skill_seq'][:, idx]# [bs, 1]
+                # ipdb.set_trace()
+                omega = 0.5
+                sampled_gamma = torch.sigmoid(s_next_sample[..., 3:])
+                adj_t = torch.transpose(torch.exp(self.node_dist.edge_log_probs())[0].to(sampled_alpha.device), -1, -2)  # [num_nodes, num_nodes]
+                in_degree = adj_t.sum(dim=-1)
+                ind = torch.where(in_degree == 0)[0] 
+                w_adj_t = adj_t # TODO
+                z_last_sample = (node_emb * z_last_sample).sum(-1, keepdim=True) # [bs, num_node, 1]
+                empower = (z_last_sample * w_adj_t).sum(-2).unsqueeze(-1) # [bs, num_node, 1]
+                # torch.einsum('ij, ajm->aim', w_adj_t, z_last_sample) # [bs*n, num_node, times-1]
+                empower = (1 / (in_degree[None, :, None] + EPS)) * sampled_gamma * empower
+                empower[:,ind] = 0
+                stable = sampled_mean
+                tmp_mean_level = omega * stable + (1-omega) * empower
+                
+                z_tilde_dist_mean_all = z_last_sample * decay + (1.0 - decay) * tmp_mean_level
+                z_tilde_dist_mean = z_tilde_dist_mean_all[0][item_idx].unsqueeze(-1)
+                
+                sampled_log_var = s_next_sample[..., 2:3] # [bs, 1, 1]
+                sampled_log_var = torch.minimum(sampled_log_var, self.var_minimum)
+                z_tilde_dist_var_all = torch.exp(sampled_log_var) * decay + EPS # [bs, 1, 1]
+                z_tilde_dist_var = z_tilde_dist_var_all # [bs, 1, 1]
+                
+                z_tilde_dist = distributions.MultivariateNormal(
+                    z_tilde_dist_mean_all,
+                    scale_tril=torch.tril(torch.diag_embed(z_tilde_dist_var_all))
+                ) # MultivariateNormal(loc: torch.Size([16, 837, 1]), scale_tril: torch.Size([16, 837, 1, 1]))
+                
+            else:
+                tmp_mean_level = sampled_mean
+                z_tilde_dist_mean = z_last_sample * decay + (1.0 - decay) * tmp_mean_level
+        
+                sampled_log_var = s_next_sample[..., 2:3]
+                sampled_log_var = torch.minimum(sampled_log_var, self.var_minimum)
+                z_tilde_dist_var = torch.exp(sampled_log_var) * decay + EPS
+                
+                z_tilde_dist = distributions.multivariate_normal.MultivariateNormal(
+                    loc=z_tilde_dist_mean, 
+                    scale_tril=torch.tril(torch.diag_embed(z_tilde_dist_var))
+                )
         
         if not eval:
             if not update:
@@ -285,38 +342,46 @@ class GraphContinualHSSM(GraphHSSM):
         eval: bool = False,
         update: bool = False,
     ):
+        '''
+        Args:
+            eval: if True, it will not update the parameters. 
+                    Usually this happens during evaluation or comparison when there is no gradient.
+            update: if True, it means the network is optimized by the update loss. 
+                    We should save the interested parameters in the updated list.
+        '''
         
         y_idx = feed_dict['label_seq'][:, :idx+1] # [bs, times]
         t_idx = feed_dict['time_seq'][:, :idx+1] 
-        item_idx = feed_dict['skill_seq'][:, :idx+1] 
-        users = feed_dict['user_id']
         
         # ----- embedding -----
-        t_pe = self.get_time_embedding(t_idx, 'absolute')
-        y_pe = torch.tile(y_idx.unsqueeze(-1), (1,1, self.node_dim))  
+        t_pe = self.get_time_embedding(t_idx, 'absolute')  # [bs, times, node_dim]
+        # NOTE: if t_idx contains only one time step, it will be zero; because it normalize the time by subtracting the minimum time
+        y_pe = torch.tile(y_idx.unsqueeze(-1), (1,1, self.node_dim))   # [bs, times, node_dim]
         
-        if self.num_node > 1:
-            node_pe = self.node_dist._get_node_embedding()[item_idx] 
-            emb_input = torch.cat([node_pe, y_pe], dim=-1) # [bs, times, dim*4]
-            self.infer_network_emb.flatten_parameters()
-            emb_rnn_inputs, _ = self.infer_network_emb(emb_input) # [bs, times, dim*2(32)]
+        if self.dim_z > 1:
+            item_idx = feed_dict['skill_seq'][:, :idx+1] 
+            node_pe = self.node_dist._get_node_embedding()[item_idx]  # [bs, times, node_dim]
+            emb_input = torch.cat([node_pe, y_pe], dim=-1) # [bs, times, node_dim*2]
+            self.infer_network_emb.flatten_parameters() # NOTE: useful when distributed training
+            emb_rnn_inputs, _ = self.infer_network_emb(emb_input) # [bs, times, node_dim]
         else: 
             emb_rnn_inputs = y_pe # TODO do we need an embedding layer?
             # self.infer_network_emb.flatten_parameters()
             # emb_rnn_inputs, _ = self.infer_network_emb(emb_input) # [bs, times, dim*2(32)]
         emb_rnn_inputs = emb_rnn_inputs + t_pe
 
-        # ----- Sample continuous hidden variable from `q(s[t] | y[1:t])' -----
+        # -----  `q(s[t] | y[1:t])' -----
         s_dist = self.s_transition_infer(
             feed_dict, emb_inputs=emb_rnn_inputs, idx=idx
         )
 
-        # ----- Sample continuous hidden variable from `q(z[1:T] | y[1:T])' -----
+        # ----- `q(z[t] | y[1:t])' -----
         z_dist  = self.z_transition_infer(
             feed_dict, emb_inputs=emb_rnn_inputs, idx=idx,
         )
         
         if not eval:
+            users = feed_dict['user_id']
             if not update:
                 self.infer_s_means[users, :, idx] = s_dist.mean.detach().clone()
                 self.infer_s_vars[users, :, idx] = torch.diagonal(s_dist.scale_tril, dim1=-2, dim2=-1).detach().clone()
@@ -327,11 +392,6 @@ class GraphContinualHSSM(GraphHSSM):
                 self.infer_s_vars_update[users, :, idx] = torch.diagonal(s_dist.scale_tril, dim1=-2, dim2=-1).detach().clone()
                 self.infer_z_means_update[users, :, idx] = z_dist.mean.detach().clone()
                 self.infer_z_vars_update[users, :, idx] = torch.diagonal(z_dist.scale_tril, dim1=-2, dim2=-1).detach().clone()
-                
-        # if self.dim_z > 1:
-        #     z_sampled_scalar = z_sampled @ self.node_dist._get_node_embedding().transpose(-1,-2).contiguous().to(z_sampled.device)# .clone().detach()
-        # else:
-        #     z_sampled_scalar = z_sampled
 
         return s_dist, z_dist
 
@@ -394,7 +454,9 @@ class GraphContinualHSSM(GraphHSSM):
         losses['ou_speed'] = outdict["sampled_s"][...,0].mean()
         losses['ou_mean'] = outdict["sampled_s"][...,1].mean()
         losses['ou_vola'] = outdict["sampled_s"][...,2].mean()
-        # losses['ou_gamma'] = outdict["sampled_s"][...,3].mean()
+        
+        if self.dim_s > 3:
+            losses['ou_gamma'] = outdict["sampled_s"][...,3].mean()
         
         return losses
     
@@ -408,30 +470,44 @@ class GraphContinualHSSM(GraphHSSM):
     ):
         
         y_idx = feed_dict_idx['label_seq'][:, idx:idx+1]
+        item_idx = feed_dict_idx['skill_seq'][:, idx:idx+1]
         
+        # p_tilde_theta(s_t) = \int p_theta(s_t | s_t-1) q_phi(s_t-1 | y_1:t-1) ds_t
+        # p_tilde_theta(z_t) = \int p_theta(z_t | s_t, z_t-1) q_phi(z_t-1 | y_1:t-1) dz_t
         s_tilde_dist, z_tilde_dist = pred_dist
+        # q_phi(s_t | y_1:t), q_phi(z_t | y_1:t) 
         s_infer_dist, z_infer_dist = post_dist
         
         # log tilde_p_theta(s_t)
-        s_vp_sample = s_infer_dist.rsample((self.num_sample,)).transpose(0,1).contiguous()[:,:,0] # [bs, num_sample, dim_s]
-        log_prob_st = s_tilde_dist.log_prob(s_vp_sample).mean()
+        s_vp_sample = s_infer_dist.rsample((self.num_sample,)) # [num_sample, bs, 1, dim_s]
+        log_prob_st = s_tilde_dist.log_prob(s_vp_sample) # [num_sample, bs, 1, dim_s]
+        log_prob_st = log_prob_st.mean() / self.dim_s
         
-        # log tilde_p_theta(z_t | s_t) -> analytically? TODO
-        z_vp_sample = z_infer_dist.rsample((self.num_sample,)).transpose(0,1).contiguous()[:,:,0]
-        log_prob_zt = z_tilde_dist.log_prob(z_vp_sample).mean()
         
         # log p_theta(y_t | z_t)
         if self.dim_z > 1:
-            sampled_scalar_z = sampled_scalar_z[:, 0] # [bsn, time, num_node]
-            items = torch.tile(feed_dict_idx['skill_seq'], (self.num_sample,1)).unsqueeze(-1)
-            sampled_scalar_z_item = torch.gather(sampled_scalar_z, -1, items) # [bsn, time, 1]
+            # log tilde_p_theta(z_t | s_t)
+            node_emb = self.node_dist._get_node_embedding() # [num_node, node_dim]
+            z_vp_sample = z_infer_dist.rsample((self.num_sample,)) # [num_sample, bs, 1, dim_z]
+            z_vp_scalar_sample = (z_vp_sample * node_emb).sum(-1, keepdim=True) # [n, bs, num_node, 1]
+            log_prob_zt = z_tilde_dist.log_prob(z_vp_scalar_sample) # [n, bs, num_node]
+            log_prob_zt = log_prob_zt.mean()
+            
+            item_idx = item_idx.unsqueeze(0).repeat(self.num_sample, 1, 1)
+            sampled_scalar_z = torch.gather(z_vp_scalar_sample[..., 0], -1, item_idx) # [n, bs, 1]
         else:
-            sampled_scalar_z_item = z_vp_sample
-        emission_prob = self.y_emit(sampled_scalar_z_item) # [bs, n, 1]
+            # log tilde_p_theta(z_t | s_t)
+            z_vp_sample = z_infer_dist.rsample((self.num_sample,)) # [num_sample, bs, 1, dim_z]
+            log_prob_zt = z_tilde_dist.log_prob(z_vp_sample) # [num_sample, bs, 1, dim_z]
+            log_prob_zt = log_prob_zt.mean() / self.dim_z
+            
+            sampled_scalar_z = z_vp_sample[:, :, 0]  # [n, bs, 1]
+            
+        emission_prob = self.y_emit(sampled_scalar_z) # [n, bs, 1]
         emission_dist = torch.distributions.bernoulli.Bernoulli(probs=emission_prob)
-        prediction = emission_dist.sample()
-        label = y_idx.unsqueeze(-1).repeat(1,self.num_sample,1).float()
-        log_prob_yt = emission_dist.log_prob(label).mean()
+        prediction = emission_dist.sample() # NOTE: only for evaluation; no gradient
+        label = y_idx.unsqueeze(0).repeat(self.num_sample, 1, 1).float()
+        log_prob_yt = emission_dist.log_prob(label).mean() / self.dim_y
         
         st_entropy = s_infer_dist.entropy().mean()
         zt_entropy = z_infer_dist.entropy().mean()
@@ -461,9 +537,11 @@ class GraphContinualHSSM(GraphHSSM):
     ):
         loss_fn = torch.nn.BCELoss()
         
+        ipdb.set_trace()
         comparison = defaultdict(lambda: torch.zeros(()))#, device=self.device))
         users = feed_dict['user_id']
         labels = feed_dict['label_seq'][:, idx] # [bs, times]
+        items = feed_dict['skill_seq'][:, idx] # [bs, times]
         
         # ------ comparison 1: check if optimization works ------
         old_z_tilde_dist = torch.distributions.MultivariateNormal( 
@@ -474,27 +552,29 @@ class GraphContinualHSSM(GraphHSSM):
                 loc=self.pred_z_means_update[users, :, idx],
                 scale_tril=torch.diag_embed(self.pred_z_vars_update[users, :, idx]),
             )
-        old_y = self.y_emit(old_z_tilde_dist.sample())
-        new_y = self.y_emit(new_z_tilde_dist.sample())
-        gt = labels.unsqueeze(1).tile((1, self.num_sample)).float().flatten()
+        old_y = self.y_emit(old_z_tilde_dist.sample((self.num_sample,)))
+        new_y = self.y_emit(new_z_tilde_dist.sample((self.num_sample,)))
+        gt = labels.unsqueeze(0).tile((self.num_sample, 1)).float().flatten()
         
         comparison['comp_1_tilde'] = loss_fn(new_y.flatten(), gt.float()) - loss_fn(old_y.flatten(), gt.float())
+        
         
         old_z_infer_dist = torch.distributions.MultivariateNormal( 
                 loc=self.infer_z_means[users, :, idx],
                 scale_tril=torch.diag_embed(self.infer_z_vars[users, :, idx]),
             )
-
         new_z_infer_dist = torch.distributions.MultivariateNormal( 
                 loc=self.infer_z_means_update[users, :, idx],
                 scale_tril=torch.diag_embed(self.infer_z_vars_update[users, :, idx]),
             )
-        old_y = self.y_emit(old_z_infer_dist.sample((self.num_sample,)))
-        new_y = self.y_emit(new_z_infer_dist.sample((self.num_sample,)))
-        gt = labels.unsqueeze(0).tile((self.num_sample, 1)).float().flatten()
+        if self.dim_z == 1:
+            old_y = self.y_emit(old_z_infer_dist.sample((self.num_sample,)))
+            new_y = self.y_emit(new_z_infer_dist.sample((self.num_sample,)))
+            
+            comparison['comp_1_infer'] = loss_fn(new_y.flatten(), gt.float()) - loss_fn(old_y.flatten(), gt.float())
+        else:
+            node_emb_item = self.node_dist._get_node_embedding()[items] # [bs, node_dim]
         
-        comparison['comp_1_infer'] = loss_fn(new_y.flatten(), gt.float()) - loss_fn(old_y.flatten(), gt.float())
-    
         # comparison 2: forward TODO not exactly right
         # for comparison 
         old_s_infer_dist = torch.distributions.MultivariateNormal( 
@@ -502,10 +582,9 @@ class GraphContinualHSSM(GraphHSSM):
                 scale_tril=torch.diag_embed(self.infer_s_vars[users, :, idx]),
             )
         _, old_pred_z_tilde_dist = self.predictive_model(feed_dict, idx=idx+1, eval=True, s_prior=old_s_infer_dist, z_prior=old_z_infer_dist)
-        old_y = self.y_emit(old_pred_z_tilde_dist.sample())
+        old_y = self.y_emit(old_pred_z_tilde_dist.sample((self.num_sample,)))
         _, new_pred_z_tilde_dist = self.predictive_model(feed_dict, idx=idx+1, eval=True)
-        new_y = self.y_emit(new_pred_z_tilde_dist.sample())
-        gt = labels.unsqueeze(1).tile((1, self.num_sample)).float().flatten()
+        new_y = self.y_emit(new_pred_z_tilde_dist.sample((self.num_sample,)))
         comparison['comp_2_pred'] = loss_fn(new_y.flatten(), gt.float()) - loss_fn(old_y.flatten(), gt.float())
         
         new_y = new_y.flatten()

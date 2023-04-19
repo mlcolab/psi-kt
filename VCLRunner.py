@@ -79,7 +79,7 @@ class VCLRunner(KTRunner):
         # Move the batch to the GPU.
         whole_batches = [model.module.batch_to_gpu(batch, model.module.device) for batch in whole_batches]
                 
-        max_time_step = 10 # time_step
+        max_time_step = 50 # time_step
         
         try:
             for time in range(max_time_step):
@@ -146,7 +146,7 @@ class VCLRunner(KTRunner):
         model.train()
         train_losses = defaultdict(list)
         
-        for mini_epoch in range(0, self.epoch): 
+        for mini_epoch in range(0, 1): # self.epoch): 
             
             # Iterate through each batch.
             for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch + ' Time %5d' % mini_epoch):
@@ -158,10 +158,15 @@ class VCLRunner(KTRunner):
                 s_tilde_dist, z_tilde_dist = model.module.predictive_model(feed_dict=batch, idx=time_step)
                 s_post_dist, z_post_dist = model.module.inference_model(feed_dict=batch, idx=time_step)
                 
+                # s_tilde_dist, z_tilde_dist = model.module.predictive_model(feed_dict=batch, idx=time_step+1)
+                # s_post_dist, z_post_dist = model.module.inference_model(feed_dict=batch, idx=time_step+1)
+                
                 # Calculate loss and perform backward pass.
                 output_dict = model.module.objective_function(batch, idx=time_step, pred_dist=[s_tilde_dist, z_tilde_dist], post_dist=[s_post_dist, z_post_dist])
                 loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
                 loss_dict['loss_total'].backward()
+                
+                # torch.nn.utils.clip_grad_norm(model.module.parameters(),100)
                 
                 # Update parameters.
                 model.module.optimizer.step()

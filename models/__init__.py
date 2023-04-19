@@ -26,7 +26,7 @@
 # import ipdb
 # ipdb.set_trace()
 
-from models.baseline import AKT, DKT, SKT, HKT
+from models.baseline import DKT, AKT, SKT, HKT
 from models.learner_model import *
 from models.learner_hssm_model import *
 

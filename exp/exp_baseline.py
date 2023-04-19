@@ -19,18 +19,9 @@ from data import data_loader
 import KTRunner
 import VCLRunner
 from utils import utils, arg_parser, logger
-from models.learner_model import HLR, PPE, VanillaOU, GraphOU
-from models.learner_hssm_model import GraphHSSM
-from models.learner_hssm_vcl_model import GraphContinualHSSM
-
-# import torch.distributed as dist
-# import torch.multiprocessing as mp
-# from torch.nn.parallel import DistributedDataParallel as DDP
+from models import DKT
 
 import ipdb
-# https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
-
-
 
 if __name__ == '__main__':
 
@@ -49,7 +40,6 @@ if __name__ == '__main__':
     parser.add_argument('--multi_node', type=int, default=0)
     parser.add_argument('--train_time_ratio', type=float, default=0.5, help='')
     parser.add_argument('--test_time_ratio', type=float, default=0.4, help='')
-    parser.add_argument('--graph_path', type=str, default='/mnt/qb/work/mlcolab/hzhou52/kt/junyi15/adj.npy')
     parser.add_argument('--num_sample', type=int, default=100)
     
     parser = arg_parser.parse_args(parser)
@@ -96,8 +86,8 @@ if __name__ == '__main__':
         num_seq = corpus.n_users
     else: num_seq = 1
     
-    adj = np.load(global_args.graph_path)
-    
+    model_name = global_args.model_name
+    model = eval('{0}.{0}'.format(model_name))
     if global_args.model_name == 'HLR':
         model = HLR(
             mode=global_args.train_mode, 

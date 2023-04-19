@@ -1,12 +1,0 @@
-Prepare Batches:   0%|                                                        | 0/2 [00:00<?, ?it/s]                                                                                                    Epoch     0 Time     0:   0%|                                                 | 0/2 [00:00<?, ?it/s]                                                                                                    Traceback (most recent call last):
-  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/exp_learner_predict.py", line 213, in <module>
-    runner.train(model, corpus)
-  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/../VCLRunner.py", line 90, in train
-    self.fit(model, whole_batches, epoch=time, time_step=time)
-  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/../VCLRunner.py", line 158, in fit
-    s_tilde_dist, z_tilde_dist = model.module.predictive_model(feed_dict=batch, idx=time_step)
-  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/../models/learner_hssm_vcl_model.py", line 168, in predictive_model
-    self.gen_z0_log_var = torch.minimum(self.gen_z0_log_var.to(device), self.var_minimum)
-  File "/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1206, in __setattr__
-    raise TypeError("cannot assign '{}' as parameter '{}' "
-TypeError: cannot assign 'torch.cuda.FloatTensor' as parameter 'gen_z0_log_var' (torch.nn.Parameter or None expected)

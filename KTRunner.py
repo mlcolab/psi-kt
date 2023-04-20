@@ -114,7 +114,10 @@ class KTRunner(object):
         return res_str
 
 
-    def _eva_termination(self, model):
+    def _eva_termination(
+        self, 
+        model: torch.nn.Module,
+    ):
         """
         A private method that determines whether the training should be terminated based on the validation results.
 
@@ -141,7 +144,11 @@ class KTRunner(object):
         return False
     
 
-    def train(self, model, corpus):
+    def train(
+        self, 
+        model, 
+        corpus
+    ):
         '''
         Trains the KT model instance with parameters.
 
@@ -166,20 +173,19 @@ class KTRunner(object):
 
         # Return a random sample of items from an axis of object.
         epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) 
-        train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
+        train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train', device=model.module.device)
         val_batches = None
         test_batches = None
         whole_batches = None
         
         if self.args.validate:
-            val_batches = model.module.prepare_batches(corpus, epoch_val_data, self.eval_batch_size, phase='val')
-            test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
+            val_batches = model.module.prepare_batches(corpus, epoch_val_data, self.eval_batch_size, phase='val', device=model.module.device)
+            test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test', device=model.module.device)
             
             if isinstance(model.module, HierachicalSSM) or isinstance(model.module, HSSM):
-                whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
+                whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole', device=model.module.device)
             else: whole_batches = None
-        
-        
+            
         try:
             for epoch in range(self.epoch):
                 gc.collect()
@@ -203,13 +209,12 @@ class KTRunner(object):
                                 utils.format_metric(test_result), testing_time))
                                 
                     if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
-                        # ipdb.set_trace()
                         model.module.save_model(epoch=epoch)
                     if self._eva_termination(model) and self.early_stop:
                         self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
                         break
                 else:
-                    if epoch % 10 == 0:
+                    if epoch % self.args.save_every == 0:
                         model.module.save_model(epoch=epoch)
                     
                 self.logs.draw_loss_curves()
@@ -247,7 +252,13 @@ class KTRunner(object):
         # model.load_model() #???
 
 
-    def fit(self, model, batches, epoch_train_data, epoch=-1): 
+    def fit(
+        self, 
+        model, 
+        batches, 
+        epoch_train_data, 
+        epoch=-1
+    ): 
         """
         Trains the given model on the given batches of data.
 
@@ -263,26 +274,19 @@ class KTRunner(object):
 
         # Build the optimizer if it hasn't been built already.
         if model.module.optimizer is None:
-            # [model.module.optimizer_infer, model.module.optimizer_graph], [model.module.scheduler_infer, model.module.scheduler_graph] = self._build_optimizer(model)
-            # model.module.optimizer = model.module.optimizer_infer
             model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
             
         model.train()
         train_losses = defaultdict(list)
         
         # Iterate through each batch.
-        out_dicts = []
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
-            
-            # Move the batch to the GPU.
-            batch = model.module.batch_to_gpu(batch, model.module.device)
             
             # Reset gradients.
             model.module.optimizer.zero_grad(set_to_none=True)
             
             # Forward pass.
             output_dict = model(batch)
-            out_dicts.append(output_dict)
             
             # Calculate loss and perform backward pass.
             loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
@@ -292,35 +296,6 @@ class KTRunner(object):
             model.module.optimizer.step()
             model.module.scheduler.step()
 
-
-            # for param in self.graph_params:
-            #     param.requires_grad = True
-            # for param in self.infer_params:
-            #     param.requires_grad = False
-            # model.module.optimizer_infer.zero_grad()
-            # model.module.optimizer_graph.zero_grad()
-            # output_dict = model(batch)
-            # out_dicts.append(output_dict)
-            # loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
-            # loss_dict['loss_total'].backward(retain_graph=True)
-            # model.module.optimizer_graph.step()
-            # model.module.scheduler_graph.step()  
-            
-            # # ipdb.set_trace()
-            # for param in self.graph_params:
-            #     param.requires_grad = False
-            # for param in self.infer_params:
-            #     param.requires_grad = True
-            # model.module.optimizer_infer.zero_grad()
-            # model.module.optimizer_graph.zero_grad()
-            # output_dict = model(batch)
-            # out_dicts.append(output_dict)
-            # loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
-            # loss_dict['loss_total'].backward()
-            # model.module.optimizer_infer.step()
-            # model.module.scheduler_infer.step()
-            
-            
             # Append the losses to the train_losses dictionary.
             train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
             
@@ -365,7 +340,15 @@ class KTRunner(object):
         return self.logs.train_results['loss_total'][-1]
 
 
-    def predict(self, model, corpus, set_name, data_batches=None, whole_batches=None, epoch=None):
+    def predict(
+        self, 
+        model, 
+        corpus, 
+        set_name, 
+        data_batches=None, 
+        whole_batches=None, 
+        epoch=None
+    ):
         '''
         Args:
             model: 
@@ -373,14 +356,10 @@ class KTRunner(object):
         model.eval()
         
         predictions, labels = [], []
-        out_dicts = []
-
+                
         if isinstance(model.module, HierachicalSSM) or isinstance(model.module, HSSM):
             for batch in tqdm(whole_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
-                batch = model.module.batch_to_gpu(batch)
-                
                 out_dict = model.module.predictive_model(batch)
-                out_dicts.append(out_dict)
                 
                 prediction, label = out_dict['prediction'], out_dict['label']
                 predictions.extend(prediction.detach().cpu().data.numpy())
@@ -388,26 +367,23 @@ class KTRunner(object):
         
         else:
             for batch in tqdm(data_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
-                batch = model.module.batch_to_gpu(batch)
-            
                 out_dict = model(batch)
-                out_dicts.append(out_dict)
                 
                 prediction, label = out_dict['prediction'], out_dict['label']
                 predictions.extend(prediction.detach().cpu().data.numpy())
                 labels.extend(label.detach().cpu().data.numpy())
         
-        # Save the output dict for visualization
-        if self.args.vis_val & epoch % 5 == 0:
-            flat_outdicts = {}
-            for key in out_dicts[0].keys():
-                if key not in ['elbo', 'iwae', 'initial_likelihood', 'sequence_likelihood', 
-                               'st_entropy', 'zt_entropy',
-                               'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
-                    flat_outdicts[key] = torch.cat([out[key] for out in out_dicts], 1)
+        # # Save the output dict for visualization
+        # if self.args.vis_val & epoch % 5 == 0:
+        #     flat_outdicts = {}
+        #     for key in out_dicts[0].keys():
+        #         if key not in ['elbo', 'iwae', 'initial_likelihood', 'sequence_likelihood', 
+        #                        'st_entropy', 'zt_entropy',
+        #                        'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
+        #             flat_outdicts[key] = torch.cat([out[key] for out in out_dicts], 1)
             
-            with open(os.path.join(self.args.visdir, set_name+'_out_dict_epoch_{}.pkg'.format(epoch)), 'wb') as f:
-                pickle.dump(flat_outdicts, f)
+        #     with open(os.path.join(self.args.visdir, set_name+'_out_dict_epoch_{}.pkg'.format(epoch)), 'wb') as f:
+        #         pickle.dump(flat_outdicts, f)
                 
         return np.array(predictions), np.array(labels)
 

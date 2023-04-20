@@ -35,6 +35,7 @@ def parse_args(parser):
 
     ############## logger ##############
     parser.add_argument("--save_folder", type=str, default="/mnt/qb/work/mlcolab/hzhou52/kt/logs",)
+    parser.add_argument("--save_every", type=int, default=10,)
     parser.add_argument("--expername", type=str, default="",)
 
     ############## KTRunner ##############

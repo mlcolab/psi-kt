@@ -91,7 +91,14 @@ class BaseModel(torch.nn.Module):
         pass
 
 
-    def prepare_batches(self, corpus, data: List[Tuple], batch_size: int, phase: str) -> List:
+    def prepare_batches(
+        self, 
+        corpus, 
+        data: List[Tuple], 
+        batch_size: int, 
+        phase: str, 
+        device: torch.device = None,
+    ) -> List:
         """
         Prepare the data into batches for training/validation/test.
 
@@ -111,7 +118,7 @@ class BaseModel(torch.nn.Module):
         # Prepare the batches using a list comprehension
         batches = []
         for batch in tqdm(range(total_batches), leave=False, ncols=100, mininterval=1, desc='Prepare Batches'):
-            batches.append(self.get_feed_dict(corpus, data, batch * batch_size, batch_size, phase))
+            batches.append(self.get_feed_dict(corpus, data, batch * batch_size, batch_size, phase, device))
             
         return batches
 

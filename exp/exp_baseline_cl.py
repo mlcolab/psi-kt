@@ -14,8 +14,6 @@ import torch
 from torch.autograd import profiler
 
 from data import data_loader
-# from models import *
-# from KTRunner_test import *
 import KTRunner
 import VCLRunner
 from utils import utils, arg_parser, logger

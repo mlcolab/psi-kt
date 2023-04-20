@@ -14,10 +14,8 @@ import torch
 from torch.autograd import profiler
 
 from data import data_loader
-# from models import *
-# from KTRunner_test import *
-import KTRunner
-import VCLRunner
+from KTRunner import KTRunner
+from VCLRunner_baseline import VCLRunner
 from utils import utils, arg_parser, logger
 from models import DKT
 
@@ -27,8 +25,6 @@ if __name__ == '__main__':
 
     # ----- add aditional arguments for this exp. -----
     parser = argparse.ArgumentParser(description='Global')
-    parser.add_argument('--model_name', type=str, help='Choose a model to run.')
-    
     # debug
     parser.add_argument('--alpha_minimum', type=float, default=100)
     parser.add_argument('--learned_graph', type=str, default='w_gt')
@@ -42,12 +38,25 @@ if __name__ == '__main__':
     parser.add_argument('--test_time_ratio', type=float, default=0.4, help='')
     parser.add_argument('--num_sample', type=int, default=100)
     
-    parser = arg_parser.parse_args(parser)
+    # Define an argument parser for the model name.
+    init_parser = argparse.ArgumentParser(description='Model')
+    init_parser.add_argument('--model_name', type=str, default='CausalKT', help='Choose a model to run.')
+    init_args, init_extras = init_parser.parse_known_args()
     
-    global_args, extras = parser.parse_known_args() 
+    # Get the model name from the command-line arguments.
+    # Evaluate the model name string as a Python expression to get the corresponding model class.
+    model_name = init_args.model_name
+    model = eval('{0}.{0}'.format(model_name))
+    
+    # ----- args -----
+    parser = arg_parser.parse_args(parser)
+    parser = model.parse_model_args(parser)
+    global_args, extras = parser.parse_known_args() # https://docs.python.org/3/library/argparse.html?highlight=parse_known_args#argparse.ArgumentParser.parse_known_args
+    global_args.model_name = model_name
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
+    # ----- log -----
     logs = logger.Logger(global_args)
     
     # ----- data part -----
@@ -86,20 +95,20 @@ if __name__ == '__main__':
         num_seq = corpus.n_users
     else: num_seq = 1
     
-    model_name = global_args.model_name
-    model = eval('{0}.{0}'.format(model_name))
+    model = model(global_args, corpus, logs)
             
-        shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_model.py',
-                        global_args.log_path)
-        shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_vcl_model.py',
-                        global_args.log_path)
-        shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/VCLRunner.py',
-                        global_args.log_path)
-        shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/KTRunner.py',
-                        global_args.log_path)
+    shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/baseline/{}.py'.format(model_name),
+                    global_args.log_path)
+    shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/exp/exp_baseline.py',
+                    global_args.log_path)
+    shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/VCLRunner.py',
+                    global_args.log_path)
+    shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/KTRunner.py',
+                    global_args.log_path)
         
     if global_args.load > 0:
         model.load_model(model_path=global_args.load_folder)
+    
     logs.write_to_log_file(model)
     model.actions_before_train()
     
@@ -112,9 +121,9 @@ if __name__ == '__main__':
             
     # Running
     if global_args.vcl:
-        runner = VCLRunner.VCLRunner(global_args, logs)
+        runner = VCLRunner(global_args, logs)
     else:
-        runner = KTRunner.KTRunner(global_args, logs)
+        runner = KTRunner(global_args, logs)
 
 # runner = VCLRunner(global_args, logs)
 runner.train(model, corpus)

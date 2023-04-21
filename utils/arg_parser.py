@@ -26,7 +26,7 @@ def parse_args(parser):
     parser.add_argument('--gpu', type=str, default='0', help='Set CUDA_VISIBLE_DEVICES')
 
     ############## data loader ##############
-    parser.add_argument('--data_dir', type=str, default='/mnt/lustre/mlcolab/hzhou52/kt', help='Input data dir.')
+    parser.add_argument('--data_dir', type=str, default='/mnt/qb/work/mlcolab/hzhou52/kt', help='Input data dir.')
     parser.add_argument('--dataset', type=str, help='[junyi, assistment12, ]')
     parser.add_argument('--sep', type=str, default='\t', help='sep of csv file.')
     parser.add_argument('--kfold', type=int, default=5, help='K-fold number.')
@@ -34,7 +34,7 @@ def parse_args(parser):
     parser.add_argument('--regenerate_corpus', action="store_true", default=False)
 
     ############## logger ##############
-    parser.add_argument("--save_folder", type=str, default="/mnt/lustre/mlcolab/hzhou52/kt/logs",)
+    parser.add_argument("--save_folder", type=str, default="/mnt/qb/work/mlcolab/hzhou52/kt/logs",)
     parser.add_argument("--save_every", type=int, default=10,)
     parser.add_argument("--expername", type=str, default="",)
 
@@ -46,9 +46,9 @@ def parse_args(parser):
                 + 'ls_split_time' 
                 + 'ns_split_time' + 'ns_split_learner'
                 + 'ln_split_time', 
-            )
-    parser.add_argument("--validate", default=0, type=int, help="validate results throughout training.")
-    parser.add_argument("--validate_every", action="store_true", default=5, help="validate results throughout training.")
+            ) #
+    parser.add_argument("--test", default=0, type=int, help="test results throughout training.")
+    parser.add_argument("--test_every", action="store_true", default=5, help="test results throughout training.")
     parser.add_argument('--epoch', type=int, default=200, help='Number of epochs.')
     parser.add_argument('--early_stop', type=int, default=1, help='whether to early-stop.')
     parser.add_argument('--lr', type=float, default=5e-3, help='Learning rate.')
@@ -57,7 +57,7 @@ def parse_args(parser):
     parser.add_argument('--dropout', type=float, default=0.0, help='Dropout probability for each deep layer')
     parser.add_argument('--l2', type=float, default=1e-5, help='Weight of l2_regularize in loss.')
     parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer: GD, Adam, Adagrad, Adadelta')
-    parser.add_argument('--metric', type=str, default='F1, Accuracy, Recall, Precision', # AUC, 
+    parser.add_argument('--metric', type=str, default='F1, Accuracy, Recall, Precision, AUC', 
                         help='metrics: AUC, F1, Accuracy, Recall, Presicion;'
                                 'The first one will be used to determine whether to early stop')
     parser.add_argument('--fold', type=int, default=0, help='Select a fold to run.')

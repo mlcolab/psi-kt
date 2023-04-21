@@ -2,12 +2,12 @@ import sys
 sys.path.append('..')
 
 import math 
+import argparse
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
 import torch
 from torch import nn, distributions
 from torch.nn import functional as F
-from torch.nn.parameter import Parameter
 
 from collections import defaultdict
 
@@ -24,7 +24,7 @@ from enum import Enum
 
 torch.autograd.set_detect_anomaly(True)
 
-RANDOM_SEED = 131
+RANDOM_SEED = 131 
 EPS = 1e-6
 T_SCALE = 60*60*24
 
@@ -35,8 +35,8 @@ class HSSM(BaseLearnerModel):
         mode: str = 'train',
         num_node: int = 1,
         num_seq: int = 1,
-        args=None,
-        device='cpu',
+        args: argparse.Namespace=None,
+        device: torch.device='cpu',
         logs=None,
         nx_graph=None,
     ):
@@ -57,6 +57,7 @@ class HSSM(BaseLearnerModel):
         
         self.y_emit = torch.nn.Sigmoid() 
         
+
     @staticmethod	
     def normalize_timestamps(
         timestamps: torch.Tensor,
@@ -69,6 +70,7 @@ class HSSM(BaseLearnerModel):
         normalized_timestamps = (timestamps - mean_val) / std_val	
         return normalized_timestamps
     
+
     @staticmethod	
     def _construct_normal_from_mean_std(
         mean: torch.Tensor,
@@ -119,6 +121,7 @@ class HSSM(BaseLearnerModel):
             # create a multivariate normal distribution
             dist = distributions.MultivariateNormal(mean, scale_tril=torch.tril(cov_pdm))
         return dist
+    
     
     @staticmethod
     def _initialize_normal_mean_log_var(

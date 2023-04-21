@@ -186,14 +186,18 @@ class KTRunner(object):
         test_batches = None
         whole_batches = None
         
-        if self.args.validate:
+        if self.args.test:
             val_batches = model.module.prepare_batches(corpus, epoch_val_data, self.eval_batch_size, phase='val', device=model.module.device)
             test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test', device=model.module.device)
             
             if isinstance(model.module, HierachicalSSM) or isinstance(model.module, HSSM):
                 whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole', device=model.module.device)
-            else: whole_batches = None
             
+            if val_batches[0]['skill_seq'].shape[1] > 0: # TODO naive way
+                self.args.validate = 1
+            else: self.args.validate = 0
+
+
         try:
             for epoch in range(self.epoch):
                 gc.collect()
@@ -204,20 +208,24 @@ class KTRunner(object):
                 training_time = self._check_time()
 
                 ##### output validation and write to logs
-                if (self.args.validate) & (epoch % self.args.validate_every == 0):
+                if (self.args.test) & (epoch % self.args.test_every == 0):
                     with torch.no_grad():
-                        valid_result = self.evaluate(model, corpus, 'val', val_batches, whole_batches, epoch=epoch+1)
+                        
+                        if self.args.validate:
+                            valid_result = self.evaluate(model, corpus, 'val', val_batches, whole_batches, epoch=epoch+1)
+                            self.logs.append_epoch_losses(valid_result, 'val')
+
+                            if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
+                                model.module.save_model(epoch=epoch)
+
                         test_result = self.evaluate(model, corpus, 'test', test_batches, whole_batches, epoch=epoch+1)
-                    testing_time = self._check_time()
                     
+                    testing_time = self._check_time()
                     self.logs.append_epoch_losses(test_result, 'test')
-                    self.logs.append_epoch_losses(valid_result, 'val')
                     self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
                                 epoch + 1, loss, training_time, utils.format_metric(valid_result),
                                 utils.format_metric(test_result), testing_time))
-                                
-                    if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
-                        model.module.save_model(epoch=epoch)
+                
                     if self._eva_termination(model) and self.early_stop:
                         self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
                         break
@@ -235,33 +243,35 @@ class KTRunner(object):
                 exit(1)
 
         # Find the best validation result across iterations
-        best_valid_epoch = self.logs.valid_results[self.metrics[0]].argmax()
         valid_res_dict, test_res_dict = dict(), dict()
-        
-        for metric in self.metrics:
-            valid_res_dict[metric] = self.logs.valid_results[metric][best_valid_epoch]
-            test_res_dict[metric] = self.logs.test_results[metric][best_valid_epoch]
-        self.logs.write_to_log_file("\nBest Iter(val)=  %5d\t valid=(%s) test=(%s) [%.1f s] "
-                     % (best_valid_epoch + 1,
-                        utils.format_metric(valid_res_dict),
-                        utils.format_metric(test_res_dict),
-                        self.time[1] - self.time[0]))
 
-        best_test_epoch = self.logs.test_results[self.metrics[0]].argmax()
-        for metric in self.metrics:
-            valid_res_dict[metric] = self.logs.valid_results[metric][best_test_epoch]
-            test_res_dict[metric] = self.logs.test_results[metric][best_test_epoch]
-        self.logs.write_to_log_file("Best Iter(test)= %5d\t valid=(%s) test=(%s) [%.1f s] \n"
-                     % (best_test_epoch + 1,
-                        utils.format_metric(valid_res_dict),
-                        utils.format_metric(test_res_dict),
-                        self.time[1] - self.time[0]))
+        if self.args.validate:
+            best_valid_epoch = self.logs.valid_results[self.metrics[0]].argmax()
+            for metric in self.metrics:
+                valid_res_dict[metric] = self.logs.valid_results[metric][best_valid_epoch]
+                test_res_dict[metric] = self.logs.test_results[metric][best_valid_epoch]
+            self.logs.write_to_log_file("\nBest Iter(val)=  %5d\t valid=(%s) test=(%s) [%.1f s] "
+                        % (best_valid_epoch + 1,
+                            utils.format_metric(valid_res_dict),
+                            utils.format_metric(test_res_dict),
+                            self.time[1] - self.time[0]))
+
+        if self.args.test:
+            best_test_epoch = self.logs.test_results[self.metrics[0]].argmax()
+            for metric in self.metrics:
+                valid_res_dict[metric] = self.logs.valid_results[metric][best_test_epoch]
+                test_res_dict[metric] = self.logs.test_results[metric][best_test_epoch]
+            self.logs.write_to_log_file("Best Iter(test)= %5d\t valid=(%s) test=(%s) [%.1f s] \n"
+                        % (best_test_epoch + 1,
+                            utils.format_metric(valid_res_dict),
+                            utils.format_metric(test_res_dict),
+                            self.time[1] - self.time[0]))
                         
         self.logs.create_log(   
             args=self.args,
             model=model,
             optimizer=model.module.optimizer,
-            final_test=True,
+            final_test=True if self.args.test else False,
             test_results=self.logs.test_results,
         )
 

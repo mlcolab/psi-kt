@@ -24,7 +24,10 @@ class Logger:
 
 
     @staticmethod
-    def append_batch_losses(losses_list, losses):
+    def append_batch_losses(
+        losses_list, 
+        losses
+    ):
         """
         Appends the losses dictionary to the losses_list.
 
@@ -45,7 +48,11 @@ class Logger:
         return losses_list
     
     
-    def create_log_path(self, args, add_path_var=""):
+    def create_log_path(
+        self, 
+        args, 
+        add_path_var=""
+    ):
         args.log_path = os.path.join(args.save_folder, add_path_var, args.model_name, args.dataset,
                                      f"{args.time}_{args.expername}_overfit_{args.overfit}")
         os.makedirs(args.log_path, exist_ok=True)
@@ -73,7 +80,11 @@ class Logger:
         cur_file.close()
 
 
-    def append_epoch_losses(self, loss_dict, phase='train'):
+    def append_epoch_losses(
+        self, 
+        loss_dict, 
+        phase='train'
+    ):
         '''
         Append loss results to corresponding data frame
         '''
@@ -86,7 +97,6 @@ class Logger:
         else:
             raise ValueError('Invalid result type: ' + phase)
 
-        # ipdb.set_trace()
         results_idx = len(results_df)
         for k, v in loss_dict.items():
             results_df.at[str(results_idx), k] = np.mean(v)
@@ -141,17 +151,33 @@ class Logger:
             plt.savefig(filepath)
             plt.close()
             
-    
-    def save_checkpoint(self, args, model, optimizer, specifier=""):
-        args.model_file = os.path.join(args.log_path, "model_final" + specifier + ".pt")
-        args.optimizer_file = os.path.join(
-            args.log_path, "optimizer" + specifier + ".pt"
-        )
+
+    def save_checkpoint(
+        self, 
+        args, 
+        model, 
+        optimizer, 
+        specifier=""
+    ):
+        """
+        Save model and optimizer checkpoints at specified path and specifier.
+        :param args: object containing relevant training parameters
+        :param model: trained PyTorch model
+        :param optimizer: optimizer used during training
+        :param specifier: optional string specifier to differentiate checkpoints
+        """
+        # Set file paths for saving model and optimizer state dicts
+        model_file_path = os.path.join(args.log_path, f"model_{specifier}.pt")
+        optimizer_file_path = os.path.join(args.log_path, f"optimizer_{specifier}.pt")
+
+        # Save model state dict if model exists
         if model is not None:
-            torch.save(model.state_dict(), args.model_file)
+            torch.save(model.state_dict(), model_file_path)
+
+        # Save optimizer state dict if optimizer exists
         if optimizer is not None:
-            torch.save(optimizer.state_dict(), args.optimizer_file)
-            
+            torch.save(optimizer.state_dict(), optimizer_file_path)
+
             
     def create_log( 
         self,
@@ -263,26 +289,6 @@ class Logger:
 
     
     
-
-        
-        
-    # def append_train_loss(self, loss):
-    #     for k, v in loss.items():
-    #         self.train_results.at[str(self.train_results_idx), k] = np.mean(v)
-    #     self.train_results_idx += 1
-
-    # def append_val_loss(self, val_loss):
-    #     for k, v in val_loss.items():
-    #         self.valid_results.at[str(self.valid_results_idx), k] = np.mean(v)
-    #     self.valid_results_idx += 1
-
-    # def append_test_loss(self, test_loss):
-    #     for k, v in test_loss.items():
-    #         if type(v) != defaultdict:
-    #             self.test_results.at[str(self.test_results_idx), k] = np.mean(v)
-    #     self.test_results_idx += 1
-
-
 
 
 

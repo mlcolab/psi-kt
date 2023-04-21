@@ -11,6 +11,7 @@ from utils.utils import *
 import time
 
 from typing import List, Tuple, Dict
+
 class BaseModel(torch.nn.Module):
     runner = 'KTRunner'
     extra_log_args = []
@@ -22,9 +23,27 @@ class BaseModel(torch.nn.Module):
         return parser
 
     @staticmethod
-    def pred_evaluate_method(y_pred, y_true, metrics): # -> unit test
+    def pred_evaluate_method(
+        y_pred: np.ndarray, 
+        y_true: np.ndarray, 
+        metrics: List[str],
+    ): # -> unit test
+        """
+        Compute evaluation metrics for a set of predictions.
+
+        Args:
+            y_pred: The predicted values as a NumPy array.
+            y_true: The ground truth values as a NumPy array.
+            metrics: A list of evaluation metrics to compute.
+
+        Returns:
+            A dictionary containing the evaluation metrics and their values.
+        """
+        # Flatten the arrays to one dimension
         y_pred = np.ravel(y_pred)
         y_true = np.ravel(y_true)
+        
+        # Convert the predictions to binary values based on a threshold of 0.5
         y_pred_binary = (y_pred > 0.5).astype(int)
         evaluation_funcs = {
             'rmse': mean_squared_error,
@@ -35,6 +54,8 @@ class BaseModel(torch.nn.Module):
             'precision': precision_score,
             'recall': recall_score
         }
+        
+        # Define the evaluation functions for each metric
         evaluations = {}
         for metric in metrics:
             if metric in evaluation_funcs:
@@ -42,10 +63,12 @@ class BaseModel(torch.nn.Module):
                     y_true, 
                     y_pred_binary if metric in ['f1', 'accuracy', 'precision', 'recall'] else y_pred
                 )
+                
         return evaluations
 
+
     @staticmethod
-    def init_weights(m): # TO-DO: add more initialization methods
+    def init_weights(m): # TODO: add more initialization methods
         if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Embedding):
             torch.nn.init.normal_(m.weight, mean=0.0, std=0.01)
             if m.bias is not None:
@@ -81,13 +104,28 @@ class BaseModel(torch.nn.Module):
         self._init_weights()
         self.optimizer = None
 
-    def _init_weights(self):
+
+    def _init_weights(
+        self
+    ):
         pass
 
-    def forward(self, feed_dict):
+
+    def forward(
+        self, 
+        feed_dict
+        ):
         pass
 
-    def get_feed_dict(self, corpus, data, batch_start, batch_size, train):
+
+    def get_feed_dict(
+        self, 
+        corpus, 
+        data, 
+        batch_start, 
+        batch_size, 
+        train
+    ):
         pass
 
 
@@ -123,7 +161,18 @@ class BaseModel(torch.nn.Module):
         return batches
 
 
-    def count_variables(self):
+    def count_variables(
+        self
+    ):
+        """
+        Counts the number of trainable parameters in a PyTorch model.
+
+        Args:
+            model: A PyTorch model.
+
+        Returns:
+            The total number of trainable parameters in the model.
+        """
         total_parameters = sum(p.numel() for p in self.parameters() if p.requires_grad)
         return total_parameters
     
@@ -186,12 +235,16 @@ class BaseModel(torch.nn.Module):
         return optimize_dict
 
 
-    def actions_before_train(self):
+    def actions_before_train(
+        self
+    ):
         total_parameters = self.count_variables()
         self.logs.write_to_log_file('#params: %d' % total_parameters)
 
 
-    def actions_after_train(self): # TO-DO: add more actions
+    def actions_after_train(
+        self
+    ): # TODO: add more actions
         end_time = time.time()
         train_time = end_time - self.start_time
         final_loss = self.logs.get_last_loss()

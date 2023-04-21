@@ -26,7 +26,7 @@
 # import ipdb
 # ipdb.set_trace()
 
-from models.baseline import DKT, AKT, SKT, HKT
+from models.baseline import DKT, DKTForgetting, AKT, SKT, HKT
 from models.learner_model import *
 from models.learner_hssm_model import *
 
@@ -36,5 +36,5 @@ __all__ = [
     'BaseLearnerModel',
     'HLR', 'PPE', 'VanillaOU', 'GraphOU',
     'GraphHSSM', 'VanillaHSSM', 'HSSM', 
-    'AKT', 'DKT', 'SKT', 'HKT',
+    'DKT', 'DKTForgetting', 
 ]

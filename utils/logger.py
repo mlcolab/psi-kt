@@ -142,13 +142,13 @@ class Logger:
             plt.close()
             
     
-    def save_checkpoint(self, args, optimizer, specifier=""):
-        args.decoder_file = os.path.join(args.log_path, "decoder" + specifier + ".pt")
+    def save_checkpoint(self, args, model, optimizer, specifier=""):
+        args.model_file = os.path.join(args.log_path, "model_final" + specifier + ".pt")
         args.optimizer_file = os.path.join(
             args.log_path, "optimizer" + specifier + ".pt"
         )
-        if decoder is not None:
-            torch.save(decoder.state_dict(), args.decoder_file)
+        if model is not None:
+            torch.save(model.state_dict(), args.model_file)
         if optimizer is not None:
             torch.save(optimizer.state_dict(), args.optimizer_file)
             
@@ -213,7 +213,7 @@ class Logger:
             specifier = "final"
 
         # Save the model checkpoint
-        self.save_checkpoint(args, optimizer, specifier=specifier)
+        self.save_checkpoint(args, model, optimizer, specifier=specifier)
     
     
 

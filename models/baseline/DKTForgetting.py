@@ -136,8 +136,68 @@ class DKTForgetting(BaseModel):
         self.loss_function = torch.nn.BCELoss()
 
 
-    def forward_cl(self, ):
-        pass 
+    def forward_cl(
+        self, 
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+    ):
+        """
+        Computes the forward pass of the model.
+
+        Args:
+            feed_dict: A dictionary containing input data.
+
+        Returns:
+            A dictionary containing the model's predictions and corresponding labels.
+        """
+        
+        items = feed_dict['skill_seq'][:, :idx+1]   # [bs, time]
+        labels = feed_dict['label_seq'][:, :idx+1]  # [bs, time]
+        indices = feed_dict['inverse_indice']
+            
+        repeated_time_gap_seq = feed_dict['repeated_time_gap_seq'][:, :idx+1]  # [bs, time, 1]
+        sequence_time_gap_seq = feed_dict['sequence_time_gap_seq'][:, :idx+1]  # [bs, time, 1]
+        past_trial_counts_seq = feed_dict['past_trial_counts_seq'][:, :idx+1]  # [bs, time, 1]
+
+        # Compute item embeddings and feature interaction
+        embed_history_i = self.skill_embeddings(items + labels * self.skill_num) # [bs, time, emb_size]
+        fin = self.fin(torch.cat((repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq), dim=-1)) # [bs, time, emb_size]
+        embed_history_i = torch.cat(
+            (embed_history_i.mul(fin), repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq), dim=-1
+        )
+        
+        # Pack padded sequence and run through RNN layer
+        output, _ = self.rnn(embed_history_i, None) # [bs, time, emb_dim]
+        fout = self.fout(torch.cat((repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq), dim=-1)) # [bs, time, emb_size]
+        output = torch.cat((
+            output.mul(fout), repeated_time_gap_seq,
+            sequence_time_gap_seq, past_trial_counts_seq
+        ), dim=-1) # [bs, time, emb_size+3]
+        
+        pred_vector = self.out(output) # [bs, time, skill_num]
+        
+        target_item = feed_dict['skill_seq'][:, 1:idx+2] 
+        prediction_sorted = torch.gather(pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)).squeeze(dim=-1)
+        prediction_sorted = torch.sigmoid(prediction_sorted)
+        prediction = prediction_sorted[feed_dict['inverse_indice']]
+
+        train_pred = prediction[:, :-1]
+        eval_pred = prediction[:, -1:]
+
+        # Extract the labels for the training and evaluation predictions
+        train_label = feed_dict['label_seq'][:, 1:idx+1]
+        train_label = train_label[indices].double()
+        eval_label = feed_dict['label_seq'][:, idx+1:idx+2]
+        eval_label = eval_label[indices].double()
+
+        out_dict = {
+            'prediction': train_pred, 
+            'label': train_label,
+            'cl_prediction': eval_pred,
+            'cl_label': eval_label,
+        }
+
+        return out_dict
     
     
     def forward(
@@ -193,38 +253,65 @@ class DKTForgetting(BaseModel):
         label = labels[:, 1:]
         label = label[feed_dict['inverse_indice']].double()
 
-        out_dict = {'prediction': prediction, 'label': label}
+        out_dict = {
+            'prediction': prediction, 
+            'label': label
+        }
+
         return out_dict
 
 
     def loss(
         self, 
         feed_dict: Dict[str, torch.Tensor],
-        outdict: Dict[str, torch.Tensor],
+        out_dict: Dict[str, torch.Tensor],
         metrics: List[str] = None,
     ):
+        """
+        Compute the loss and evaluation metrics for the model given the input feed_dict and the output out_dict.
+
+        Args:
+            feed_dict: A dictionary containing the input tensors for the model.
+            out_dict: A dictionary containing the output tensors for the model.
+            metrics: A list of evaluation metrics to compute.
+
+        Returns:
+            A dictionary containing the loss and evaluation metrics.
+        """
+
         losses = defaultdict(lambda: torch.zeros((), device=self.device))
 
+        # Extract indices and lengths from feed_dict
         indice = feed_dict['indice']
         lengths = feed_dict['length'] - 1
-
         if lengths.is_cuda:
             lengths = lengths.cpu().int()
-        predictions, labels = outdict['prediction'][indice], outdict['label'][indice]
-        predictions = torch.nn.utils.rnn.pack_padded_sequence(predictions, lengths, batch_first=True).data
-        labels = torch.nn.utils.rnn.pack_padded_sequence(labels, lengths, batch_first=True).data
+
+        # Compute the loss for the main prediction task
+        predictions, labels = out_dict['prediction'][indice], out_dict['label'][indice]
         losses['loss_total'] = self.loss_function(predictions, labels.float())
 
-        if metrics != None:
-            pred = outdict['prediction'].detach().cpu().data.numpy()
-            gt = outdict['label'].detach().cpu().data.numpy()
+        # Compute the evaluation metrics for the main prediction task
+        if metrics is not None:
+            pred = predictions.detach().cpu().data.numpy()
+            gt = labels.detach().cpu().data.numpy()
             evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
             for key in evaluations.keys():
                 losses[key] = evaluations[key]
 
+        if 'cl_prediction' in out_dict.keys():
+            cl_predictions, cl_labels = out_dict['cl_prediction'][indice], out_dict['cl_label'][indice]
+            cl_loss = self.loss_function(cl_predictions, cl_labels.float())
+            losses['cl_loss'] = cl_loss
+            pred = cl_predictions.detach().cpu().data.numpy()
+            gt = cl_labels.detach().cpu().data.numpy()
+            evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
+            for key in evaluations.keys():
+                losses['cl_'+key] = evaluations[key]
+
         return losses
-       
-        
+
+
     def get_feed_dict(
         self, 
         corpus, 

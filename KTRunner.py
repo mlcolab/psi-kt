@@ -1,6 +1,4 @@
-import gc, pickle
-import copy
-import os
+import gc, pickle, copy, os
 
 from time import time
 from tqdm import tqdm
@@ -13,10 +11,10 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 
 from utils import utils
-import ipdb
-
 from models.new_learner_model import HierachicalSSM
 from models.learner_hssm_model import HSSM
+
+import ipdb
         
 OPTIMIZER_MAP = {
     'gd': optim.SGD,
@@ -53,7 +51,10 @@ class KTRunner(object):
         self.logs = logs
 
 
-    def _check_time(self, start=False):
+    def _check_time(
+        self, 
+        start=False
+    ):
         """
         Check the time to compute the training/test/val time.
 
@@ -69,7 +70,10 @@ class KTRunner(object):
             return self.time[1] - tmp_time
 
 
-    def _build_optimizer(self, model):
+    def _build_optimizer(
+        self, 
+        model
+    ):
         '''
         Choose the optimizer based on the optimizer name in the global arguments.
         The optimizer has the setting of weight decay, and learning rate decay which can be modified in global arguments.
@@ -100,7 +104,11 @@ class KTRunner(object):
         return optimizer, scheduler
 
 
-    def _print_res(self, model, corpus): # TODO
+    def _print_res(
+        self, 
+        model, 
+        corpus
+    ): # TODO
         '''
         Print the model prediction on test data set.
         This is used in main function to compare the performance of model before and after training.
@@ -249,7 +257,13 @@ class KTRunner(object):
                         utils.format_metric(test_res_dict),
                         self.time[1] - self.time[0]))
                         
-        # model.load_model() #???
+        self.logs.create_log(   
+            args=self.args,
+            model=model,
+            optimizer=model.module.optimizer,
+            final_test=True,
+            test_results=self.logs.test_results,
+        )
 
 
     def fit(
@@ -304,38 +318,25 @@ class KTRunner(object):
         self.logs.append_epoch_losses(train_losses, 'train')
         
         model.eval()
-        
-        # # Save the output dict for visualization
-        # if self.args.vis_train & epoch % 5 == 0:
-        #     flat_outdicts = {}
-        #     for key in out_dicts[0].keys():
-        #         if key not in ['elbo', 'iwae', 'initial_likelihood', 'sequence_likelihood', 
-        #                        'st_entropy', 'zt_entropy',
-        #                        'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
-        #             flat_outdicts[key] = torch.cat([out[key] for out in out_dicts], )
-        #             # ipdb.set_trace()
-            
-        #     with open(os.path.join(self.args.visdir, 'train_out_dict_epoch_{}.pkg'.format(epoch)), 'wb') as f:
-        #         pickle.dump(flat_outdicts, f)
             
             
-        # TODO DEBUG: to visualize the difference of synthetic data adj
-        if 'synthetic' in self.args.dataset and epoch%2 == 0:
-            import matplotlib.patches as mpatches
-            gt_adj = batch['gt_adj']
-            _, probs, pred_adj = model.module.var_dist_A.sample_A(num_graph=100)
-            print(torch.mean(probs, 0))
-            # ipdb.set_trace()
-            mat_diff = gt_adj-pred_adj[0,0] 
-            mat_diff = mat_diff.int().cpu().detach().numpy()
-            im = plt.imshow(mat_diff, interpolation='none', cmap='Blues',aspect='auto',alpha=0.5)
+        # # TODO DEBUG: to visualize the difference of synthetic data adj
+        # if 'synthetic' in self.args.dataset and epoch%2 == 0:
+        #     import matplotlib.patches as mpatches
+        #     gt_adj = batch['gt_adj']
+        #     _, probs, pred_adj = model.module.var_dist_A.sample_A(num_graph=100)
+        #     print(torch.mean(probs, 0))
+        #     # ipdb.set_trace()
+        #     mat_diff = gt_adj-pred_adj[0,0] 
+        #     mat_diff = mat_diff.int().cpu().detach().numpy()
+        #     im = plt.imshow(mat_diff, interpolation='none', cmap='Blues',aspect='auto',alpha=0.5)
 
-            values = np.unique(mat_diff.ravel())
-            colors = [im.cmap(im.norm(value)) for value in values]
-            patches = [mpatches.Patch(color=colors[i], label="Level {l}".format(l=values[i]) ) for i in range(len(values))]
+        #     values = np.unique(mat_diff.ravel())
+        #     colors = [im.cmap(im.norm(value)) for value in values]
+        #     patches = [mpatches.Patch(color=colors[i], label="Level {l}".format(l=values[i]) ) for i in range(len(values))]
 
-            plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
-            plt.savefig(os.path.join(self.args.plotdir, 'adj_diff_epoch{}.png'.format(epoch)))
+        #     plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
+        #     plt.savefig(os.path.join(self.args.plotdir, 'adj_diff_epoch{}.png'.format(epoch)))
             
         return self.logs.train_results['loss_total'][-1]
 
@@ -372,23 +373,19 @@ class KTRunner(object):
                 prediction, label = out_dict['prediction'], out_dict['label']
                 predictions.extend(prediction.detach().cpu().data.numpy())
                 labels.extend(label.detach().cpu().data.numpy())
-        
-        # # Save the output dict for visualization
-        # if self.args.vis_val & epoch % 5 == 0:
-        #     flat_outdicts = {}
-        #     for key in out_dicts[0].keys():
-        #         if key not in ['elbo', 'iwae', 'initial_likelihood', 'sequence_likelihood', 
-        #                        'st_entropy', 'zt_entropy',
-        #                        'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
-        #             flat_outdicts[key] = torch.cat([out[key] for out in out_dicts], 1)
-            
-        #     with open(os.path.join(self.args.visdir, set_name+'_out_dict_epoch_{}.pkg'.format(epoch)), 'wb') as f:
-        #         pickle.dump(flat_outdicts, f)
                 
         return np.array(predictions), np.array(labels)
 
 
-    def evaluate(self, model, corpus, set_name, data_batches=None, whole_batches=None, epoch=None):
+    def evaluate(
+        self, 
+        model, 
+        corpus, 
+        set_name, 
+        data_batches=None, 
+        whole_batches=None, 
+        epoch=None
+    ):
         '''
         Evaluate the results for an input set.
 

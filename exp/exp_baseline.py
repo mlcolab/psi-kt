@@ -30,12 +30,12 @@ if __name__ == '__main__':
     parser.add_argument('--learned_graph', type=str, default='w_gt')
     parser.add_argument('--vcl', type=int, default=1)
     
-    # Training options
+    # Training options 
     parser.add_argument('--vis_train', type=int, default=1)
     parser.add_argument('--vis_val', type=int, default=1)
     parser.add_argument('--multi_node', type=int, default=0)
     parser.add_argument('--train_time_ratio', type=float, default=0.5, help='')
-    parser.add_argument('--test_time_ratio', type=float, default=0.4, help='')
+    parser.add_argument('--test_time_ratio', type=float, default=0.5, help='')
     parser.add_argument('--num_sample', type=int, default=100)
     
     # Define an argument parser for the model name.
@@ -96,7 +96,7 @@ if __name__ == '__main__':
     else: num_seq = 1
     
     model = model(global_args, corpus, logs)
-            
+    # TODO for debugging
     shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/baseline/{}.py'.format(model_name),
                     global_args.log_path)
     shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/exp/exp_baseline.py',

@@ -1,203 +1,63 @@
-/var/spool/slurmd/job3296744/slurm_script: /usr/bin/modulecmd: No such file or directory
-/var/spool/slurmd/job3296744/slurm_script: /usr/bin/modulecmd: No such file or directory
-[I 11:41:15.931 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
-[I 11:41:15.933 NotebookApp] Jupyter Notebook 6.4.12 is running at:
-[I 11:41:15.933 NotebookApp] http://slurm-bm-41:8887/?token=b8ff558b4005ab769dea53718c35ba7056040ff121b74dc3
-[I 11:41:15.933 NotebookApp]  or http://127.0.0.1:8887/?token=b8ff558b4005ab769dea53718c35ba7056040ff121b74dc3
-[I 11:41:15.933 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
-[C 11:41:15.946 NotebookApp] 
+/var/spool/slurmd/job3361128/slurm_script: /usr/bin/modulecmd: No such file or directory
+/var/spool/slurmd/job3361128/slurm_script: /usr/bin/modulecmd: No such file or directory
+[I 21:48:14.712 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
+[I 21:48:14.714 NotebookApp] Jupyter Notebook 6.4.12 is running at:
+[I 21:48:14.714 NotebookApp] http://slurm-bm-05:8887/?token=6a54630933cd1d52273285267f9384b649714222a9c6b2c9
+[I 21:48:14.714 NotebookApp]  or http://127.0.0.1:8887/?token=6a54630933cd1d52273285267f9384b649714222a9c6b2c9
+[I 21:48:14.714 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 21:48:14.756 NotebookApp] 
     
     To access the notebook, open this file in a browser:
-        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-110852-open.html
+        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-138800-open.html
     Or copy and paste one of these URLs:
-        http://slurm-bm-41:8887/?token=b8ff558b4005ab769dea53718c35ba7056040ff121b74dc3
-     or http://127.0.0.1:8887/?token=b8ff558b4005ab769dea53718c35ba7056040ff121b74dc3
-[I 11:51:40.909 NotebookApp] 302 GET /?token=b8ff558b4005ab769dea53718c35ba7056040ff121b74dc3 (192.168.212.63) 0.550000ms
-[W 12:00:00.559 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 12:00:00.933 NotebookApp] Kernel started: 78332fd5-6636-4105-a667-830922d14d8d, name: python3
+        http://slurm-bm-05:8887/?token=6a54630933cd1d52273285267f9384b649714222a9c6b2c9
+     or http://127.0.0.1:8887/?token=6a54630933cd1d52273285267f9384b649714222a9c6b2c9
+[I 21:54:04.651 NotebookApp] 302 GET /?token=6a54630933cd1d52273285267f9384b649714222a9c6b2c9 (192.168.212.63) 0.540000ms
+[W 21:54:36.344 NotebookApp] Notebook data/preprocess/ednet_kt1-Copy1.ipynb is not trusted
+[I 21:54:36.782 NotebookApp] Kernel started: e485cae1-ab5d-4d0c-afe2-6a237f18921a, name: python3
 [IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 8ef9ba02-3bd4-4a5e-b1b8-8f74d0b6b954
-[I 12:50:00.734 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 12:50:00.741 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 12:52:00.700 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 12:52:00.702 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 12:54:00.691 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 12:54:00.694 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 12:54:21.055 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 12:54:21.057 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 12:56:00.694 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 12:56:00.709 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 12:58:00.696 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 12:58:00.699 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:02:00.688 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:02:00.692 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:02:18.923 NotebookApp] KernelRestarter: restarting kernel (1/5), keep random ports
-WARNING:root:kernel 78332fd5-6636-4105-a667-830922d14d8d restarted
-[I 13:04:00.687 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:04:00.690 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:06:00.681 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:06:00.687 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:10:52.035 NotebookApp] KernelRestarter: restarting kernel (1/5), keep random ports
-WARNING:root:kernel 78332fd5-6636-4105-a667-830922d14d8d restarted
-[I 13:12:00.672 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:12:00.675 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:14:00.967 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:14:00.969 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:20:19.881 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:20:19.897 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:24:20.272 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:24:20.276 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:42:00.673 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:42:00.678 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
+[IPKernelApp] WARNING | No such comm: 1e32c28f-3710-4094-8771-01567641d920
+[I 22:08:36.574 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[W 22:08:36.590 NotebookApp] Notebook data/preprocess/ednet_kt3.ipynb is not trusted
+[I 22:10:37.187 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[W 22:10:37.189 NotebookApp] Notebook data/preprocess/ednet_kt3.ipynb is not trusted
+[I 23:04:37.376 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[W 23:04:37.401 NotebookApp] Notebook data/preprocess/ednet_kt3.ipynb is not trusted
+[I 23:07:34.214 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[W 23:07:34.217 NotebookApp] Notebook data/preprocess/ednet_kt3.ipynb is not trusted
+[I 23:08:36.719 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[W 23:08:36.722 NotebookApp] Notebook data/preprocess/ednet_kt3.ipynb is not trusted
+[I 23:09:07.901 NotebookApp] Kernel interrupted: e485cae1-ab5d-4d0c-afe2-6a237f18921a
+[I 23:10:37.231 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[W 23:10:37.241 NotebookApp] Notebook data/preprocess/ednet_kt3.ipynb is not trusted
+[I 23:14:37.358 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[W 23:14:37.362 NotebookApp] Notebook data/preprocess/ednet_kt3.ipynb is not trusted
+[I 23:26:42.367 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[W 23:26:42.385 NotebookApp] Notebook data/preprocess/ednet_kt3.ipynb is not trusted
 /mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/nbformat/__init__.py:128: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
   validate(nb)
 /mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/notebook/services/contents/manager.py:353: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
   validate_nb(model['content'])
-[I 13:44:18.704 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:44:18.726 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:46:00.760 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:46:00.764 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:48:00.655 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:48:00.657 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:50:03.118 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:50:03.121 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:52:01.428 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:52:01.430 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:54:02.350 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:54:02.352 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:56:01.366 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:56:01.374 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 13:58:28.810 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 13:58:28.813 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:00:01.087 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:00:01.089 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:01:45.092 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:01:45.095 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:02:01.119 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:02:01.121 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:04:01.173 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:04:01.176 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:04:10.180 NotebookApp] KernelRestarter: restarting kernel (1/5), keep random ports
-WARNING:root:kernel 78332fd5-6636-4105-a667-830922d14d8d restarted
-[I 14:06:08.675 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:06:08.678 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:10:01.139 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:10:01.142 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:18:00.657 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:18:00.661 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:31:05.880 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:31:05.886 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:31:11.761 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:31:11.762 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:31:51.291 NotebookApp] Kernel interrupted: 78332fd5-6636-4105-a667-830922d14d8d
-[I 14:32:00.633 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:32:00.634 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:32:07.655 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:32:07.664 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:32:49.241 NotebookApp] KernelRestarter: restarting kernel (1/5), keep random ports
-WARNING:root:kernel 78332fd5-6636-4105-a667-830922d14d8d restarted
-[I 14:34:11.055 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:34:11.058 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:35:26.290 NotebookApp] Starting buffering for 78332fd5-6636-4105-a667-830922d14d8d:38128fc1cba044dc9072bdfbe967a1a9
-[I 14:35:29.154 NotebookApp] Kernel restarted: 78332fd5-6636-4105-a667-830922d14d8d
-[I 14:35:29.207 NotebookApp] Restoring connection for 78332fd5-6636-4105-a667-830922d14d8d:38128fc1cba044dc9072bdfbe967a1a9
-[W 14:35:33.718 NotebookApp] Nudge: attempt 10 on kernel 78332fd5-6636-4105-a667-830922d14d8d
-[W 14:35:38.730 NotebookApp] Nudge: attempt 20 on kernel 78332fd5-6636-4105-a667-830922d14d8d
-[I 14:35:42.121 NotebookApp] Replaying 3 buffered messages
-[I 14:36:01.849 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:36:01.852 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:37:17.145 NotebookApp] KernelRestarter: restarting kernel (1/5), keep random ports
-WARNING:root:kernel 78332fd5-6636-4105-a667-830922d14d8d restarted
-[I 14:38:00.617 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:38:00.620 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:40:54.523 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:40:54.526 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:42:00.612 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:42:00.615 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:48:01.127 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:48:01.131 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 14:50:05.666 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 14:50:05.669 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 15:01:30.452 NotebookApp] Kernel interrupted: 78332fd5-6636-4105-a667-830922d14d8d
-[I 15:02:01.004 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 15:02:01.007 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 15:08:00.603 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 15:08:00.619 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 15:08:35.238 NotebookApp] KernelRestarter: restarting kernel (1/5), keep random ports
-WARNING:root:kernel 78332fd5-6636-4105-a667-830922d14d8d restarted
-[I 15:10:00.572 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 15:10:00.575 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 15:12:00.687 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 15:12:00.691 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 15:18:01.885 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 15:18:01.889 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 15:24:01.106 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 15:24:01.110 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 15:24:02.379 NotebookApp] KernelRestarter: restarting kernel (1/5), keep random ports
-WARNING:root:kernel 78332fd5-6636-4105-a667-830922d14d8d restarted
-[I 15:26:02.615 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 15:26:02.618 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 15:56:00.529 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 15:56:00.554 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[W 15:56:27.858 NotebookApp] Notebook data/preprocess/ednet_kt1-Copy1.ipynb is not trusted
-[I 15:56:28.022 NotebookApp] Kernel started: 36f4debc-3e7a-40f4-8fdb-fba88e31c1ff, name: python3
-[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
-[IPKernelApp] WARNING | No such comm: 6bac2069-ebf0-4453-b32e-fc2530bb1647
-[I 15:58:02.578 NotebookApp] KernelRestarter: restarting kernel (1/5), keep random ports
-WARNING:root:kernel 78332fd5-6636-4105-a667-830922d14d8d restarted
-[I 15:58:02.686 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 15:58:02.687 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 16:02:07.562 NotebookApp] Starting buffering for 36f4debc-3e7a-40f4-8fdb-fba88e31c1ff:2c40fe0a8a934b0c85842519cfe6a388
-[I 16:02:07.565 NotebookApp] Starting buffering for 78332fd5-6636-4105-a667-830922d14d8d:38128fc1cba044dc9072bdfbe967a1a9
-[I 16:02:09.632 NotebookApp] Restoring connection for 78332fd5-6636-4105-a667-830922d14d8d:38128fc1cba044dc9072bdfbe967a1a9
-[I 16:02:10.329 NotebookApp] Restoring connection for 36f4debc-3e7a-40f4-8fdb-fba88e31c1ff:2c40fe0a8a934b0c85842519cfe6a388
-[W 16:09:09.634 NotebookApp] WebSocket ping timeout after 119973 ms.
-[W 16:09:10.330 NotebookApp] WebSocket ping timeout after 119990 ms.
-[I 16:09:14.655 NotebookApp] Starting buffering for 78332fd5-6636-4105-a667-830922d14d8d:38128fc1cba044dc9072bdfbe967a1a9
-[I 16:09:15.332 NotebookApp] Starting buffering for 36f4debc-3e7a-40f4-8fdb-fba88e31c1ff:2c40fe0a8a934b0c85842519cfe6a388
-[I 17:49:24.893 NotebookApp] Restoring connection for 36f4debc-3e7a-40f4-8fdb-fba88e31c1ff:2c40fe0a8a934b0c85842519cfe6a388
-[I 17:49:29.419 NotebookApp] Restoring connection for 78332fd5-6636-4105-a667-830922d14d8d:38128fc1cba044dc9072bdfbe967a1a9
-[I 17:50:45.301 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 17:50:45.304 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 17:52:45.391 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 17:52:45.401 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 17:56:45.533 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 17:56:45.544 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 17:57:12.775 NotebookApp] Saving file at /data/preprocess/ednet_kt1-Copy1.ipynb
-[W 17:57:12.778 NotebookApp] Notebook data/preprocess/ednet_kt1-Copy1.ipynb is not trusted
-[I 17:58:49.331 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 17:58:49.333 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 17:59:13.523 NotebookApp] Saving file at /data/preprocess/ednet_kt1-Copy1.ipynb
-[W 17:59:13.525 NotebookApp] Notebook data/preprocess/ednet_kt1-Copy1.ipynb is not trusted
-[I 17:59:53.669 NotebookApp] KernelRestarter: restarting kernel (1/5), keep random ports
-WARNING:root:kernel 78332fd5-6636-4105-a667-830922d14d8d restarted
-[I 18:00:45.255 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 18:00:45.258 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 18:02:45.357 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 18:02:45.360 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 18:08:45.708 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 18:08:45.725 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 18:09:23.853 NotebookApp] KernelRestarter: restarting kernel (1/5), keep random ports
-WARNING:root:kernel 78332fd5-6636-4105-a667-830922d14d8d restarted
-[I 18:10:45.240 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 18:10:45.244 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 18:12:45.239 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 18:12:45.244 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 18:14:45.228 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 18:14:45.231 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 18:16:45.319 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 18:16:45.323 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 18:18:45.226 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 18:18:45.231 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 18:20:45.233 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 18:20:45.235 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 18:22:45.233 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 18:22:45.236 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 18:24:45.236 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 18:24:45.238 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 18:25:39.394 NotebookApp] Saving file at /data/preprocess/ednet_kt1.ipynb
-[W 18:25:39.397 NotebookApp] Notebook data/preprocess/ednet_kt1.ipynb is not trusted
-[I 18:25:44.020 NotebookApp] Starting buffering for 78332fd5-6636-4105-a667-830922d14d8d:38128fc1cba044dc9072bdfbe967a1a9
-[I 18:25:50.246 NotebookApp] Starting buffering for 36f4debc-3e7a-40f4-8fdb-fba88e31c1ff:2c40fe0a8a934b0c85842519cfe6a388
-slurmstepd: error: *** JOB 3296744 ON slurm-bm-41 CANCELLED AT 2023-04-18T18:25:56 ***
-slurmstepd: error: Detected 10 oom-kill event(s) in StepId=3296744.batch cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.
+[I 23:46:36.587 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[W 23:46:36.596 NotebookApp] Notebook data/preprocess/ednet_kt3.ipynb is not trusted
+[I 23:50:37.588 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[W 23:50:37.598 NotebookApp] Notebook data/preprocess/ednet_kt3.ipynb is not trusted
+[I 23:52:00.862 NotebookApp] Kernel interrupted: e485cae1-ab5d-4d0c-afe2-6a237f18921a
+[I 23:52:36.961 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[I 00:02:36.578 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[I 00:04:36.625 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[I 00:05:03.772 NotebookApp] KernelRestarter: restarting kernel (1/5), keep random ports
+WARNING:root:kernel e485cae1-ab5d-4d0c-afe2-6a237f18921a restarted
+[I 00:05:55.223 NotebookApp] Kernel interrupted: e485cae1-ab5d-4d0c-afe2-6a237f18921a
+[I 00:06:37.652 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[I 00:10:36.707 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[I 00:12:37.498 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[I 00:24:37.138 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[I 00:46:37.210 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[I 00:48:38.060 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[I 00:50:36.592 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[I 00:52:36.728 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[I 01:15:45.353 NotebookApp] Saving file at /data/preprocess/ednet_kt3.ipynb
+[I 01:15:45.860 NotebookApp] Starting buffering for e485cae1-ab5d-4d0c-afe2-6a237f18921a:ba1ac1814e2040948adbfaf688499e86
+slurmstepd: error: *** JOB 3361128 ON slurm-bm-05 CANCELLED AT 2023-04-21T01:16:16 ***
+slurmstepd: error: Detected 1 oom-kill event(s) in StepId=3361128.batch cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.

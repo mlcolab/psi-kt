@@ -23,7 +23,7 @@ class Logger:
         self.create_log_path(args)
 
 
-    @ staticmethod
+    @staticmethod
     def append_batch_losses(losses_list, losses):
         """
         Appends the losses dictionary to the losses_list.
@@ -142,10 +142,22 @@ class Logger:
             plt.close()
             
     
-    def create_log( # TODO
+    def save_checkpoint(self, args, optimizer, specifier=""):
+        args.decoder_file = os.path.join(args.log_path, "decoder" + specifier + ".pt")
+        args.optimizer_file = os.path.join(
+            args.log_path, "optimizer" + specifier + ".pt"
+        )
+        if decoder is not None:
+            torch.save(decoder.state_dict(), args.decoder_file)
+        if optimizer is not None:
+            torch.save(optimizer.state_dict(), args.optimizer_file)
+            
+            
+    def create_log( 
         self,
         args,
         accuracy=None,
+        model=None,
         optimizer=None,
         final_test=False,
         test_results=None,
@@ -155,11 +167,14 @@ class Logger:
         print("Saving model and log-file to " + args.log_path)
 
         # Save losses throughout training and plot
-        self.train_results.to_pickle(os.path.join(self.args.log_path, "train_loss"))
+        self.train_results.to_pickle(os.path.join(self.args.log_path, "out_dict", "train_loss"))
 
         if self.valid_results is not None:
-            self.valid_results.to_pickle(os.path.join(self.args.log_path, "val_loss"))
+            self.valid_results.to_pickle(os.path.join(self.args.log_path, "out_dict", "val_loss"))
 
+        if self.test_results is not None:
+            self.test_results.to_pickle(os.path.join(self.args.log_path, "out_dict", "test_loss"))
+            
         if accuracy is not None:
             np.save(os.path.join(self.args.log_path, "accuracy"), accuracy)
 
@@ -173,7 +188,7 @@ class Logger:
                 ],
                 columns=["loss", "score"],
             )
-            pd_test_results.to_pickle(os.path.join(self.args.log_path, "test_loss"))
+            pd_test_results.to_pickle(os.path.join(self.args.log_path, "out_dict", "test_results"))
 
             pd_test_results_per_influenced = pd.DataFrame(
                 list(
@@ -193,9 +208,8 @@ class Logger:
                 columns=["loss", "num_influenced", "score"],
             )
             pd_test_results_per_influenced.to_pickle(
-                os.path.join(args.log_path, "test_loss_per_influenced")
+                os.path.join(args.log_path, "out_dict", "test_loss_per_influenced")
             )
-
             specifier = "final"
 
         # Save the model checkpoint
@@ -276,12 +290,3 @@ class Logger:
 
 
 
-    # def save_checkpoint(self, args, optimizer, specifier=""):
-    #     args.decoder_file = os.path.join(args.log_path, "decoder" + specifier + ".pt")
-    #     args.optimizer_file = os.path.join(
-    #         args.log_path, "optimizer" + specifier + ".pt"
-    #     )
-    #     if decoder is not None:
-    #         torch.save(decoder.state_dict(), args.decoder_file)
-    #     if optimizer is not None:
-    #         torch.save(optimizer.state_dict(), args.optimizer_file)

@@ -55,7 +55,7 @@ def parse_args(parser):
     parser.add_argument('--batch_size', type=int, default=512, help='Batch size during training.')
     parser.add_argument('--eval_batch_size', type=int, default=512, help='Batch size during testing.')
     parser.add_argument('--dropout', type=float, default=0.0, help='Dropout probability for each deep layer')
-    parser.add_argument('--l2', type=float, default=0., help='Weight of l2_regularize in loss.')
+    parser.add_argument('--l2', type=float, default=1e-5, help='Weight of l2_regularize in loss.')
     parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer: GD, Adam, Adagrad, Adadelta')
     parser.add_argument('--metric', type=str, default='F1, Accuracy, Recall, Precision', # AUC, 
                         help='metrics: AUC, F1, Accuracy, Recall, Presicion;'

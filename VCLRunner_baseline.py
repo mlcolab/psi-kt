@@ -109,13 +109,13 @@ class VCLRunner(KTRunner):
                 
         max_time_step = self.args.max_step
         
-        
+        training_resources = []
         for time in range(1, max_time_step-1):
             
             try:
                 gc.collect()
                 model.train()
-                
+
                 self._check_time()
                 self.fit(model, whole_batches, time_step=time)
             
@@ -186,8 +186,12 @@ class VCLRunner(KTRunner):
                 # model.module.scheduler.step()
     
                 # Append the losses to the train_losses dictionary.
+
+                training_time = self._check_time()
                 train_loss_dict = {k: v.item() for k, v in loss_dict.items() if 'cl' not in k}
+                train_loss_dict['train_time'] = training_time
                 test_loss_dict = {k[3:]: v.item() for k, v in loss_dict.items() if 'cl' in k}
+
                 train_losses = self.logs.append_batch_losses(train_losses, train_loss_dict)
                 test_losses = self.logs.append_batch_losses(test_losses, test_loss_dict)
                 

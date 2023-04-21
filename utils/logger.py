@@ -68,7 +68,10 @@ class Logger:
         os.makedirs(args.visdir, exist_ok=True)
 
 
-    def write_to_log_file(self, string):
+    def write_to_log_file(
+        self, 
+        string
+    ):
         """
         Write given string in log-file and print as terminal output
         """

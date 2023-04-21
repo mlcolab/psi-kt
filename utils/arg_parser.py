@@ -26,7 +26,7 @@ def parse_args(parser):
     parser.add_argument('--gpu', type=str, default='0', help='Set CUDA_VISIBLE_DEVICES')
 
     ############## data loader ##############
-    parser.add_argument('--data_dir', type=str, default='/mnt/qb/work/mlcolab/hzhou52/kt', help='Input data dir.')
+    parser.add_argument('--data_dir', type=str, default='/mnt/lustre/mlcolab/hzhou52/kt', help='Input data dir.')
     parser.add_argument('--dataset', type=str, help='[junyi, assistment12, ]')
     parser.add_argument('--sep', type=str, default='\t', help='sep of csv file.')
     parser.add_argument('--kfold', type=int, default=5, help='K-fold number.')
@@ -34,7 +34,7 @@ def parse_args(parser):
     parser.add_argument('--regenerate_corpus', action="store_true", default=False)
 
     ############## logger ##############
-    parser.add_argument("--save_folder", type=str, default="/mnt/qb/work/mlcolab/hzhou52/kt/logs",)
+    parser.add_argument("--save_folder", type=str, default="/mnt/lustre/mlcolab/hzhou52/kt/logs",)
     parser.add_argument("--save_every", type=int, default=10,)
     parser.add_argument("--expername", type=str, default="",)
 

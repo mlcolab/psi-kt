@@ -58,7 +58,7 @@ def load_corpus(logs, args):
     return corpus
 
 
-def _get_feed_dict(keys, data, start, batch_size, pad_list=False, device='cpu'):
+def _get_feed_dict(keys, data, start, batch_size, pad_list=False):
     '''
     Creates a PyTorch feed_dict for a batch of data.
 
@@ -86,7 +86,7 @@ def _get_feed_dict(keys, data, start, batch_size, pad_list=False, device='cpu'):
             seq = pad_lst(seq)
         
         # Convert the sequence to a PyTorch tensor and add it to the feed_dict dictionary
-        feed_dict[key] = torch.as_tensor(seq).to(device)
+        feed_dict[key] = torch.as_tensor(seq)
         
     return feed_dict
 

@@ -1,6 +1,7 @@
 import math, random, sys, os
 import numpy as np
 from collections import defaultdict
+from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
 from tqdm import tqdm
 
@@ -33,8 +34,14 @@ class BaseLearnerModel(BaseModel):
         
         self.model_path = os.path.join(logs.args.log_path, 'Model/Model_{}_{}.pt')
         
+        
     @staticmethod
-    def _find_whole_stats(all_feature, t, items, num_node):
+    def _find_whole_stats(
+        all_feature: torch.Tensor,
+        t: torch.Tensor,
+        items: torch.Tensor,
+        num_node: int,
+    ):
         '''
         Args:
             all_feature: [bs, 1, num_step, 3]
@@ -70,7 +77,15 @@ class BaseLearnerModel(BaseModel):
 
 
     @staticmethod
-    def _compute_all_features(num_seq, num_node, time_step, device, stats_cal_on_fly=False, items=None, stats=None):
+    def _compute_all_features(
+        num_seq: int,
+        num_node: int,
+        time_step: int,
+        device: torch.device,
+        stats_cal_on_fly: bool = False,
+        items: torch.Tensor = None,
+        stats: torch.Tensor = None,
+    ):
         if stats_cal_on_fly or items is None:
             item_start = items[:, 0]
             all_feature = torch.zeros((num_seq, num_node, 3), device=device)
@@ -83,13 +98,23 @@ class BaseLearnerModel(BaseModel):
 
 
     @staticmethod
-    def _initialize_parameter(shape, device):
+    def _initialize_parameter(
+        shape: Tuple,
+        device: torch.device,
+    ):
         param = nn.Parameter(torch.empty(shape, device=device))
         nn.init.xavier_uniform_(param)
         return param
     
 
-    def get_feed_dict(self, corpus, data, batch_start, batch_size, phase, device):
+    def get_feed_dict(
+        self, 
+        corpus, 
+        data, 
+        batch_start: int,
+        batch_size: int,
+        phase: str,
+    ):
         batch_end = min(len(data), batch_start + batch_size)
         real_batch_size = batch_end - batch_start
         
@@ -109,13 +134,15 @@ class BaseLearnerModel(BaseModel):
             data=data, 
             start=batch_start, 
             batch_size=real_batch_size, 
-            device=device,
         ) # [batch_size, seq_len]
         
         return feed_dict
     
     
-    def forward(self, feed_dict):
+    def forward(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+    ):
         skills = feed_dict['skill_seq']      # [batch_size, seq_len]
         times = feed_dict['time_seq']        # [batch_size, seq_len]
         labels = feed_dict['label_seq']      # [batch_size, seq_len]

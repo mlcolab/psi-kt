@@ -49,6 +49,7 @@ class KTRunner(object):
 
         self.early_stop = args.early_stop
         self.logs = logs
+        self.device = args.device
 
 
     def _check_time(
@@ -199,7 +200,7 @@ class KTRunner(object):
         try:
             for epoch in range(self.epoch):
                 gc.collect()
-                model.train()
+                model.module.train()
                 
                 self._check_time()
                 loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch+1)
@@ -298,11 +299,13 @@ class KTRunner(object):
         if model.module.optimizer is None:
             model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
             
-        model.train()
+        model.module.train()
         train_losses = defaultdict(list)
         
         # Iterate through each batch.
         for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
+            
+            batch = model.module.batch_to_gpu(batch, self.device)
             
             # Reset gradients.
             model.module.optimizer.zero_grad(set_to_none=True)
@@ -325,7 +328,7 @@ class KTRunner(object):
         self.logs.write_to_log_file(string)
         self.logs.append_epoch_losses(train_losses, 'train')
         
-        model.eval()
+        model.module.eval()
             
             
         # # TODO DEBUG: to visualize the difference of synthetic data adj
@@ -362,20 +365,23 @@ class KTRunner(object):
         Args:
             model: 
         '''
-        model.eval()
+        model.module.eval()
         
         predictions, labels = [], []
                 
         if isinstance(model.module, HierachicalSSM) or isinstance(model.module, HSSM):
             for batch in tqdm(whole_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
-                out_dict = model.module.predictive_model(batch)
+                batch = model.module.batch_to_gpu(batch, self.device)
                 
+                out_dict = model.module.predictive_model(batch)
                 prediction, label = out_dict['prediction'], out_dict['label']
+                
                 predictions.extend(prediction.detach().cpu().data.numpy())
                 labels.extend(label.detach().cpu().data.numpy())
         
         else:
             for batch in tqdm(data_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
+                batch = model.module.batch_to_gpu(batch, self.device)
                 out_dict = model(batch)
                 
                 prediction, label = out_dict['prediction'], out_dict['label']

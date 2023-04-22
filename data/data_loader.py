@@ -53,12 +53,13 @@ class DataReader(object):
             df = df.groupby('skill_id').apply(lambda x: x.assign(
                 num_history=np.arange(len(x)),
                 num_success=x['correct'].cumsum(),
-                # num_failure=np.arange(len(x))[::-1] - x['correct'].cumsum()[::-1]+1 + (x['correct'] == 0).cumsum()[::-1].shift(-1).fillna(0).astype(int)[::-1]
             ))
             df['num_success'] = np.maximum(df['num_success']-1,0)
             df['num_failure'] = df['num_history'] - df['num_success']
             
+            # TODO normalize time stamp
             new_df = df.sort_values('timestamp', ascending=True)
+            new_df['timestamp'] = new_df['timestamp'] - min(new_df['timestamp'])
             
             user_wise_dict[cnt] = {
                 'user_id': user,                                                    # the ID of the learner

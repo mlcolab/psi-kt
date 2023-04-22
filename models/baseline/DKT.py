@@ -92,7 +92,8 @@ class DKT(BaseModel):
 
     def predictive_model(
         self, 
-        feed_dict: Dict[str, torch.Tensor]
+        feed_dict: Dict[str, torch.Tensor],
+        single_step: bool = True, 
     ) -> Dict[str, torch.Tensor]:
         """
         Make predictions using the model for a given input feed dictionary.
@@ -103,6 +104,9 @@ class DKT(BaseModel):
         Returns:
             A dictionary containing the output tensors for the model.
         """
+        
+        
+        
         return self.forward(feed_dict)
 
     
@@ -164,7 +168,6 @@ class DKT(BaseModel):
         idx: int = None,
     ):
         raise NotImplementedError
-        
         
         
     def forward(

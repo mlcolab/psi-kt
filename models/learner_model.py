@@ -89,7 +89,7 @@ class BaseLearnerModel(BaseModel):
         return param
     
 
-    def get_feed_dict(self, corpus, data, batch_start, batch_size, phase):
+    def get_feed_dict(self, corpus, data, batch_start, batch_size, phase, device):
         batch_end = min(len(data), batch_start + batch_size)
         real_batch_size = batch_end - batch_start
         
@@ -109,6 +109,7 @@ class BaseLearnerModel(BaseModel):
             data=data, 
             start=batch_start, 
             batch_size=real_batch_size, 
+            device=device,
         ) # [batch_size, seq_len]
         
         return feed_dict

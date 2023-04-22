@@ -189,9 +189,7 @@ class KTRunner(object):
         if self.args.test:
             val_batches = model.module.prepare_batches(corpus, epoch_val_data, self.eval_batch_size, phase='val', device=model.module.device)
             test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test', device=model.module.device)
-            
-            if isinstance(model.module, HierachicalSSM) or isinstance(model.module, HSSM):
-                whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole', device=model.module.device)
+            whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole', device=model.module.device)
             
             if val_batches[0]['skill_seq'].shape[1] > 0: # TODO naive way
                 self.args.validate = 1

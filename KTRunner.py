@@ -209,6 +209,7 @@ class KTRunner(object):
                 ##### output validation and write to logs
                 if (self.args.test) & (epoch % self.args.test_every == 0):
                     with torch.no_grad():
+                        test_result = self.evaluate(model, corpus, 'test', test_batches, whole_batches, epoch=epoch+1)
                         
                         if self.args.validate:
                             valid_result = self.evaluate(model, corpus, 'val', val_batches, whole_batches, epoch=epoch+1)
@@ -216,18 +217,19 @@ class KTRunner(object):
 
                             if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
                                 model.module.save_model(epoch=epoch)
+                        else:
+                            valid_result = test_result
 
-                        test_result = self.evaluate(model, corpus, 'test', test_batches, whole_batches, epoch=epoch+1)
-                    
+
                     testing_time = self._check_time()
                     self.logs.append_epoch_losses(test_result, 'test')
                     self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
                                 epoch + 1, loss, training_time, utils.format_metric(valid_result),
                                 utils.format_metric(test_result), testing_time))
                 
-                    if self._eva_termination(model) and self.early_stop:
-                        self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
-                        break
+                    # if self._eva_termination(model) and self.early_stop:
+                    #     self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
+                    #     break
                 else:
                     if epoch % self.args.save_every == 0:
                         model.module.save_model(epoch=epoch)

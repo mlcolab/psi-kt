@@ -135,7 +135,6 @@ class BaseModel(torch.nn.Module):
         data: List[Tuple], 
         batch_size: int, 
         phase: str, 
-        device: torch.device = None,
     ) -> List:
         """
         Prepare the data into batches for training/validation/test.

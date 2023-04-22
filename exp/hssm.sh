@@ -15,9 +15,9 @@
 python exp_learner_predict.py --dataset junyi15/multi_skill --multi_node 1 \
 --model_name TestHSSM \
 --max_step 50 --gpu 0 \
---epoch 10 --overfit 16 \
---train_time_ratio 0.1 --test_time_ratio 0.5 --early_stop 0 \
---batch_size 16 --eval_batch_size 16 \
+--epoch 200 --overfit 16 \
+--train_time_ratio 0.5 --test_time_ratio 0.5 --early_stop 0 \
+--batch_size 256 --num_sample 50 --eval_batch_size 16 \
 --lr_decay 50 --lr 5e-3 --vcl 0 \
 --train_mode ls_split_time \
 --test 1 --test_every 5 --experiname whole \

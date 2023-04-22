@@ -36,5 +36,5 @@ __all__ = [
     'BaseLearnerModel',
     'HLR', 'PPE', 'VanillaOU', 'GraphOU',
     'GraphHSSM', 'VanillaHSSM', 'HSSM', 
-    'DKT', 'DKTForgetting', 
+    'DKT', 'DKTForgetting', 'HKT'
 ]

@@ -388,10 +388,10 @@ class VarTransformation(VarDistribution):
         # sample points uniformly from a sphere surface 
         if not self.dense_init:
             u = torch.randn(size=(self.num_nodes, self.latent_dim))#, device=self.device)
-            u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
+            # u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
         else:
             u = torch.rand(size=(self.num_nodes, self.latent_dim))#, device=self.device)
-            u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
+            # u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
         u = nn.Parameter(u, requires_grad=True)
         return u
 
@@ -404,19 +404,20 @@ class VarTransformation(VarDistribution):
         
     def edge_log_probs(self):
         """
-        Edge log probabilities encoded by latent representation
-        Args:
-            z (ndarray): latent tensors :math:`Z` ``[..., d, k, 2]``
         Returns:
             tuple of tensors ``[..., d, d], [..., d, d]`` corresponding to ``log(p)`` and ``log(1-p)``
         """
-        u = self._get_node_embedding()
+        # u = self._get_node_embedding().to(self.transformation_layer.device)
+        EPS = 1e-6
+        
+        u = self.u
+        trans_matrix = self.transformation_layer.to(u.device)
         
         prob_edge_existing = torch.sigmoid(u @ u.transpose(-1,-2))
-        prob_edge_directed_ab = torch.sigmoid(u @ (self.transformation_layer-self.transformation_layer.transpose(-1,-2)) @ u.transpose(-1,-2))
-        # prob_edge_directed_ba = 1 - prob_edge_directed_ab
         
-        probs = prob_edge_existing * prob_edge_directed_ab
-        log_probs, log_probs_neg = torch.log(probs), torch.log(1-probs) 
+        prob_edge_directed_ab = torch.sigmoid(u @ (trans_matrix-trans_matrix.transpose(-1,-2)) @ u.transpose(-1,-2))
+        
+        probs = prob_edge_existing * prob_edge_directed_ab 
+        log_probs, log_probs_neg = torch.log(probs + EPS), torch.log(1 - probs + EPS) 
         
         return torch.stack([log_probs, log_probs_neg])

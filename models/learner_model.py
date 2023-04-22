@@ -183,17 +183,18 @@ class BaseLearnerModel(BaseModel):
 from enum import Enum
 
 class HLR(BaseLearnerModel):
-    def __init__(self, 
-                 theta=None, 
-                 base=2., 
-                 num_seq=1, 
-                 num_node=1, 
-                 mode='train', 
-                 nx_graph=None,
-                 device='cpu',
-                 logs=None):
+    def __init__(
+        self, 
+        theta: torch.Tensor = None, 
+        base: float = 2.0,
+        num_seq: int = 1,
+        num_node: int = 1,
+        mode: str = 'ls_split_time',
+        nx_graph: np.array = None,
+        device: torch.device = torch.device('cpu'),
+        logs=None,
+    ):
         '''
-        TODO:
             multiple nodes have bugs 
         Modified from:
             https://github.com/duolingo/halflife-regression/blob/0041df0dcd436bf1b4aa7a17a020d9c670db70d8/experiment.py

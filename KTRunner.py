@@ -182,15 +182,15 @@ class KTRunner(object):
 
         # Return a random sample of items from an axis of object.
         epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) 
-        train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train', device=model.module.device)
+        train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
         val_batches = None
         test_batches = None
         whole_batches = None
         
         if self.args.test:
-            val_batches = model.module.prepare_batches(corpus, epoch_val_data, self.eval_batch_size, phase='val', device=model.module.device)
-            test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test', device=model.module.device)
-            whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole', device=model.module.device)
+            val_batches = model.module.prepare_batches(corpus, epoch_val_data, self.eval_batch_size, phase='val')
+            test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
+            whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
             
             if val_batches[0]['skill_seq'].shape[1] > 0: # TODO naive way
                 self.args.validate = 1

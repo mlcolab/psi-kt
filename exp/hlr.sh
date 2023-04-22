@@ -11,15 +11,10 @@
 #SBATCH --mail-type=END           # Type of email notification- BEGIN,END,FAIL,ALL
 #SBATCH --array=0
 
-A=({0.5})
-
-python exp_baseline.py --dataset assistment12/multi_skill --max_step 50 \
---model_name ${A[$SLURM_ARRAY_TASK_ID]} --load 0 \
+python exp_baseline.py --dataset junyi15/multi_skill --max_step 50 \
+--model_name HLR --load 0 \
 --gpu 0 \
---epoch 200 --vcl 0 \
---train_mode simple_split_time --overfit 0 \
+--epoch 10 --vcl 0 \
+--train_mode ls_split_time --overfit 16 \
 --batch_size 256 \
 --test 1 --test_every 1 --save_every 5 \
---train_time_ratio 0.4 --test_time_ratio 0.5 \
---early_stop 0
-

@@ -327,7 +327,7 @@ class GraphHSSM(HSSM):
         #                 latent_prior_std=None, latent_dim=self.node_dim)
         self.node_dist = VarTransformation(device=self.device, num_nodes=self.num_node, tau_gumbel=1, dense_init = False, 
                         latent_prior_std=None, latent_dim=self.node_dim)
-        self.edge_log_probs = self.node_dist.edge_log_probs()
+        # self.edge_log_probs = self.node_dist.edge_log_probs()
         
         # ----- for parameters Theta -----
         # the initial distribution p(s0) p(z0), the transition distribution p(s|s') p(z|s,z'), the emission distribution p(y|s,z)
@@ -875,7 +875,7 @@ class GraphHSSM(HSSM):
         sampled_s0 = sampled_s[:, :, 0]
         log_prob_s0 = self.s0_dist.log_prob(sampled_s0) # [bsn, 1]
         log_prob_st = self.get_s_prior(sampled_s, inputs) # [bs*n, num_steps]
-        log_prob_st = torch.concat([log_prob_s0, log_prob_st], dim=-1) / self.dim_s
+        log_prob_st = torch.cat([log_prob_s0, log_prob_st], dim=-1) / self.dim_s
         
         # Get log p(z[t] | z[t-1], s[t])
         sampled_z0 = sampled_z[:, :, 0] # [bsn, 1, z_dim]
@@ -1122,9 +1122,10 @@ class GraphHSSM(HSSM):
             losses[key] = outdict[key].mean()
         
         # Still NOT for optimization
-        pred_att = torch.exp(self.edge_log_probs[0]).to(pred.device)
+        edge_log_probs = self.node_dist.edge_log_probs().to(pred.device)
+        pred_att = torch.exp(edge_log_probs[0]).to(pred.device)
         gt_adj = self.adj.to(pred.device).transpose(-1,-2)
-        pred_adj = torch.nn.functional.gumbel_softmax(self.edge_log_probs, hard=True, dim=0)[0].sum() * 1e-6
+        pred_adj = torch.nn.functional.gumbel_softmax(edge_log_probs, hard=True, dim=0)[0].sum() * 1e-6
 
         losses['spasity'] = (pred_att >= 0.5).sum()
         losses['loss_spasity'] = pred_adj

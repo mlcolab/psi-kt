@@ -19,7 +19,7 @@ from data import data_loader
 import KTRunner
 import VCLRunner
 from utils import utils, arg_parser, logger
-from models.learner_model import HLR, PPE, VanillaOU, GraphOU
+from models.learner_model import PPE, VanillaOU, GraphOU
 from models.learner_hssm_model import GraphHSSM
 from models.learner_hssm_vcl_model import GraphContinualHSSM
 

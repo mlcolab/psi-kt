@@ -94,16 +94,31 @@ class KTRunner(object):
         optimizer_class = OPTIMIZER_MAP[optimizer_name]
         self.logs.write_to_log_file(f"Optimizer: {optimizer_name}")
         
-        optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay) # TODO some parameters are not initialized
-        # name =  [param[0] for param in list(model.module.named_parameters())]
-        # ipdb.set_trace()
-        # params = model.module.customize_parameters()[0]['params']
-        # params = list(model.module.named_parameters())
+        if not self.args.em_train:
+            optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay) # TODO some parameters are not initialized
+            scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay, gamma=lr_decay_gamma)
+            return optimizer, scheduler
+        
+        else:
+            inference_params = []
+            graph_params = []
+            for param_group in list(model.module.named_parameters()):
+                if param_group[1].requires_grad:
+                    if 'node_' in param_group[0]:
+                        graph_params.append(param_group[1])
+                    else:
+                        inference_params.append(param_group[1])
+            self.graph_params = graph_params
+            self.infer_params = inference_params
+        
+            optimizer_infer = optimizer_class(inference_params, lr=lr, weight_decay=weight_decay)
+            optimizer_graph = optimizer_class(graph_params, lr=lr, weight_decay=weight_decay)
 
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay, gamma=lr_decay_gamma)
-
-        return optimizer, scheduler
-
+            scheduler_infer = lr_scheduler.StepLR(optimizer_infer, step_size=lr_decay, gamma=lr_decay_gamma)
+            scheduler_graph = lr_scheduler.StepLR(optimizer_graph, step_size=lr_decay, gamma=lr_decay_gamma)
+            
+            return [optimizer_infer, optimizer_graph], [scheduler_infer, scheduler_graph]
+    
 
     def _print_res(
         self, 
@@ -188,14 +203,10 @@ class KTRunner(object):
         whole_batches = None
         
         if self.args.test:
-            val_batches = model.module.prepare_batches(corpus, epoch_val_data, self.eval_batch_size, phase='val')
             test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
             whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
-            
-            if val_batches[0]['skill_seq'].shape[1] > 0: # TODO naive way
-                self.args.validate = 1
-            else: self.args.validate = 0
-
+        if self.args.validate:
+            val_batches = model.module.prepare_batches(corpus, epoch_val_data, self.eval_batch_size, phase='val')
 
         try:
             for epoch in range(self.epoch):
@@ -203,9 +214,16 @@ class KTRunner(object):
                 model.module.train()
                 
                 self._check_time()
-                loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch+1)
+                
+                if not self.args.em_train:
+                    loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch+1)
+                else:
+                    for mini_epoch in range(5):
+                        loss = self.fit_one_phase(model, train_batches, epoch_train_data, epoch=epoch+1, mini_epoch=mini_epoch, phase='infer')
+                    for mini_epoch in range(5):
+                        loss = self.fit_one_phase(model, train_batches, epoch_train_data, epoch=epoch+1, mini_epoch=mini_epoch, phase='graph')
                 training_time = self._check_time()
-
+                
                 ##### output validation and write to logs
                 if (self.args.test) & (epoch % self.args.test_every == 0):
                     with torch.no_grad():
@@ -230,9 +248,8 @@ class KTRunner(object):
                     # if self._eva_termination(model) and self.early_stop:
                     #     self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
                     #     break
-                else:
-                    if epoch % self.args.save_every == 0:
-                        model.module.save_model(epoch=epoch)
+                if epoch % self.args.save_every == 0:
+                    model.module.save_model(epoch=epoch)
                     
                 self.logs.draw_loss_curves()
 
@@ -282,7 +299,7 @@ class KTRunner(object):
         model, 
         batches, 
         epoch_train_data, 
-        epoch=-1
+        epoch=-1,
     ): 
         """
         Trains the given model on the given batches of data.
@@ -352,6 +369,61 @@ class KTRunner(object):
         #     plt.savefig(os.path.join(self.args.plotdir, 'adj_diff_epoch{}.png'.format(epoch)))
             
         return self.logs.train_results['loss_total'][-1]
+
+
+    def fit_one_phase(self, model, batches, epoch_train_data, epoch=-1, mini_epoch=-1, phase='infer'): 
+        
+        if model.module.optimizer is None:
+            opt, sch = self._build_optimizer(model)
+            model.module.optimizer_infer, model.module.optimizer_graph = opt
+            model.module.scheduler_infer, model.module.scheduler_graph = sch
+            model.module.optimizer = model.module.optimizer_infer
+            
+        model.module.train()
+        train_losses = defaultdict(list)
+        
+        # Iterate through each batch.
+        if phase == 'infer':
+            opt = model.module.optimizer_infer
+            sch = model.module.scheduler_infer
+            for param in self.graph_params:
+                param.requires_grad = False
+            for param in self.infer_params:
+                param.requires_grad = True
+        else:
+            opt = model.module.optimizer_graph
+            sch = model.module.scheduler_graph
+            for param in  self.infer_params:
+                param.requires_grad = False
+            for param in self.graph_params:
+                param.requires_grad = True
+                
+        for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
+            model.module.optimizer_infer.zero_grad(set_to_none=True)
+            model.module.optimizer_graph.zero_grad(set_to_none=True)
+            output_dict = model(batch)
+            loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
+            loss_dict['loss_total'].backward()
+            opt.step()
+            if mini_epoch == 4:
+                sch.step()  
+            # Append the losses to the train_losses dictionary.
+            train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
+            
+        string = self.logs.result_string("train", epoch, train_losses, t=epoch, mini_epoch=mini_epoch) # TODO
+        self.logs.write_to_log_file(string)
+        self.logs.append_epoch_losses(train_losses, 'train')
+        
+        model.module.eval()
+
+
+
+
+
+
+
+
+
 
 
     def predict(

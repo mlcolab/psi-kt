@@ -74,7 +74,7 @@ class DataReader(object):
             
             cnt += 1
             n_inters += len(df)
-        ipdb.set_trace()
+        # ipdb.set_trace()
         self.user_seq_df = pd.DataFrame.from_dict(user_wise_dict, orient='index')
         self.n_users = max(self.inter_df['user_id']) + 1
         self.n_skills = max(self.inter_df['skill_id']) + 1

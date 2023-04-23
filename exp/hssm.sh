@@ -12,12 +12,13 @@
 #SBATCH --mail-type=END           # Type of email notification- BEGIN,END,FAIL,ALL
 #SBATCH --array=0
 
-python exp_learner_predict.py --dataset junyi15/multi_skill --multi_node 1 \
+python exp_learner_predict.py --dataset junyi15/multi_skill \
 --model_name TestHSSM \
---max_step 50 --gpu 0 \
---epoch 200 --overfit 16 \
---train_time_ratio 0.5 --test_time_ratio 0.5 --early_stop 0 \
---batch_size 256 --num_sample 50 --eval_batch_size 16 \
+--em_train 1 \
+--overfit 1024 --num_sample 50 --batch_size 64 --eval_batch_size 16 \
+--test 0 --test_every 5 --validate 0 \
 --lr_decay 50 --lr 5e-3 --vcl 0 \
+--max_step 50 --gpu 0 \
+--multi_node 1 \
 --train_mode ls_split_time \
---test 1 --test_every 5 --experiname whole \
+--epoch 200 --train_time_ratio 0.5 --test_time_ratio 0.5 --early_stop 0 \

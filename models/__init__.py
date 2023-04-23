@@ -26,15 +26,15 @@
 # import ipdb
 # ipdb.set_trace()
 
-from models.baseline import DKT, DKTForgetting, AKT, SKT, HKT
+from models.baseline import DKT, DKTForgetting, HKT, HLR
 from models.learner_model import *
 from models.learner_hssm_model import *
 
 __all__ = [
-    'BaseModel',
-    'CausalKT',
-    'BaseLearnerModel',
-    'HLR', 'PPE', 'VanillaOU', 'GraphOU',
+    'BaseModel', 'BaseLearnerModel',
+    'HLR',
+    'DKT', 'DKTForgetting', 'HKT',
+    'PPE', 'VanillaOU', 'GraphOU',
     'GraphHSSM', 'VanillaHSSM', 'HSSM', 
-    'DKT', 'DKTForgetting', 'HKT'
+    
 ]

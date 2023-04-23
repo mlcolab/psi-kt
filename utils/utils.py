@@ -58,7 +58,7 @@ def load_corpus(logs, args):
     return corpus
 
 
-def _get_feed_dict(keys, data, start, batch_size, pad_list=False):
+def get_feed_general(keys, data, start, batch_size, pad_list=False):
     '''
     Creates a PyTorch feed_dict for a batch of data.
 

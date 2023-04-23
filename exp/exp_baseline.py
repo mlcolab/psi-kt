@@ -17,7 +17,7 @@ from data import data_loader
 from KTRunner import KTRunner
 from VCLRunner_baseline import VCLRunner
 from utils import utils, arg_parser, logger
-from models import DKT, DKTForgetting, HKT
+from models import DKT, DKTForgetting, HKT, HLR
 
 import ipdb
 

@@ -12,9 +12,10 @@
 #SBATCH --array=0
 
 python exp_baseline.py --dataset junyi15/multi_skill --max_step 50 \
---model_name HLR --load 0 \
---gpu 0 \
---epoch 10 --vcl 0 \
+--model_name HLR \
+--em_train 0 \
+--epoch 10 --vcl 0 --multi_node 1 \
 --train_mode ls_split_time --overfit 16 \
 --batch_size 256 \
---test 1 --test_every 1 --save_every 5 \
+--test 1 --test_every 5 --save_every 5 --validate 1 \
+--train_time_ratio 0.4 --test_time_ratio 0.5 \

@@ -397,9 +397,7 @@ class VarTransformation(VarDistribution):
 
  
     def _get_node_embedding(self):
-        u = self.u
-        # u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
-        return u
+        return self.u
         
         
     def edge_log_probs(self):

@@ -9,17 +9,17 @@
 #SBATCH --output=hostname_%j.out  # File to which STDOUT will be written
 #SBATCH --error=hostname_%j.err   # File to which STDERR will be written
 #SBATCH --mail-type=END           # Type of email notification- BEGIN,END,FAIL,ALL
-#SBATCH --array=0-2
+#SBATCH --array=0
 
-A=({DKTForgetting,DKT,HKT})
+# A=({DKTForgetting,DKT,HKT})
 
-python exp_baseline.py --dataset junyi15/multi_skill --max_step 50 \
---model_name ${A[$SLURM_ARRAY_TASK_ID]} --load 0 \
+python exp_baseline.py --dataset assistment12/multi_skill --max_step 50 \
+--model_name HLR --load 0 \
 --gpu 0 \
 --epoch 200 --vcl 0 \
---train_mode simple_split_time --overfit 0 \
+--train_mode simple_split_time --overfit 16 \
 --batch_size 256 --eval_batch_size 256 \
---test 1 --test_every 5 --save_every 5 \
+--test 1 --test_every 5 --save_every 5 --validate 1\
 --train_time_ratio 0.4 --test_time_ratio 0.5 \
 --early_stop 0
 

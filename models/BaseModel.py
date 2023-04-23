@@ -7,10 +7,15 @@ import numpy as np
 import torch.nn.functional as F
 import os
 import ipdb
+from utils.utils import get_feed_general
 from utils.utils import *
 import time
 
 from typing import List, Tuple, Dict
+
+##########################################################################################
+# Base Model for all KT
+##########################################################################################
 
 class BaseModel(torch.nn.Module):
     runner = 'KTRunner'
@@ -114,7 +119,7 @@ class BaseModel(torch.nn.Module):
     def forward(
         self, 
         feed_dict
-        ):
+    ):
         pass
 
 
@@ -122,11 +127,32 @@ class BaseModel(torch.nn.Module):
         self, 
         corpus, 
         data, 
-        batch_start, 
-        batch_size, 
-        train
+        batch_start: int,
+        batch_size: int,
+        phase: str,
     ):
-        pass
+        batch_end = min(len(data), batch_start + batch_size)
+        real_batch_size = batch_end - batch_start
+        
+        feed_dict_keys = {
+            'skill_seq': 'skill_seq',
+            'label_seq': 'correct_seq',
+            'time_seq': 'time_seq',
+            'problem_seq': 'problem_seq',
+            'num_history': 'num_history',
+            'num_success': 'num_success',
+            'num_failure': 'num_failure',
+            'user_id': 'user_id'
+            }
+        
+        feed_dict = get_feed_general(
+            keys=feed_dict_keys, 
+            data=data, 
+            start=batch_start, 
+            batch_size=real_batch_size, 
+        ) # [batch_size, seq_len]
+        
+        return feed_dict
 
 
     def prepare_batches(
@@ -250,3 +276,144 @@ class BaseModel(torch.nn.Module):
         self.logs.write_to_log_file('Training time: {:.2f} seconds'.format(train_time))
         self.logs.write_to_log_file('Final training loss: {:.4f}'.format(final_loss))
 
+
+
+##########################################################################################
+# Learner Model
+##########################################################################################
+
+
+class BaseLearnerModel(BaseModel):
+    def __init__(self, 
+                 mode, 
+                 device='cpu', 
+                 logs=None):
+        super(BaseLearnerModel, self).__init__()
+        self.mode = mode
+        self.device = device
+        self.logs = logs
+        self.optimizer = None
+        
+        self.model_path = os.path.join(logs.args.log_path, 'Model/Model_{}_{}.pt')
+        
+        
+    @staticmethod
+    def _find_whole_stats(
+        all_feature: torch.Tensor,
+        t: torch.Tensor,
+        items: torch.Tensor,
+        num_node: int,
+    ):
+        '''
+        Args:
+            all_feature: [bs, 1, num_step, 3]
+            items/t: [bs, num_step]
+        '''
+        all_feature = all_feature.long()
+        device = all_feature.device
+        num_seq, num_step = t.shape
+        
+        # Allocate memory without initializing tensors
+        whole_stats = torch.zeros((num_seq, num_node, num_step, 3), device=device, dtype=torch.int64)
+        whole_last_time = torch.zeros((num_seq, num_node, num_step+1), device=device, dtype=torch.int64)
+        
+        # Precompute index tensor
+        seq_indices = torch.arange(num_seq, device=device)
+        
+        # Set initial values for whole_last_time
+        whole_last_time[seq_indices, items[:,0], 1] = t[:, 0]
+
+        # Loop over time steps
+        for i in range(1, num_step):
+            cur_item = items[:, i] # [num_seq, ] 
+            cur_feat = all_feature[:,0,i] # [bs, 1, 3] 
+            
+            # Accumulate whole_stats
+            whole_stats[:,:,i] = whole_stats[:,:,i-1] # whole_stats[:,:,i-1] # 
+            whole_stats[seq_indices, cur_item, i] = cur_feat
+            
+            whole_last_time[:,:,i+1] = whole_last_time[:,:,i] # + whole_last_time[seq_indices,:,i]
+            whole_last_time[seq_indices, cur_item, i+1] = t[:, i]
+
+        return whole_stats, whole_last_time
+
+
+    @staticmethod
+    def _compute_all_features(
+        num_seq: int,
+        num_node: int,
+        time_step: int,
+        device: torch.device,
+        stats_cal_on_fly: bool = False,
+        items: torch.Tensor = None,
+        stats: torch.Tensor = None,
+    ):
+        if stats_cal_on_fly or items is None:
+            item_start = items[:, 0]
+            all_feature = torch.zeros((num_seq, num_node, 3), device=device)
+            all_feature[torch.arange(0, num_seq), item_start, 0] += 1
+            all_feature[torch.arange(0, num_seq), item_start, 2] += 1
+            all_feature = all_feature.unsqueeze(-2).tile((1, 1, time_step, 1))
+        else:
+            all_feature = stats.float()  # [num_seq/bs, num_node, num_time_step, 3]
+        return all_feature
+
+
+    @staticmethod
+    def _initialize_parameter(
+        shape: Tuple,
+        device: torch.device,
+    ):
+        """
+        A static method to initialize a PyTorch parameter tensor with Xavier initialization.
+
+        Args:
+            shape (Tuple): A tuple specifying the shape of the parameter tensor.
+            device (torch.device): A PyTorch device object specifying the device where the parameter tensor will be created.
+
+        Returns:
+            param (nn.Parameter): A PyTorch parameter tensor with the specified shape, initialized using Xavier initialization.
+
+        """
+        param = torch.nn.Parameter(torch.empty(shape, device=device))  # create a parameter tensor with the specified shape on the specified device
+        torch.nn.init.xavier_uniform_(param)  # apply Xavier initialization to the parameter tensor
+        return param  # return the initialized parameter tensor
+
+    
+    def forward(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+    ):
+        skills = feed_dict['skill_seq']      # [batch_size, seq_len]
+        times = feed_dict['time_seq']        # [batch_size, seq_len]
+        labels = feed_dict['label_seq']      # [batch_size, seq_len]
+
+        bs, _ = labels.shape
+        self.num_seq = bs
+        
+        x0 = torch.zeros((bs, self.num_node), device=self.device)
+        if self.num_node > 1:
+            x0[torch.arange(bs), skills[:,0]] += labels[:, 0]
+            items = skills
+        else: 
+            x0[:, 0] += labels[:, 0]
+            items = None
+        
+        stats = torch.stack([feed_dict['num_history'], feed_dict['num_success'], feed_dict['num_failure']], dim=-1)
+        stats = stats.unsqueeze(1)
+        
+        out_dict = self.simulate_path(
+            x0=x0, 
+            t=times, 
+            items=items,
+            user_id=feed_dict['user_id'],
+            stats=stats,
+        )
+        
+        out_dict.update({
+            'prediction': out_dict['x_item_pred'],
+            'label': labels.unsqueeze(1) # [bs, 1, time]
+        })
+        
+        return out_dict
+    

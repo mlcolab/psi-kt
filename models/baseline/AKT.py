@@ -1,6 +1,8 @@
 # -*- coding: UTF-8 -*-
-
+import os
 import numpy as np
+from typing import List, Dict, Tuple, Optional, Union, Any, Callable
+from collections import defaultdict
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -8,13 +10,15 @@ import torch.nn.functional as F
 from models.BaseModel import BaseModel
 from utils import utils
 
+import ipdb
+
 
 class AKT(BaseModel):
     extra_log_args = ['num_layer', 'num_head']
 
     @staticmethod
     def parse_model_args(parser, model_name='AKT'):
-        parser.add_argument('--emb_size', type=int, default=64,
+        parser.add_argument('--emb_size', type=int, default=16,
                             help='Size of embedding vectors.')
         parser.add_argument('--num_layer', type=int, default=1,
                             help='Self-attention layers.')
@@ -22,8 +26,14 @@ class AKT(BaseModel):
                             help='Self-attention heads.')
         return BaseModel.parse_model_args(parser, model_name)
 
-    def __init__(self, args, corpus):
-        super().__init__(model_path=args.model_path)
+
+    def __init__(
+        self, 
+        args, 
+        corpus, 
+        logs
+    ):
+        super().__init__(model_path=os.path.join(args.log_path, 'Model/Model_{}_{}.pt'))
         self.skill_num = int(corpus.n_skills)
         self.question_num = int(corpus.n_problems)
         self.emb_size = args.emb_size
@@ -35,7 +45,14 @@ class AKT(BaseModel):
         self.difficult_param = nn.Embedding(self.question_num, 1)
         self.skill_diff = nn.Embedding(self.skill_num, self.emb_size)
         self.inter_diff = nn.Embedding(self.skill_num * 2, self.emb_size)
+        
+        # Set the device to use for computations
+        self.device = args.device
 
+        # Store the arguments and logs for later use
+        self.args = args
+        self.logs = logs
+        
         self.blocks_1 = nn.ModuleList([
             TransformerLayer(d_model=self.emb_size, d_feature=self.emb_size // self.num_head, d_ff=self.emb_size,
                              dropout=self.dropout, n_heads=self.num_head, kq_same=False, gpu=args.gpu)
@@ -54,6 +71,7 @@ class AKT(BaseModel):
         )
 
         self.loss_function = nn.BCELoss(reduction='sum')
+
 
     def forward(self, feed_dict):
         skills = feed_dict['skill_seq']        # [batch_size, real_max_step]
@@ -86,15 +104,35 @@ class AKT(BaseModel):
         concat_q = torch.cat([x, skill_data], dim=-1)
         prediction = self.out(concat_q).squeeze(-1).sigmoid()
 
-        out_dict = {'prediction': prediction[:, 1:], 'label': labels[:, 1:].double()}
+        out_dict = {'prediction': prediction[:, 1:], 'label': labels[:, 1:].float()}
         return out_dict
 
-    def loss(self, feed_dict, outdict):
-        prediction = outdict['prediction'].flatten()
-        label = outdict['label'].flatten()
-        mask = label > -1
-        loss = self.loss_function(prediction[mask], label[mask])
-        return loss
+
+    def loss(
+        self, 
+        feed_dict: Dict[str, torch.Tensor], 
+        out_dict: Dict[str, torch.Tensor], 
+        metrics: Optional[List[str]] = None
+    ) -> Dict[str, torch.Tensor]:
+        
+        losses = defaultdict(lambda: torch.zeros((), device=self.device))
+        
+        predictions = out_dict['prediction'].flatten()
+        labels = out_dict['label'].flatten()
+        mask = labels > -1
+        loss = self.loss_function(predictions[mask], labels[mask])
+        losses['loss_total'] = loss
+        
+        # Compute the evaluation metrics for the main prediction task
+        if metrics is not None:
+            pred = predictions.detach().cpu().data.numpy()
+            gt = labels.detach().cpu().data.numpy()
+            evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
+            for key in evaluations.keys():
+                losses[key] = evaluations[key]
+        
+        return losses
+
 
     def get_feed_dict(self, corpus, data, batch_start, batch_size, phase):
         batch_end = min(len(data), batch_start + batch_size)
@@ -219,13 +257,13 @@ class MultiHeadAttention(nn.Module):
 
         with torch.no_grad():
             scores_ = F.softmax(scores, dim=-1)  # BS,8,seqlen,seqlen
-            scores_ = scores_ * mask.double()
+            scores_ = scores_ * mask.float()
             scores_ = scores_.cuda() if self.gpu != '' else scores_
             distcum_scores = torch.cumsum(scores_, dim=-1)  # bs, 8, sl, sl
             disttotal_scores = torch.sum(
                 scores_, dim=-1, keepdim=True)  # bs, 8, sl, 1
             position_effect = torch.abs(
-                x1 - x2)[None, None, :, :].double()  # 1, 1, seqlen, seqlen
+                x1 - x2)[None, None, :, :].float()  # 1, 1, seqlen, seqlen
             position_effect = position_effect.cuda() if self.gpu != '' else position_effect
             # bs, 8, sl, sl positive distance
             dist_scores = torch.clamp(
@@ -238,12 +276,14 @@ class MultiHeadAttention(nn.Module):
             (dist_scores * gamma).exp(), min=1e-5), max=1e5)
         scores = scores * total_effect
 
-        scores.masked_fill_(mask == 0, -np.inf)
+        maxim = torch.tensor(-1e20).to(scores.device)
+        scores = scores.masked_fill(mask == 0, maxim)# float('-inf'))
         scores = F.softmax(scores, dim=-1)  # BS, head, seqlen, seqlen
         if zero_pad:
-            pad_zero = torch.zeros(bs, head, 1, seqlen).double()
+            pad_zero = torch.zeros(bs, head, 1, seqlen).float()
             pad_zero = pad_zero.cuda() if self.gpu != '' else pad_zero
             scores = torch.cat([pad_zero, scores[:, :, 1:, :]], dim=2)
         scores = dropout(scores)
+
         output = torch.matmul(scores, v)
         return output

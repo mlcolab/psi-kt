@@ -1,2 +1,14 @@
 /var/spool/slurmd/job3416269/slurm_script: /usr/bin/modulecmd: No such file or directory
 /var/spool/slurmd/job3416269/slurm_script: /usr/bin/modulecmd: No such file or directory
+[I 20:55:55.098 NotebookApp] Serving notebooks from local directory: /mnt/qb/home/mlcolab/hzhou52/knowledge_tracing
+[I 20:55:55.100 NotebookApp] Jupyter Notebook 6.4.12 is running at:
+[I 20:55:55.100 NotebookApp] http://slurm-bm-06:8887/?token=be59971bc9311828488e4eafb99072d786c6d490e5b63406
+[I 20:55:55.100 NotebookApp]  or http://127.0.0.1:8887/?token=be59971bc9311828488e4eafb99072d786c6d490e5b63406
+[I 20:55:55.100 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 20:55:55.172 NotebookApp] 
+    
+    To access the notebook, open this file in a browser:
+        file:///mnt/qb/home/mlcolab/hzhou52/.local/share/jupyter/runtime/nbserver-214299-open.html
+    Or copy and paste one of these URLs:
+        http://slurm-bm-06:8887/?token=be59971bc9311828488e4eafb99072d786c6d490e5b63406
+     or http://127.0.0.1:8887/?token=be59971bc9311828488e4eafb99072d786c6d490e5b63406

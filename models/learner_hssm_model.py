@@ -537,7 +537,7 @@ class GraphHSSM(HSSM):
             s_prior_dist (torch.distributions.MultivariateNormal): Multivariate normal distribution of `s_t`
                 with mean and covariance matrix computed using a neural network.
         '''
-        
+        # if eval: ipdb.set_trace()
         input_y = feed_dict['label_seq'] # [bs, times]
         items = feed_dict['skill_seq']
         
@@ -599,6 +599,7 @@ class GraphHSSM(HSSM):
             z_prior_dist (torch.distributions.MultivariateNormal): Multivariate normal distribution of `z_t`
                 with mean and covariance matrix computed using the sampled latent skills `s_t`.
         '''
+        # if eval: ipdb.set_trace()
         input_t = feed_dict['time_seq']
         bs, num_steps = input_t.shape
         bsn = bs * self.num_sample
@@ -609,8 +610,8 @@ class GraphHSSM(HSSM):
         dt = dt.repeat(self.num_sample, 1, 1)
         
         if num_steps == 2:
-            sampled_st = sampled_s.unsqueeze(-2)
-            sampled_z = sampled_z_set[1]
+            sampled_st = sampled_s
+            sampled_z = sampled_z_set[1][..., 0]
         else:
             sampled_st = sampled_s[:, :, 1:]
             sampled_z = sampled_z_set[1][:,:,:-1,0] # [bsn, num_node, times-1]
@@ -903,10 +904,12 @@ class GraphHSSM(HSSM):
         feed_dict: Dict[str, torch.Tensor],
         single_step: bool = True, 
     ):
+        
         with torch.no_grad():
             time_step = int(feed_dict['skill_seq'].shape[-1])
             train_step = int(time_step * self.args.train_time_ratio)
             test_step = int(time_step * self.args.test_time_ratio)
+            val_step = time_step - train_step - test_step
             
             past_y = feed_dict['label_seq'][:, :train_step]
             past_t = feed_dict['time_seq'][:, :train_step]
@@ -937,11 +940,12 @@ class GraphHSSM(HSSM):
                 z_sampled, _, _, _, z_mean, z_log_var  = self.zt_transition_infer(
                     [feed_dict_train, s_sampled],self.num_sample, emb_inputs=emb_rnn_inputs
                 ) # z_sampled [bsn, 1, time, dim]
-                z_sampled_scalar = (z_sampled.transpose(1,2).contiguous() * self.node_dist._get_node_embedding().to(z_mean.device)).sum(-1) # [bs, time, num_node]
-                
+                z_sampled_scalar = (z_sampled.unsqueeze(-2) * self.node_dist._get_node_embedding().to(z_sampled.device)).sum(-1) # [bsn, 1, time, num_node]
+                z_sampled_scalar = z_sampled_scalar.permute(0,3,2,1).contiguous() # [bsn, num_node, time, dim_z_scalar]
+            
                 # ----- generate based on inference -----
                 last_s = s_sampled[:, :, -1:, :] # [bsn, 1, 1, dim]
-                last_z = z_sampled_scalar[:, -1:, :] # [bsn, 1, dim]
+                last_z = z_sampled_scalar[:, :, -1:, :] # [bsn, num_node, 1, dim]
                 y_preds = []
                 for i in range(time_step-train_step):
                     feed_dict_i = {
@@ -950,10 +954,12 @@ class GraphHSSM(HSSM):
                         'time_seq': feed_dict['time_seq'][:, train_step-1+i:train_step+1+i],
                     }
                     s_dist = self.st_transition_gen(sampled_s=last_s, feed_dict=feed_dict_i, eval=True)
-                    z_dist = self.zt_transition_gen(sampled_z_set=[None, last_z], sampled_s=s_dist.sample(), feed_dict=feed_dict_i, eval=True)
-                    y_sampled = self.y_emit(z_dist.sample())
-                    last_s = s_dist.sample().unsqueeze(-2)
-                    last_z = z_dist.sample().reshape(bsn, 1, -1)
+                    cur_s = s_dist.sample().unsqueeze(-2)
+                    z_dist = self.zt_transition_gen(sampled_z_set=[None, last_z], sampled_s=cur_s, feed_dict=feed_dict_i, eval=True)
+                    cur_z = z_dist.sample()
+                    y_sampled = self.y_emit(cur_z)
+                    last_s = cur_s
+                    last_z = cur_z
                     y_preds.append(y_sampled)
             else: 
                 s_sampled, _, _, _, s_mean, s_log_var = self.st_transition_infer(
@@ -978,11 +984,14 @@ class GraphHSSM(HSSM):
 
         pred_all = torch.cat(y_preds,-2)[..., 0]
         future_item = future_item.unsqueeze(-2).repeat(self.num_sample,1,1) # [bsn, 1, future_time]
-        pred_item = torch.gather(pred_all, 1, future_item) # [bs, 1, future_time]
+        pred_item = torch.gather(pred_all, 1, future_item).reshape(bs, self.num_sample, -1, 1) # [bs, 1, future_time, 1]
+        label_item = future_y[:, None, :, None].repeat(1, self.num_sample, 1, 1)
         
         pred_dict = {
-            'prediction': pred_item.reshape(bs, self.num_sample, -1, 1),
-            'label': future_y[:, None, :, None].repeat(1, self.num_sample, 1, 1),
+            'prediction': pred_item[:,:,-test_step:],
+            'label': label_item[:,:,-test_step:],
+            'prediction_val': pred_item[:,:,:val_step],
+            'label_val': label_item[:,:,:val_step],
         }
     
         return pred_dict
@@ -1122,7 +1131,7 @@ class GraphHSSM(HSSM):
         losses['adj_0_att_1'] = (1 * (pred_att >= 0.5) * (1-gt_adj)).sum()
         losses['adj_1_att_0'] = (1 * (pred_att < 0.5) * gt_adj).sum()
         
-        losses['loss_total'] = -outdict['elbo'].mean() # + losses['loss_spasity']
+        losses['loss_total'] = -outdict['elbo'].mean() + losses['loss_spasity']
         
         # Register output predictions
         self.register_buffer(name="output_predictions", tensor=pred.clone().detach())

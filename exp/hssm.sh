@@ -14,11 +14,11 @@
 
 python exp_learner_predict.py --dataset junyi15/multi_skill \
 --model_name TestHSSM \
---em_train 1 \
---overfit 1024 --num_sample 50 --batch_size 64 --eval_batch_size 16 \
---test 0 --test_every 5 --validate 0 \
---lr_decay 50 --lr 5e-3 --vcl 0 \
+--em_train 0 \
+--overfit 16 --num_sample 50 --batch_size 64 --eval_batch_size 16 \
+--test 1 --test_every 5 --validate 0 \
+--lr_decay 50 --lr 5e-2 --vcl 0 \
 --max_step 50 --gpu 0 \
 --multi_node 1 \
 --train_mode ls_split_time \
---epoch 200 --train_time_ratio 0.5 --test_time_ratio 0.5 --early_stop 0 \
+--epoch 200 --train_time_ratio 0.4 --test_time_ratio 0.5 --early_stop 0 \

@@ -13,16 +13,14 @@
 
 # A=({DKTForgetting,DKT,HKT})
 
-python exp_baseline.py --dataset assistment12/multi_skill --max_step 50 \
---model_name HLR --load 0 \
---gpu 0 \
---epoch 200 --vcl 0 \
---train_mode simple_split_time --overfit 16 \
+python exp_baseline.py --dataset junyi15/multi_skill --max_step 50 \
+--model_name HLR \
+--em_train 0 --epoch 200 --vcl 0 --multi_node 1 \
+--train_mode ls_split_time --overfit 0 \
 --batch_size 256 --eval_batch_size 256 \
---test 1 --test_every 5 --save_every 5 --validate 1\
+--test 1 --test_every 5 --save_every 5 --validate 1 \
 --train_time_ratio 0.4 --test_time_ratio 0.5 \
 --early_stop 0
-
 
 # # ------ vcl -----
 # python exp_baseline.py --dataset assistment12/multi_skill --max_step 50 \

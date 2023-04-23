@@ -12,3 +12,16 @@
     Or copy and paste one of these URLs:
         http://slurm-bm-06:8887/?token=be59971bc9311828488e4eafb99072d786c6d490e5b63406
      or http://127.0.0.1:8887/?token=be59971bc9311828488e4eafb99072d786c6d490e5b63406
+[I 20:58:00.514 NotebookApp] 302 GET /?token=be59971bc9311828488e4eafb99072d786c6d490e5b63406 (192.168.212.63) 0.500000ms
+[W 20:58:20.909 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+[I 20:58:21.313 NotebookApp] Kernel started: 4bb3ad01-4661-4f03-aa09-09736bcd6009, name: python3
+[IPKernelApp] ERROR | No such comm target registered: jupyter.widget.control
+[IPKernelApp] WARNING | No such comm: 00114f94-122d-4a7a-9aac-7484afed4dc6
+[I 21:00:21.581 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 21:00:21.589 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/nbformat/__init__.py:128: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  validate(nb)
+/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/notebook/services/contents/manager.py:353: MissingIDFieldWarning: Code cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  validate_nb(model['content'])
+[I 21:02:22.031 NotebookApp] Saving file at /exp/debug_variants.ipynb
+[W 21:02:22.067 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted

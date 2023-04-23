@@ -148,12 +148,13 @@ class HLR(BaseLearnerModel):
         
         for i in range(1, time_step):
             cur_item = items[:, i] # [num_seq, ] 
-            cur_dt = (t[:, None, i] - whole_last_time[..., i]) + eps #/60/60/24 + eps # [bs, num_node]
+            cur_dt = (t[:, None, i] - whole_last_time[..., i]) /60/60/24 + eps # [bs, num_node]
             cur_feat = whole_stats[:, :, i]
             
             feat = torch.mul(cur_feat, batch_theta).sum(-1)
-            # feat = torch.minimum(feat, torch.tensor(1e2))
-            half_life = self.hclip(self.base ** feat)
+            feat = torch.minimum(feat, torch.tensor(1e2).to(self.device))
+            # half_life = self.hclip(self.base ** feat)
+            half_life = (self.base ** feat)
             p_all = self.pclip(self.base ** (-cur_dt/half_life)) # [bs, num_node]
             p_item = p_all[torch.arange(num_seq), cur_item] # [bs, ]
             

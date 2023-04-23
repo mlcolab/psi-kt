@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/exp_baseline.py", line 128, in <module>
-    runner.train(model, corpus)
-  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/../KTRunner.py", line 185, in train
-    train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train', device=model.module.device)
-TypeError: prepare_batches() got an unexpected keyword argument 'device'

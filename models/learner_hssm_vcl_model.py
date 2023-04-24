@@ -19,7 +19,7 @@ from models.learner_model import BaseLearnerModel
 from models.new_learner_model import build_dense_network
 from models.modules import CausalTransformerModel, VAEEncoder
 from models.variational_distributions import VarDIBS, VarTransformation, VarAttention
-from models.learner_hssm_model import HSSM, GraphHSSM
+from models.HSSM import HSSM, GraphHSSM
 
 from enum import Enum
 

@@ -17,7 +17,7 @@ import ipdb
 
     
 from models.new_learner_model import HierachicalSSM
-from models.learner_hssm_model import HSSM
+from models.HSSM import HSSM
 
 
 OPTIMIZER_MAP = {

@@ -11,7 +11,7 @@ from collections import defaultdict
 
 import ipdb
 
-from models.learner_hssm_model import HSSM
+from models.HSSM import HSSM
 from models.modules import build_rnn_cell
 from models.BaseModel import BaseModel
 from models.learner_model import BaseLearnerModel

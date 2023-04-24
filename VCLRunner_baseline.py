@@ -14,9 +14,6 @@ from torch.optim import lr_scheduler
 
 from utils import utils
 import ipdb
-
-from models.new_learner_model import HierachicalSSM
-from models.learner_hssm_model import HSSM
         
 import ipdb
 from KTRunner import KTRunner

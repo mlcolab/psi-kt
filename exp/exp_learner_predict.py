@@ -20,7 +20,7 @@ import KTRunner
 import VCLRunner
 from utils import utils, arg_parser, logger
 from models.learner_model import PPE, VanillaOU, GraphOU
-from models.learner_hssm_model import GraphHSSM
+from models.HSSM import HSSM, GraphHSSM
 from models.learner_hssm_vcl_model import GraphContinualHSSM
 
 # import torch.distributed as dist
@@ -143,19 +143,19 @@ if __name__ == '__main__':
             logs=logs,   
         )
     
-    elif global_args.model_name == 'VanillaHSSM':
-        model = VanillaHSSM( # TestHierachicalSSM(
-            mode=global_args.train_mode, 
-            num_seq=num_seq,
-            num_node=1 if not global_args.multi_node else corpus.n_skills,
-            nx_graph=None if not global_args.multi_node else adj,
-            device=global_args.device, 
-            args=global_args,
-            logs=logs,
-        )
-        shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_model.py',
-                        global_args.log_path)
-    elif global_args.model_name == 'TestHierachicalSSM' or global_args.model_name == 'TestHSSM':
+    # elif global_args.model_name == 'VanillaHSSM':
+    #     model = VanillaHSSM( # TestHierachicalSSM(
+    #         mode=global_args.train_mode, 
+    #         num_seq=num_seq,
+    #         num_node=1 if not global_args.multi_node else corpus.n_skills,
+    #         nx_graph=None if not global_args.multi_node else adj,
+    #         device=global_args.device, 
+    #         args=global_args,
+    #         logs=logs,
+    #     )
+    #     shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_model.py',
+    #                     global_args.log_path)
+    elif global_args.model_name == 'TestHierachicalSSM' or global_args.model_name == 'GraphHSSM':
         
         if global_args.vcl == 0:
             model = GraphHSSM( # TestHierachicalSSM(
@@ -177,7 +177,7 @@ if __name__ == '__main__':
                 args=global_args,
                 logs=logs,
             )
-        shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_model.py',
+        shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/HSSM.py',
                         global_args.log_path)
         shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_vcl_model.py',
                         global_args.log_path)

@@ -28,7 +28,7 @@
 
 from models.baseline import DKT, DKTForgetting, HKT, AKT, HLR
 from models.learner_model import *
-from models.learner_hssm_model import *
+from models.HSSM import *
 
 __all__ = [
     'BaseModel', 'BaseLearnerModel',

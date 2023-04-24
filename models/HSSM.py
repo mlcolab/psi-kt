@@ -39,7 +39,7 @@ class HSSM(BaseModel):
         logs=None,
         nx_graph=None,
     ):
-        self.fit_vi_global_s, self.fit_vi_transition_s, self.infer_global_s, self.infer_transition_s = 0,0,0,1
+        # self.fit_vi_global_s, self.fit_vi_transition_s, self.infer_global_s, self.infer_transition_s = 0,0,0,1
         self.user_time_dependent_covariance = 1
         self.diagonal_std, self.lower_tri_std = 1, 0
         
@@ -165,6 +165,8 @@ class HSSM(BaseModel):
     ):
         [log_prob_st, log_prob_zt, log_prob_yt] = log_probs 
         
+        # sequence_likelihood = log_prob_yt[:, 1:].mean(-1) # [bs,]
+        # initial_likelihood = log_prob_yt[:, 0]
         sequence_likelihood = (log_prob_st[:, 1:] + log_prob_zt[:, 1:] + log_prob_yt[:, 1:]).mean(-1)/3 # [bs,]
         initial_likelihood = (log_prob_st[:, 0] + log_prob_zt[:, 0] + log_prob_yt[:, 0])/3
 
@@ -174,7 +176,7 @@ class HSSM(BaseModel):
         t3_mean = torch.mean(posterior_entropies[0]) 
         t4_mean = torch.mean(posterior_entropies[1]) 
         
-        elbo = t1_mean + t2_mean - temperature * (t3_mean + t4_mean)
+        elbo = t1_mean + t2_mean + temperature * (t3_mean + t4_mean)
         
         iwae = None # TODO ???
         # iwae = self._get_iwae(sequence_likelihood, initial_likelihood, log_prob_q,
@@ -281,14 +283,12 @@ class HSSM(BaseModel):
         bceloss = loss_fn(pred, gt.float())
         losses['loss_bce'] = bceloss
         
-        ipdb.set_trace()
         for key in ['elbo', 'initial_likelihood', 'sequence_likelihood', 
                     'st_entropy', 'zt_entropy',
                     'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
             losses[key] = outdict[key].mean()
         
         losses['loss_total'] = -outdict['elbo'].mean()
-        # losses['spasity'] = self.node_dist
         
         if metrics != None:
             pred = pred.detach().cpu().data.numpy()
@@ -315,7 +315,7 @@ class GraphHSSM(HSSM):
         logs: Logger = None,
         nx_graph: numpy.ndarray = None,
     ):
-        self.fit_vi_global_s, self.fit_vi_transition_s, self.infer_global_s, self.infer_transition_s = 0,0,0,1
+        # self.fit_vi_global_s, self.fit_vi_transition_s, self.infer_global_s, self.infer_transition_s = 0,0,0,1
         
         # ----- specify dimensions of all latents -----
         self.node_dim = 16
@@ -398,12 +398,22 @@ class GraphHSSM(HSSM):
         # the embedding network at each time step emb_t = f(y_t, c_t, t)
         # the variational posterior distribution q(s_1:t | y_1:t, c_1:t) and q(z_1:t | y_1:t, c_1:t) TODO could add structure later q(z_1:t | y_1:t, s_1:t)
         # 1. embedding network
+        # self.infer_network_emb = build_dense_network(
+        #     self.node_dim*2,
+        #     [self.node_dim, self.node_dim], 
+        #     [nn.ReLU(), None]
+        # )
         self.infer_network_emb = nn.LSTM( 
             input_size=self.node_dim*2, 
             hidden_size=self.node_dim//2, 
             bidirectional=True, # TODO why bidirectional
             batch_first=True,
         )
+        # self.infer_network_posterior_s = CausalTransformerModel(
+        #     ntoken=self.num_node,
+        #     ninp=self.infer_network_emb.hidden_size*2 if self.infer_network_emb.bidirectional else self.infer_network_emb.hidden_size,
+        #     nhid=self.node_dim,
+        # )
         # 2. variational posterior distribution q(s_1:t | y_1:t, c_1:t) = q(s_1:t | emb_1:t)
         self.transformer, self.rnn, self.explcit_rnn, self.implicit_rnn = 0,1,0,1
         if self.explcit_rnn:
@@ -414,7 +424,7 @@ class GraphHSSM(HSSM):
             )
         elif self.implicit_rnn:
             self.infer_network_posterior_s = nn.LSTM(
-                input_size=self.infer_network_emb.hidden_size*2 if self.infer_network_emb.bidirectional else self.infer_network_emb.hidden_size,
+                input_size=self.node_dim, # self.infer_network_emb.hidden_size*2 if self.infer_network_emb.bidirectional else self.infer_network_emb.hidden_size,
                 hidden_size=self.node_dim,  
                 bidirectional = False, 
                 batch_first = True,
@@ -422,7 +432,7 @@ class GraphHSSM(HSSM):
         elif self.transformer: 
             self.infer_network_posterior_s = CausalTransformerModel(
                 ntoken=self.num_node,
-                ninp=self.infer_network_emb.hidden_size*2 if self.infer_network_emb.bidirectional else self.infer_network_emb.hidden_size,
+                ninp=self.node_dim, # self.infer_network_emb.hidden_size*2 if self.infer_network_emb.bidirectional else self.infer_network_emb.hidden_size,
                 nhid=self.node_dim,
             )
         self.infer_network_posterior_mean_var_s = VAEEncoder(
@@ -432,7 +442,7 @@ class GraphHSSM(HSSM):
         # 3. variational posterior distribution q(z_1:t | y_1:t, c_1:t)
         if self.rnn:
             self.infer_network_posterior_z = nn.LSTM(
-                input_size=self.infer_network_emb.hidden_size*2 if self.infer_network_emb.bidirectional else self.infer_network_emb.hidden_size,
+                input_size=self.node_dim, # self.infer_network_emb.hidden_size*2 if self.infer_network_emb.bidirectional else self.infer_network_emb.hidden_size,
                 hidden_size=self.node_dim,  
                 bidirectional = False, 
                 batch_first = True,
@@ -440,43 +450,14 @@ class GraphHSSM(HSSM):
         elif self.transformer: 
             self.infer_network_posterior_z = CausalTransformerModel(
                 ntoken=self.num_node,
-                ninp=self.infer_network_emb.hidden_size*2 if self.infer_network_emb.bidirectional else self.infer_network_emb.hidden_size,
+                ninp=self.node_dim, # self.infer_network_emb.hidden_size*2 if self.infer_network_emb.bidirectional else self.infer_network_emb.hidden_size,
                 nhid=self.node_dim,
             )
         self.infer_network_posterior_mean_var_z = VAEEncoder(
             self.node_dim, self.emb_mean_var_dim, self.dim_z
         )
-        # self.zt_transition_infer
         
-        # # ----- For old test -----
-        # if self.fit_vi_transition_s: # why TODO
-        #     dim = self.dim_s
-        #     x0_mean = nn.init.xavier_uniform_(torch.empty(num_seq, 1, dim, device=self.device))
-        #     self.s_trans_mean = nn.Parameter(x0_mean, requires_grad=True)
-            
-        #     m = nn.init.xavier_uniform_(torch.empty(num_seq, 1, int(dim * (dim + 1) / 2), device=self.device))
-        #     x0_scale = torch.zeros((num_seq, 1, dim, dim), device=self.device)
-        #     tril_indices = torch.tril_indices(row=dim, col=dim, offset=0)
-        #     x0_scale[:,:, tril_indices[0], tril_indices[1]] += m
-        #     self.s_trans_scale = nn.Parameter(x0_scale, requires_grad=True)
-            
-        #     self.s_infer = self.s_transition_fit
-        
-        # elif self.infer_global_s:   
-        #     self.infer_network_emb = nn.RNN(
-        #         input_size=self.dim_y * 2, # input_y + input_time 2
-        #         hidden_size=self.dim_y * 2 * 2,  # 4
-        #         bidirectional = True,
-        #         batch_first = True,
-        #     )
-        #     self.network_posterior_mean_mlp_s = build_dense_network(
-        #         800,
-        #         [64, self.dim_s * 2], 
-        #         [nn.ReLU(), None]) # is it not allowed to add non-linear functions here?
 
-
-        
-        
     @staticmethod
     def positionalencoding1d(
         d_model, 
@@ -540,7 +521,7 @@ class GraphHSSM(HSSM):
             s_prior_dist (torch.distributions.MultivariateNormal): Multivariate normal distribution of `s_t`
                 with mean and covariance matrix computed using a neural network.
         '''
-        # if eval: ipdb.set_trace()
+        
         input_y = feed_dict['label_seq'] # [bs, times]
         items = feed_dict['skill_seq']
         
@@ -551,7 +532,6 @@ class GraphHSSM(HSSM):
             s_last = sampled_s[:, 0]
             item_last = items
             y_last = input_y
-            # time_emb = t_pe[:, :-1]
         else:
             s_last = sampled_s[:, 0, :-1] # [bsn, times-1, dim]
             item_last = items[:, :-1]
@@ -604,14 +584,15 @@ class GraphHSSM(HSSM):
             z_prior_dist (torch.distributions.MultivariateNormal): Multivariate normal distribution of `z_t`
                 with mean and covariance matrix computed using the sampled latent skills `s_t`.
         '''
-        # if eval: ipdb.set_trace()
+        
         input_t = feed_dict['time_seq']
         bs, num_steps = input_t.shape
         bsn = bs * self.num_sample
         
         # ----- calculate time difference -----
         # TODO: t scale would change if datasets change
-        dt = torch.diff(input_t.unsqueeze(1), dim=-1)/T_SCALE + EPS  # [bs, 1, num_steps-1] 
+        # ipdb.set_trace()
+        dt = torch.diff(input_t.unsqueeze(1), dim=-1)+EPS# /T_SCALE + EPS  # [bs, 1, num_steps-1] 
         dt = dt.repeat(self.num_sample, 1, 1)
         
         if num_steps == 2:
@@ -625,7 +606,7 @@ class GraphHSSM(HSSM):
         sampled_alpha = torch.relu(sampled_st[..., 0]) + EPS*self.args.alpha_minimum # TODO change # [bsn, 1, times-1]
         decay = torch.exp(-sampled_alpha * dt)
         sampled_mean = sampled_st[..., 1]
-        sampled_var = torch.sigmoid(sampled_st[..., 2]).clone().detach() # torch.exp(sampled_log_var) * decay + EPS # TODO not constrained
+        sampled_var = torch.sigmoid(sampled_st[..., 2]) # torch.exp(sampled_log_var) * decay + EPS # TODO not constrained
         sampled_gamma = torch.sigmoid(sampled_st[..., 3])
         
         # ----- Simulate the path of `z_t` -----
@@ -822,7 +803,8 @@ class GraphHSSM(HSSM):
             z_mean (torch.Tensor): [batch_size, time_steps, dim_z], Mean of the posterior distribution of `z_t`.
             z_log_var (torch.Tensor): [batch_size, time_steps, dim_z], Log variance of the posterior distribution of `z_t`.
         '''
-        feed_dict, sampled_s = inputs
+        
+        feed_dict, _ = inputs
         t_input = feed_dict['time_seq'] # [bs, times]
         bs, time_step = t_input.shape
 
@@ -831,12 +813,13 @@ class GraphHSSM(HSSM):
         
         # Compute the output of the posterior network
         if self.transformer:
-            output = self.infer_network_posterior_z(emb_rnn_inputs)
+            output = self.infer_network_posterior_z(emb_rnn_inputs, None)
         else:
-            output, _ = self.infer_network_posterior_z(emb_rnn_inputs)
+            output, _ = self.infer_network_posterior_z(emb_rnn_inputs, None)
         
         # Compute the mean and covariance matrix of the posterior distribution of `z_t`
         mean, log_var = self.infer_network_posterior_mean_var_z(output) # [bs, times, out_dim]
+
         log_var = torch.minimum(log_var, self.var_log_max.to(log_var.device))
         cov_mat = torch.diag_embed(torch.exp(log_var) + EPS) 
         dist_z = distributions.multivariate_normal.MultivariateNormal(
@@ -859,7 +842,11 @@ class GraphHSSM(HSSM):
         
         return z_sampled, z_entropy, z_log_prob_q, z_posterior_states, z_mean, z_log_var 
  
- 
+        # if self.dim_z > 1:
+        #     # ipdb.set_trace()
+        #     z_sampled_scalar = (z_sampled.unsqueeze(-2) * self.node_dist._get_node_embedding().to(z_sampled.device)).sum(-1) # [bsn, 1, time, num_node]
+        #     z_sampled_scalar = z_sampled_scalar.permute(0,3,2,1).contiguous() # [bsn, num_node, time, dim_z_scalar]
+            
     def calculate_likelihoods(
         self,
         feed_dict: Dict[str, torch.Tensor],
@@ -931,7 +918,7 @@ class GraphHSSM(HSSM):
             y_pe = torch.tile(past_y.unsqueeze(-1), (1,1, self.node_dim)) 
             node_pe = self.node_dist._get_node_embedding()[past_item]
             emb_input = torch.cat([node_pe, y_pe], dim=-1) # [bs, times, dim*4]
-            emb_rnn_inputs, _ = self.infer_network_emb(emb_input) # [bs, times, dim*2(32)]
+            emb_rnn_inputs, _ = self.infer_network_emb(emb_input, None) # [bs, times, dim*2(32)]
             emb_rnn_inputs = emb_rnn_inputs + t_pe
                 
             if single_step:
@@ -1006,7 +993,7 @@ class GraphHSSM(HSSM):
         self, 
         feed_dict: Dict[str, torch.Tensor], 
     ):
-        temperature = 1.0
+        temperature = 0.5
         t_input = feed_dict['time_seq'] # [bs, times]
         y_input = feed_dict['label_seq']
         items = feed_dict['skill_seq']
@@ -1027,13 +1014,15 @@ class GraphHSSM(HSSM):
         # which only have difference in Int!!
         # https://discuss.pytorch.org/t/why-do-we-need-flatten-parameters-when-using-rnn-with-dataparallel/46506
         t_pe = self.get_time_embedding(t_input, 'absolute') # [bs, times, dim] 
-        y_pe = torch.tile(y_input.unsqueeze(-1), (1,1, self.node_dim)) # TODO # [bs, times, dim]]   
+        y_pe = torch.tile(y_input.unsqueeze(-1), (1,1, self.node_dim)) # + t_pe # TODO # [bs, times, dim]]   
         node_pe = self.node_dist._get_node_embedding()[items] # [bs, times, dim]      
         emb_input = torch.cat([node_pe, y_pe], dim=-1) # [bs, times, dim*4]
-        self.infer_network_emb.flatten_parameters()
-        emb_history, _ = self.infer_network_emb(emb_input) # [bs, times, dim*2(32)]
+        emb_history = self.infer_network_emb(emb_input)
+        # self.infer_network_emb.flatten_parameters()
+        emb_history, _ = self.infer_network_emb(emb_input) # [bs, times, dim]
         emb_history = emb_history + t_pe
 
+        # ipdb.set_trace()
         # ----- Sample continuous hidden variable from `q(s[1:T] | y[1:T])' -----
         s_sampled, s_entropy, s_log_prob_q, _, s_mean, s_log_var = self.st_transition_infer(
             feed_dict, self.num_sample, emb_inputs=emb_history
@@ -1044,6 +1033,7 @@ class GraphHSSM(HSSM):
             [feed_dict, s_sampled], num_sample=self.num_sample, emb_inputs=emb_history
         ) 
         if self.dim_z > 1:
+            # ipdb.set_trace()
             z_sampled_scalar = (z_sampled.unsqueeze(-2) * self.node_dist._get_node_embedding().to(z_sampled.device)).sum(-1) # [bsn, 1, time, num_node]
             z_sampled_scalar = z_sampled_scalar.permute(0,3,2,1).contiguous() # [bsn, num_node, time, dim_z_scalar]
             
@@ -1055,7 +1045,6 @@ class GraphHSSM(HSSM):
             feed_dict, s_sampled, [z_sampled, z_sampled_scalar])
         recon_inputs = self.y_emit(z_sampled_scalar) # [bsn, num_node, time, dim_y]
         recon_inputs_items = emission_dist.sample()
-
 
         recon_inputs = recon_inputs.reshape(bs, self.num_sample, self.num_node, num_steps, -1)
         recon_inputs_items = recon_inputs_items.reshape(bs, self.num_sample, 1, num_steps, -1)
@@ -1079,6 +1068,7 @@ class GraphHSSM(HSSM):
         self.register_buffer(name="output_var_z", tensor=z_log_var.clone().detach())
         self.register_buffer(name="output_emb_input", tensor=emb_input.clone().detach())
         self.register_buffer(name="output_sampled_z", tensor=z_sampled.clone().detach())
+        self.register_buffer(name="output_sampled_z_scalar", tensor=z_sampled_scalar.clone().detach())
         self.register_buffer(name="output_sampled_y", tensor=recon_inputs.clone().detach())
         self.register_buffer(name="output_sampled_s", tensor=s_sampled.clone().detach())
         self.register_buffer(name="output_items", tensor=items.clone().detach())
@@ -1142,7 +1132,6 @@ class GraphHSSM(HSSM):
         self.register_buffer(name="output_gt", tensor=gt.clone().detach())
         self.register_buffer(name="output_attention_weights", tensor=pred_att.clone().detach())
         
-        
         # Evaluate metrics
         if metrics != None:
             pred = pred.detach().cpu().data.numpy()
@@ -1155,7 +1144,7 @@ class GraphHSSM(HSSM):
         losses['ou_speed'] = outdict["sampled_s"][...,0].mean()
         losses['ou_mean'] = outdict["sampled_s"][...,1].mean()
         losses['ou_vola'] = outdict["sampled_s"][...,2].mean()
-        if self.dim_z == 4:
+        if self.dim_s == 4:
             losses['ou_gamma'] = outdict["sampled_s"][...,3].mean()
             
         return losses

@@ -12,8 +12,7 @@ from torch.optim import lr_scheduler
 
 from utils import utils
 from data.data_loader import DataReader
-from models.new_learner_model import HierachicalSSM
-from models.learner_hssm_model import HSSM
+from models.HSSM import HSSM, GraphHSSM
 
 import ipdb
         
@@ -261,11 +260,9 @@ class KTRunner(object):
         if self.args.test:
             best_test_epoch = self.logs.test_results[self.metrics[0]].argmax()
             for metric in self.metrics:
-                valid_res_dict[metric] = self.logs.valid_results[metric][best_test_epoch]
                 test_res_dict[metric] = self.logs.test_results[metric][best_test_epoch]
-            self.logs.write_to_log_file("Best Iter(test)= %5d\t valid=(%s) test=(%s) [%.1f s] \n"
+            self.logs.write_to_log_file("Best Iter(test)= %5d\t test=(%s) [%.1f s] \n"
                         % (best_test_epoch + 1,
-                            utils.format_metric(valid_res_dict),
                             utils.format_metric(test_res_dict),
                             self.time[1] - self.time[0]))
                         
@@ -394,7 +391,7 @@ class KTRunner(object):
             model.module.scheduler_infer, model.module.scheduler_gen, model.module.scheduler_graph = sch
             model.module.optimizer = model.module.optimizer_infer
 
-        for phase in ['model', 'graph']: # 'model', 'graph', 'infer', 'gen'
+        for phase in ['infer_graph', 'gen_graph']: # 'model', 'graph', 'infer', 'gen'
 
             model.module.train()
             
@@ -470,6 +467,7 @@ class KTRunner(object):
             loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
             loss_dict['loss_total'].backward()
 
+            # ipdb.set_trace()
             torch.nn.utils.clip_grad_norm_(model.module.parameters(),100)
 
             for o in opt:
@@ -501,7 +499,7 @@ class KTRunner(object):
         
         predictions, labels = [], []
                 
-        if isinstance(model.module, HierachicalSSM) or isinstance(model.module, HSSM):
+        if isinstance(model.module, GraphHSSM) or isinstance(model.module, HSSM):
             for batch in tqdm(self.whole_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
                 batch = model.module.batch_to_gpu(batch, self.device)
                 

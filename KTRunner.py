@@ -217,40 +217,22 @@ class KTRunner(object):
                 
                 if not self.args.em_train:
                     loss = self.fit(model, train_batches, epoch_train_data, epoch=epoch+1)
+                    self.test(model, corpus, epoch, test_batches, val_batches, whole_batches, loss)
                 else:
                     for mini_epoch in range(5):
                         loss = self.fit_one_phase(model, train_batches, epoch_train_data, epoch=epoch+1, mini_epoch=mini_epoch, phase='infer')
-                    for mini_epoch in range(5):
+                    self.test(model, corpus, epoch, test_batches, val_batches, whole_batches, loss)
+                    for mini_epoch in range(4):
                         loss = self.fit_one_phase(model, train_batches, epoch_train_data, epoch=epoch+1, mini_epoch=mini_epoch, phase='graph')
-                training_time = self._check_time()
-                
-                ##### output validation and write to logs
-                if (self.args.test) & (epoch % self.args.test_every == 0):
-                    with torch.no_grad():
-                        test_result = self.evaluate(model, corpus, 'test', test_batches, whole_batches, epoch=epoch+1)
-                        
-                        if self.args.validate:
-                            valid_result = self.evaluate(model, corpus, 'val', val_batches, whole_batches, epoch=epoch+1)
-                            self.logs.append_epoch_losses(valid_result, 'val')
+                    self.test(model, corpus, epoch, test_batches, val_batches, whole_batches, loss)
 
-                            if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
-                                model.module.save_model(epoch=epoch)
-                        else:
-                            valid_result = test_result
-
-
-                    testing_time = self._check_time()
-                    self.logs.append_epoch_losses(test_result, 'test')
-                    self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
-                                epoch + 1, loss, training_time, utils.format_metric(valid_result),
-                                utils.format_metric(test_result), testing_time))
-                
-                    # if self._eva_termination(model) and self.early_stop:
-                    #     self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
-                    #     break
                 if epoch % self.args.save_every == 0:
                     model.module.save_model(epoch=epoch)
                     
+                if self.early_stop:
+                    if self._eva_termination(model): 
+                        self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
+                        break
                 self.logs.draw_loss_curves()
 
         except KeyboardInterrupt:
@@ -294,6 +276,39 @@ class KTRunner(object):
         )
 
 
+    def test(
+        self, 
+        model, 
+        corpus, 
+        epoch, 
+        test_batches, 
+        val_batches, 
+        whole_batches,
+        train_loss,
+        
+    ):
+        training_time = self._check_time()
+        if (self.args.test) & (epoch % self.args.test_every == 0):
+            with torch.no_grad():
+                test_result = self.evaluate(model, corpus, 'test', test_batches, whole_batches, epoch=epoch+1)
+                
+                if self.args.validate:
+                    valid_result = self.evaluate(model, corpus, 'val', val_batches, whole_batches, epoch=epoch+1)
+                    self.logs.append_epoch_losses(valid_result, 'val')
+
+                    if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
+                        model.module.save_model(epoch=epoch)
+                else:
+                    valid_result = test_result
+
+            testing_time = self._check_time()
+            
+            self.logs.append_epoch_losses(test_result, 'test')
+            self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
+                        epoch + 1, train_loss, training_time, utils.format_metric(valid_result),
+                        utils.format_metric(test_result), testing_time))
+
+
     def fit(
         self, 
         model, 
@@ -335,6 +350,7 @@ class KTRunner(object):
             # Calculate loss and perform backward pass.
             loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
             loss_dict['loss_total'].backward()
+            torch.nn.utils.clip_grad_norm_(model.module.parameters(), 100)
             
             # Update parameters.
             model.module.optimizer.step()
@@ -404,6 +420,7 @@ class KTRunner(object):
             output_dict = model(batch)
             loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
             loss_dict['loss_total'].backward()
+            torch.nn.utils.clip_grad_norm_(model.module.parameters(),100)
             opt.step()
             if mini_epoch == 4:
                 sch.step()  
@@ -415,6 +432,8 @@ class KTRunner(object):
         self.logs.append_epoch_losses(train_losses, 'train')
         
         model.module.eval()
+        
+        return self.logs.train_results['loss_total'][-1]
 
 
 

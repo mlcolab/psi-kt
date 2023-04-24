@@ -25,3 +25,4 @@
   validate_nb(model['content'])
 [I 21:02:22.031 NotebookApp] Saving file at /exp/debug_variants.ipynb
 [W 21:02:22.067 NotebookApp] Notebook exp/debug_variants.ipynb is not trusted
+slurmstepd: error: *** JOB 3416269 ON slurm-bm-06 CANCELLED AT 2023-04-24T00:36:04 ***

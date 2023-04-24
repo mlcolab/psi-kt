@@ -167,6 +167,7 @@ class DKTForgetting(BaseModel):
         )
         
         # Pack padded sequence and run through RNN layer
+        self.rnn.flatten_parameters()
         output, _ = self.rnn(embed_history_i, None) # [bs, time, emb_dim]
         fout = self.fout(torch.cat((repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq), dim=-1)) # [bs, time, emb_size]
         output = torch.cat((

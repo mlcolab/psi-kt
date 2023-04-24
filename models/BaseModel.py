@@ -391,7 +391,7 @@ class BaseLearnerModel(BaseModel):
         bs, _ = labels.shape
         self.num_seq = bs
         
-        x0 = torch.zeros((bs, self.num_node), device=self.device)
+        x0 = torch.zeros((bs, self.num_node)).to(labels.device)
         if self.num_node > 1:
             x0[torch.arange(bs), skills[:,0]] += labels[:, 0]
             items = skills

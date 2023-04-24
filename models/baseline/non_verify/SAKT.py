@@ -14,7 +14,7 @@ class SAKT(BaseModel):
 
     @staticmethod
     def parse_model_args(parser, model_name='SAKT'):
-        parser.add_argument('--emb_size', type=int, default=64,
+        parser.add_argument('--emb_size', type=int, default=16,
                             help='Size of embedding vectors.')
         parser.add_argument('--num_layer', type=int, default=1,
                             help='Self-attention layers.')

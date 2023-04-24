@@ -281,6 +281,7 @@ class HSSM(BaseModel):
         bceloss = loss_fn(pred, gt.float())
         losses['loss_bce'] = bceloss
         
+        ipdb.set_trace()
         for key in ['elbo', 'initial_likelihood', 'sequence_likelihood', 
                     'st_entropy', 'zt_entropy',
                     'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
@@ -335,6 +336,8 @@ class GraphHSSM(HSSM):
                 pass
             self.adj = torch.tensor(nx_graph)
             assert(self.adj.shape[-1] >= num_node)
+        
+        self.var_log_max = torch.tensor(10) # TODO
         super().__init__(mode, num_node, num_seq, args, device, logs, nx_graph)
 
 
@@ -563,6 +566,8 @@ class GraphHSSM(HSSM):
             # output = self.gen_network_transition_s(rnn_input_emb)
             mean_div, log_var = self.gen_network_prior_mean_var_s(input_emb) 
             mean = mean_div.repeat(self.num_sample, 1, 1) + s_last # TODO: can to add information of s_t-1 into the framework; how to constrain that s is not changing too much?
+            
+            log_var = torch.minimum(log_var, self.var_log_max.to(log_var.device))
             cov_mat = torch.diag_embed(torch.exp(log_var) + EPS).tile(self.num_sample, 1, 1, 1) # TODO constrain the std???
             
             s_prior_dist = distributions.multivariate_normal.MultivariateNormal(
@@ -638,9 +643,7 @@ class GraphHSSM(HSSM):
         z_pred = sampled_z * decay + (1.0 - decay) * (sampled_mean + empower)/2
         
         z_mean = z_pred.reshape(bsn, self.num_node, num_steps-1, 1) # [bs*n, num_node, num_steps, 1]
-        z_var = sampled_var.reshape(bsn, 1, num_steps-1, 1) # torch.cat([z0_var, sampled_var], -2) # [bs*n, num_node, num_steps, 1]
-        # z_var = torch.where(torch.isinf(z_var), torch.tensor(1e30, device=z_var.device, dtype=z_var.dtype), z_var)
-        z_var += EPS
+        z_var = sampled_var.reshape(bsn, 1, num_steps-1, 1) + EPS # torch.cat([z0_var, sampled_var], -2) # [bs*n, num_node, num_steps, 1]
         
         z_prior_dist = distributions.multivariate_normal.MultivariateNormal(
             loc=z_mean, 
@@ -728,6 +731,7 @@ class GraphHSSM(HSSM):
                 # epsilon = torch.randn_like((bs, num_sample, time_step, self.dim_s))        
                 # s_sampled = mean + torch.exp(0.5 * log_var)*epsilon
 
+                log_var = torch.minimum(log_var, self.var_log_max.to(log_var.device))
                 cov_mat = torch.diag_embed(torch.exp(log_var) + EPS) 
                 dist_s = distributions.multivariate_normal.MultivariateNormal(
                     loc=mean, 
@@ -833,6 +837,7 @@ class GraphHSSM(HSSM):
         
         # Compute the mean and covariance matrix of the posterior distribution of `z_t`
         mean, log_var = self.infer_network_posterior_mean_var_z(output) # [bs, times, out_dim]
+        log_var = torch.minimum(log_var, self.var_log_max.to(log_var.device))
         cov_mat = torch.diag_embed(torch.exp(log_var) + EPS) 
         dist_z = distributions.multivariate_normal.MultivariateNormal(
             loc=mean, 
@@ -1025,7 +1030,7 @@ class GraphHSSM(HSSM):
         y_pe = torch.tile(y_input.unsqueeze(-1), (1,1, self.node_dim)) # TODO # [bs, times, dim]]   
         node_pe = self.node_dist._get_node_embedding()[items] # [bs, times, dim]      
         emb_input = torch.cat([node_pe, y_pe], dim=-1) # [bs, times, dim*4]
-        # self.infer_network_emb.flatten_parameters()
+        self.infer_network_emb.flatten_parameters()
         emb_history, _ = self.infer_network_emb(emb_input) # [bs, times, dim*2(32)]
         emb_history = emb_history + t_pe
 
@@ -1052,14 +1057,10 @@ class GraphHSSM(HSSM):
         recon_inputs_items = emission_dist.sample()
 
 
-        recon_inputs = torch.reshape(recon_inputs, 
-                            [bs, self.num_sample, self.num_node, num_steps, -1])
-        recon_inputs_items = torch.reshape(recon_inputs_items, 
-                            [bs, self.num_sample, 1, num_steps, -1])
-        z_sampled_scalar = torch.reshape(z_sampled_scalar, 
-                                [bs, self.num_sample, num_steps, self.num_node, 1]).permute(0,1,3,2,4).contiguous()
-        s_sampled = torch.reshape(s_sampled,
-                            [bs, self.num_sample, 1, num_steps, self.dim_s])
+        recon_inputs = recon_inputs.reshape(bs, self.num_sample, self.num_node, num_steps, -1)
+        recon_inputs_items = recon_inputs_items.reshape(bs, self.num_sample, 1, num_steps, -1)
+        z_sampled_scalar = z_sampled_scalar.reshape(bs, self.num_sample, self.num_node, num_steps, 1)
+        s_sampled = s_sampled.reshape(bs, self.num_sample, 1, num_steps, self.dim_s)
         
         return_dict = self.get_objective_values(
             [log_prob_st, log_prob_zt, log_prob_yt], 
@@ -1123,13 +1124,16 @@ class GraphHSSM(HSSM):
         # Still NOT for optimization
         edge_log_probs = self.node_dist.edge_log_probs().to(pred.device)
         pred_att = torch.exp(edge_log_probs[0]).to(pred.device)
-        gt_adj = self.adj.to(pred.device)
         pred_adj = torch.nn.functional.gumbel_softmax(edge_log_probs, hard=True, dim=0)[0].sum() * 1e-3
 
         losses['spasity'] = (pred_att >= 0.5).sum()
         losses['loss_spasity'] = pred_adj
-        losses['adj_0_att_1'] = (1 * (pred_att >= 0.5) * (1-gt_adj)).sum()
-        losses['adj_1_att_0'] = (1 * (pred_att < 0.5) * gt_adj).sum()
+        
+        if 'junyi15' in self.args.dataset:
+            gt_adj = self.adj.to(pred.device)
+            losses['adj_0_att_1'] = (1 * (pred_att >= 0.5) * (1-gt_adj)).sum()
+            losses['adj_1_att_0'] = (1 * (pred_att < 0.5) * gt_adj).sum()
+            self.register_buffer(name="output_gt_graph_weights", tensor=gt_adj.clone().detach())
         
         losses['loss_total'] = -outdict['elbo'].mean() + losses['loss_spasity']
         
@@ -1137,7 +1141,7 @@ class GraphHSSM(HSSM):
         self.register_buffer(name="output_predictions", tensor=pred.clone().detach())
         self.register_buffer(name="output_gt", tensor=gt.clone().detach())
         self.register_buffer(name="output_attention_weights", tensor=pred_att.clone().detach())
-        self.register_buffer(name="output_gt_graph_weights", tensor=gt_adj.clone().detach())
+        
         
         # Evaluate metrics
         if metrics != None:

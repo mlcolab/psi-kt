@@ -91,7 +91,7 @@ class HKT(BaseModel):
         
         seq_len = items.shape[1]
         valid_mask = np.triu(np.ones((1, seq_len, seq_len)), k=1)
-        mask = (torch.from_numpy(valid_mask) == 0).to(self.device)
+        mask = (torch.from_numpy(valid_mask) == 0).to(cross_effects.device)
         sum_t = cross_effects.masked_fill(mask, 0).sum(-2) # [bs, seq_len]
 
         problem_bias = self.problem_base(problems).squeeze(dim=-1)

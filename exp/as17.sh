@@ -9,12 +9,12 @@
 #SBATCH --output=hostname_%j.out  # File to which STDOUT will be written
 #SBATCH --error=hostname_%j.err   # File to which STDERR will be written
 #SBATCH --mail-type=END           # Type of email notification- BEGIN,END,FAIL,ALL
-#SBATCH --array=3
+#SBATCH --array=0-4
 
 A=({DKTForgetting,DKT,HKT,AKT,HLR})
 
 python exp_baseline.py \
---dataset assistment12/multi_skill --model_name ${A[$SLURM_ARRAY_TASK_ID]} \
+--dataset duolingo/multi_skill --model_name ${A[$SLURM_ARRAY_TASK_ID]} \
 --em_train 0 --epoch 200 --vcl 0 --multi_node 1 \
 --train_mode ls_split_time --overfit 0 \
 --batch_size 256 --eval_batch_size 256 \

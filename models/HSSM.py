@@ -524,6 +524,7 @@ class GraphHSSM(HSSM):
         
         input_y = feed_dict['label_seq'] # [bs, times]
         items = feed_dict['skill_seq']
+        bsn = items.shape[0] * self.num_sample
         
         time_emb = self.get_time_embedding(feed_dict['time_seq'], type='dt')
         value_u = self.node_dist._get_node_embedding().to(sampled_s.device)# .clone().detach()
@@ -545,10 +546,12 @@ class GraphHSSM(HSSM):
             input_emb = value_u[item_last] + y_last.unsqueeze(-1) + time_emb # [bs, times-1, dim_emb]
             # output = self.gen_network_transition_s(rnn_input_emb)
             mean_div, log_var = self.gen_network_prior_mean_var_s(input_emb) 
-            mean = mean_div.repeat(self.num_sample, 1, 1) + s_last # TODO: can to add information of s_t-1 into the framework; how to constrain that s is not changing too much?
+            
+            mean = mean_div.unsqueeze(1).repeat(1,self.num_sample,1,1).reshape(bsn, mean_div.shape[-2], mean_div.shape[-1]) + s_last
+            # mean = mean_div.repeat(self.num_sample, 1, 1) + s_last # TODO: can to add information of s_t-1 into the framework; how to constrain that s is not changing too much?
             
             log_var = torch.minimum(log_var, self.var_log_max.to(log_var.device))
-            cov_mat = torch.diag_embed(torch.exp(log_var) + EPS).tile(self.num_sample, 1, 1, 1) # TODO constrain the std???
+            cov_mat = torch.diag_embed(torch.exp(log_var) + EPS).unsqueeze(1).repeat(1,self.num_sample,1,1,1).reshape(bsn, log_var.shape[-2], log_var.shape[-1], log_var.shape[-1])
             
             s_prior_dist = distributions.multivariate_normal.MultivariateNormal(
                     loc=mean, 
@@ -592,8 +595,8 @@ class GraphHSSM(HSSM):
         # ----- calculate time difference -----
         # TODO: t scale would change if datasets change
         # ipdb.set_trace()
-        dt = torch.diff(input_t.unsqueeze(1), dim=-1)+EPS# /T_SCALE + EPS  # [bs, 1, num_steps-1] 
-        dt = dt.repeat(self.num_sample, 1, 1)
+        dt = torch.diff(input_t.unsqueeze(1), dim=-1) + EPS# /T_SCALE + EPS  # [bs, 1, num_steps-1] 
+        dt = dt.unsqueeze(1).repeat(1, self.num_sample, 1, 1).reshape(bsn, 1, num_steps-1) # [bsn, 1, num_steps-1]
         
         if num_steps == 2:
             sampled_st = sampled_s
@@ -603,7 +606,8 @@ class GraphHSSM(HSSM):
             sampled_z = sampled_z_set[1][:,:,:-1,0] # [bsn, num_node, times-1]
             
         # NOTE: need very careful design of the constraint of these interpretable parameters
-        sampled_alpha = torch.relu(sampled_st[..., 0]) + EPS*self.args.alpha_minimum # TODO change # [bsn, 1, times-1]
+        # sampled_alpha = torch.minimum(torch.relu(sampled_st[..., 0]) + EPS, torch.tensor(10.).to(sampled_st.device)) # *self.args.alpha_minimum # TODO # [bsn, 1, times-1]
+        sampled_alpha = torch.sigmoid(sampled_st[..., 0]) # *self.args.alpha_minimum # TODO # [bsn, 1, times-1]
         decay = torch.exp(-sampled_alpha * dt)
         sampled_mean = sampled_st[..., 1]
         sampled_var = torch.sigmoid(sampled_st[..., 2]) # torch.exp(sampled_log_var) * decay + EPS # TODO not constrained
@@ -614,8 +618,9 @@ class GraphHSSM(HSSM):
         # adj = attn_output_weights[-1].to(sampled_z.device)
         # TODO test with multiple power of adj
         # in_degree = self.adj.sum(dim=0)
-        # ind = torch.where(in_degree == 0)[0] n
-        adj =  torch.exp(self.node_dist.edge_log_probs()[0]).to(sampled_s.device) # adj_ij means i has influence on j
+        # ind = torch.where(in_degree == 0)[0] 
+        adj = self.node_dist.sample_A(self.num_sample)[-1][:,0].mean(0).to(sampled_s.device) # [n, num_node, num_node] # adj_ij means i has influence on j
+        # adj =  torch.exp(self.node_dist.edge_log_probs()[0]).to(sampled_s.device) # adj_ij means i has influence on j
         empower = torch.einsum('bin,ij->bjn', sampled_z, adj) / self.num_node * sampled_gamma # [bs*n, num_node, times-1]
         # torch.matmul(sampled_z, adj_t).transpose(-1,-2).contiguous()/self.num_node  * sampled_gamma
         # empower = (sampled_z.unsqueeze(-2) * adj_t).sum(-1).transpose(-1,-2).contiguous()/self.num_node  * sampled_gamma # [bs*n, num_node, times-1] 
@@ -847,6 +852,7 @@ class GraphHSSM(HSSM):
         #     z_sampled_scalar = (z_sampled.unsqueeze(-2) * self.node_dist._get_node_embedding().to(z_sampled.device)).sum(-1) # [bsn, 1, time, num_node]
         #     z_sampled_scalar = z_sampled_scalar.permute(0,3,2,1).contiguous() # [bsn, num_node, time, dim_z_scalar]
             
+            
     def calculate_likelihoods(
         self,
         feed_dict: Dict[str, torch.Tensor],
@@ -872,6 +878,7 @@ class GraphHSSM(HSSM):
         """
         # Get the input data
         _, sampled_scalar_z = sampled_z_set
+        bsn = sampled_scalar_z.shape[0]
 
         # Get log p(s[t] |s[t-1], x[t-1])
         log_prob_st = self.get_s_prior(sampled_s, feed_dict) # [bs*n, num_steps]
@@ -880,11 +887,17 @@ class GraphHSSM(HSSM):
         log_prob_zt = self.get_z_prior(sampled_z_set, sampled_s, feed_dict) # [bs*n, num_steps-1]
         
         # Get log p(y[t] | z[t])
-        items = torch.tile(feed_dict['skill_seq'], (self.num_sample,1)).unsqueeze(-1)
+        items = feed_dict['skill_seq'].unsqueeze(1).repeat(1, self.num_sample, 1).reshape(bsn, -1, 1)
+        # items = torch.tile(feed_dict['skill_seq'], (self.num_sample,1)).unsqueeze(-1)
         sampled_scalar_z_item = torch.gather(sampled_scalar_z[..., 0], 1, items) # [bsn, time, 1]
         emission_prob = self.y_emit(sampled_scalar_z_item)
         emission_dist = torch.distributions.bernoulli.Bernoulli(probs=emission_prob)
-        y_input = torch.tile(feed_dict['label_seq'].unsqueeze(-1), (self.num_sample, 1, 1)).float()
+        
+        
+        y_input = feed_dict['label_seq'].unsqueeze(1).repeat(1, self.num_sample, 1).reshape(bsn, -1, 1).float()
+        # y_input = torch.tile(feed_dict['label_seq'][:, None, :, None], (1, self.num_sample, 1, 1)).float()
+        # y_input = y_input.reshape(-1, y_input.shape[-2], y_input.shape[-1])
+        # y_input = torch.tile(feed_dict['label_seq'].unsqueeze(-1), (self.num_sample, 1, 1)).float()
         log_prob_yt = emission_dist.log_prob(y_input) # [bsn, time, 1]
         log_prob_yt = log_prob_yt.squeeze(-1)
 
@@ -975,7 +988,8 @@ class GraphHSSM(HSSM):
                     z_dist = self.zt_transition_gen(sampled_z_set=[None, last_z], sampled_s=s_dist.sample(), inputs=feed_dict_i, eval=True)
 
         pred_all = torch.cat(y_preds,-2)[..., 0]
-        future_item = future_item.unsqueeze(-2).repeat(self.num_sample,1,1) # [bsn, 1, future_time]
+        future_item = future_item.unsqueeze(1).repeat(1, self.num_sample, 1).reshape(bsn, 1, -1)
+        # future_item.unsqueeze(-2).repeat(self.num_sample,1,1) # [bsn, 1, future_time]
         pred_item = torch.gather(pred_all, 1, future_item).reshape(bs, self.num_sample, -1, 1) # [bs, 1, future_time, 1]
         label_item = future_y[:, None, :, None].repeat(1, self.num_sample, 1, 1)
         
@@ -1058,7 +1072,7 @@ class GraphHSSM(HSSM):
             temperature=temperature,
         )
 
-        return_dict["label"] = feed_dict['label_seq']
+        return_dict["label"] = feed_dict['label_seq'][:, None, :, None]
         return_dict["prediction"] = recon_inputs_items   
         return_dict["sampled_s"] = s_sampled  
         
@@ -1100,7 +1114,7 @@ class GraphHSSM(HSSM):
         losses = defaultdict(lambda: torch.zeros(()))#, device=self.device))
 
         # Calculate binary cross-entropy loss -> not used for optimization only for visualization
-        gt = outdict["label"].repeat(self.num_sample, 1) 
+        gt = outdict["label"].repeat(1,self.num_sample,1,1) # .repeat(self.num_sample, 1) 
         pred = outdict["prediction"]
         loss_fn = torch.nn.BCELoss()
         bceloss = loss_fn(pred.flatten(), gt.float().flatten())
@@ -1116,8 +1130,8 @@ class GraphHSSM(HSSM):
         pred_att = torch.exp(edge_log_probs[0]).to(pred.device)
         pred_adj = torch.nn.functional.gumbel_softmax(edge_log_probs, hard=True, dim=0)[0].sum() * 1e-3
 
-        losses['spasity'] = (pred_att >= 0.5).sum()
-        losses['loss_spasity'] = pred_adj
+        losses['sparsity'] = (pred_att >= 0.5).sum()
+        losses['loss_sparsity'] = pred_adj
         
         if 'junyi15' in self.args.dataset:
             gt_adj = self.adj.to(pred.device)

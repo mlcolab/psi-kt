@@ -39,7 +39,11 @@ def parse_args(parser):
     parser.add_argument("--expername", type=str, default="",)
 
     ############## KTRunner ##############
-    parser.add_argument('--em_train', type=int, default=1)
+    parser.add_argument('--em_train', type=int, default=0)
+    parser.add_argument('--vcl', type=int, default=0)
+    parser.add_argument('--train_time_ratio', type=float, default=0.4, help='')
+    parser.add_argument('--test_time_ratio', type=float, default=0.5, help='')
+
     parser.add_argument('--train', type=int, default=1, help='To train the model or not.')
     parser.add_argument(
                 '--train_mode', type=str, default='train_split_time', 

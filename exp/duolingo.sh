@@ -11,11 +11,20 @@
 #SBATCH --mail-type=END           # Type of email notification- BEGIN,END,FAIL,ALL
 #SBATCH --array=0
 
-python exp_baseline.py --dataset duolingo/multi_skill --max_step 50 \
---model_name DKT \
---em_train 0 \
---epoch 10 --vcl 0 --multi_node 1 \
+python exp_baseline.py --dataset assistment17/multi_skill \
+--model_name DKT \ 
+--em_train 0 --epoch 200 --vcl 0 --multi_node 1 \
 --train_mode ls_split_time --overfit 16 \
---batch_size 256 \
+--batch_size 256 --eval_batch_size 256 \
 --test 1 --test_every 5 --save_every 5 --validate 1 \
 --train_time_ratio 0.4 --test_time_ratio 0.5 \
+--early_stop 0 --max_step 50 \
+
+# python exp_baseline.py --dataset duolingo/multi_skill --max_step 50 \
+# --model_name DKT \
+# --em_train 0 \
+# --epoch 10 --vcl 0 --multi_node 1 \
+# --train_mode ls_split_time --overfit 16 \
+# --batch_size 256 \
+# --test 1 --test_every 5 --save_every 5 --validate 1 \
+# --train_time_ratio 0.4 --test_time_ratio 0.5 \

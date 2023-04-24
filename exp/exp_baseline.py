@@ -11,7 +11,6 @@ import datetime
 import shutil
 
 import torch
-from torch.autograd import profiler
 
 from data import data_loader
 from KTRunner import KTRunner
@@ -28,10 +27,6 @@ if __name__ == '__main__':
     # debug
     parser.add_argument('--alpha_minimum', type=float, default=100)
     parser.add_argument('--learned_graph', type=str, default='w_gt')
-    parser.add_argument('--vcl', type=int, default=1)
-
-    parser.add_argument('--train_time_ratio', type=float, default=0.5, help='')
-    parser.add_argument('--test_time_ratio', type=float, default=0.5, help='')
 
     # Training options 
     parser.add_argument('--multi_node', type=int, default=0)

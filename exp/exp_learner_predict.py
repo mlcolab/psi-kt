@@ -41,12 +41,9 @@ if __name__ == '__main__':
     # debug
     parser.add_argument('--alpha_minimum', type=float, default=100)
     parser.add_argument('--learned_graph', type=str, default='w_gt')
-    parser.add_argument('--vcl', type=int, default=1)
-    
+
     # Training options
     parser.add_argument('--multi_node', type=int, default=0)
-    parser.add_argument('--train_time_ratio', type=float, default=0.5, help='')
-    parser.add_argument('--test_time_ratio', type=float, default=0.4, help='')
     parser.add_argument('--graph_path', type=str, default='/mnt/qb/work/mlcolab/hzhou52/kt/junyi15/adj.npy')
     parser.add_argument('--num_sample', type=int, default=10)
     

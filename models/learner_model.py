@@ -17,9 +17,11 @@ import torch
 import torch.nn as nn
 
 from utils import utils
-from models.BaseModel import BaseLearnerModel
+from models.BaseModel import BaseLearnerModel, BaseModel
 
 from enum import Enum
+
+T_SCALE = 60 # 60 * 60 * 24
 
         
 ##########################################################################################
@@ -253,7 +255,7 @@ class VanillaOU(BaseLearnerModel):
 
         if num_node > 1:
             self.adj = torch.tensor(nx_graph, device=self.device) 
-            assert(self.adj.shape[-1] == num_node)
+            # assert(self.adj.shape[-1] == num_node)
         else: self.adj = None
         
         # Training mode choosing
@@ -288,6 +290,9 @@ class VanillaOU(BaseLearnerModel):
             self.mean_rev_speed = nn.Parameter(speed, requires_grad=True)
             self.mean_rev_level = nn.Parameter(level, requires_grad=True)
             self.vola = nn.Parameter(vola, requires_grad=True)
+            
+        elif 'all_train' in mode:
+            raise Exception('Not implemented yet')
 
         elif mode == 'synthetic':
             assert(mean_rev_speed is not None)
@@ -300,6 +305,7 @@ class VanillaOU(BaseLearnerModel):
             
         assert torch.min(self.mean_rev_speed) >= 0
         assert torch.min(self.vola) >= 0
+
 
     def variance(self, t, speed=None, vola=None):
         '''
@@ -317,12 +323,14 @@ class VanillaOU(BaseLearnerModel):
         
         return vola * vola * (1.0 - torch.exp(- 2.0 * speed * t)) / (2 * speed + eps)
 
+
     def std(self, t, speed=None, vola=None):
         '''
         Args:
             t: [num_seq/bs, num_node, times] usually is the time difference of a sequence
         '''
         return torch.sqrt(self.variance(t, speed, vola) + 1e-6)
+
 
     def mean(self, x0, t, speed=None, level=None):
         '''
@@ -334,6 +342,7 @@ class VanillaOU(BaseLearnerModel):
         level = level if level is not None else self.mean_rev_level
 
         return x0 * torch.exp(-speed * t) + (1.0 - torch.exp(- speed * t)) * level
+
 
     def logll(self, x, t, speed=None, level=None, vola=None):
         """
@@ -382,10 +391,9 @@ class VanillaOU(BaseLearnerModel):
         num_seq, time_step = t.shape
         
         # ipdb.set_trace()
-        dt_normalize = 60*60*24
+        dt_normalize = T_SCALE
         dt = torch.diff(t).unsqueeze(1)/dt_normalize + eps
         dt = torch.tile(dt, (1, num_node, 1)) # [bs, num_node, time-1]
-        # dt = torch.log(dt) # TODO to find the right temperature of time difference in different real-world datasets
 
         if items == None or num_node == 1:
             items = torch.zeros_like(t, device=self.device, dtype=torch.long)
@@ -556,7 +564,7 @@ class GraphOU(VanillaOU):
         num_seq, time_step = t.shape
 
         t = t
-        dt = torch.diff(t).unsqueeze(1)/60/60/24 + eps
+        dt = torch.diff(t).unsqueeze(1)/T_SCALE + eps
         dt = torch.tile(dt, (1, num_node, 1)) + eps # [bs, num_node, time-1]
         # dt = torch.log(dt) # TODO to find the right temperature of time difference in different real-world datasets
 

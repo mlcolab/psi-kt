@@ -17,7 +17,7 @@ import ipdb
 # https://github.com/Jackson-Kang/Pytorch-VAE-tutorial/blob/master/01_Variational_AutoEncoder.ipynb
 class VAEEncoder(nn.Module):
     
-    def __init__(self, input_dim, hidden_dim, latent_dim):
+    def __init__(self, input_dim, hidden_dim, latent_dim, tanh=False):
         super(VAEEncoder, self).__init__()
 
         self.FC_input = nn.Linear(input_dim, hidden_dim)
@@ -26,6 +26,8 @@ class VAEEncoder(nn.Module):
         self.FC_var   = nn.Linear (hidden_dim, latent_dim)
         
         self.LeakyReLU = nn.LeakyReLU(0.2)
+        self.Tanh = nn.Tanh()
+        self.tanh = tanh
         
         self.training = True
         
@@ -33,9 +35,12 @@ class VAEEncoder(nn.Module):
         h_       = self.LeakyReLU(self.FC_input(x))
         h_       = self.LeakyReLU(self.FC_input2(h_))
         mean     = self.FC_mean(h_)
-        log_var  = self.FC_var(h_)                     #
+        log_var  = self.FC_var(h_)      
         
-        return mean, log_var
+        if self.tanh:
+            return self.Tanh(mean), self.Tanh(log_var)
+        else:
+            return mean, log_var
 
 
 class VAEEncoderSplit(nn.Module):

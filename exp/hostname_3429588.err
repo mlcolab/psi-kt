@@ -1,0 +1,24 @@
+Prepare Batches:   0%|                                                       | 0/27 [00:00<?, ?it/s]                                                                                                    Prepare Batches:   0%|                                                        | 0/4 [00:00<?, ?it/s]                                                                                                    Prepare Batches:   0%|                                                        | 0/4 [00:00<?, ?it/s]                                                                                                    Epoch     1:   0%|                                                           | 0/27 [00:00<?, ?it/s]                                                                                                    Traceback (most recent call last):
+  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/exp_learner_predict.py", line 207, in <module>
+    runner.train(model, corpus)
+  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/../KTRunner.py", line 225, in train
+    loss = self.fit(model, epoch=epoch+1)
+  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/../KTRunner.py", line 345, in fit
+    output_dict = model(batch)
+  File "/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1110, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/torch/nn/parallel/data_parallel.py", line 166, in forward
+    return self.module(*inputs[0], **kwargs[0])
+  File "/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1110, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/../models/HSSM.py", line 928, in forward
+    log_prob_yt, log_prob_zt, log_prob_st, emission_prob = self.calculate_likelihoods( 
+  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/../models/HSSM.py", line 779, in calculate_likelihoods
+    log_prob_zt = self.get_z_prior(sampled_z_set, sampled_s, feed_dict) # [bs*n, num_steps-1]
+  File "/mnt/qb/home/mlcolab/hzhou52/knowledge_tracing/exp/../models/HSSM.py", line 270, in get_z_prior
+    log_prob_z0 = self.z0_dist.log_prob(sampled_z0) / sampled_z0.shape[-1] # [bs, 1]
+  File "/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/torch/distributions/multivariate_normal.py", line 208, in log_prob
+    M = _batch_mahalanobis(self._unbroadcasted_scale_tril, diff)
+  File "/mnt/qb/work/mlcolab/hzhou52/anaconda3/envs/mykt/lib/python3.9/site-packages/torch/distributions/multivariate_normal.py", line 57, in _batch_mahalanobis
+    M_swap = torch.linalg.solve_triangular(flat_L, flat_x_swap, upper=False).pow(2).sum(-2)  # shape = b x c
+RuntimeError: CUDA error: CUBLAS_STATUS_EXECUTION_FAILED when calling `cublasStrsmBatched( handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, batchCount)`

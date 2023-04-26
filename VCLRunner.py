@@ -142,7 +142,7 @@ class VCLRunner(KTRunner):
             A dictionary containing the training losses.
         """
          
-        model.train()
+        model.module.train()
         train_losses = defaultdict(list)
         
         for mini_epoch in range(0, 1): # self.epoch): 
@@ -157,6 +157,7 @@ class VCLRunner(KTRunner):
                 s_tilde_dist, z_tilde_dist = model.module.predictive_model(feed_dict=batch, idx=time_step)
                 s_post_dist, z_post_dist = model.module.inference_model(feed_dict=batch, idx=time_step)
                 
+                # # for DEBUG use
                 # s_tilde_dist, z_tilde_dist = model.module.predictive_model(feed_dict=batch, idx=time_step+1)
                 # s_post_dist, z_post_dist = model.module.inference_model(feed_dict=batch, idx=time_step+1)
                 
@@ -165,9 +166,8 @@ class VCLRunner(KTRunner):
                 loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
                 loss_dict['loss_total'].backward()
                 
-                # torch.nn.utils.clip_grad_norm(model.module.parameters(),100)
-                
                 # Update parameters.
+                torch.nn.utils.clip_grad_norm(model.module.parameters(),100)
                 model.module.optimizer.step()
                 # model.module.scheduler.step()
                 

@@ -11,9 +11,9 @@
 #SBATCH --mail-type=END           # Type of email notification- BEGIN,END,FAIL,ALL
 #SBATCH --array=0
 
-python exp_baseline.py --dataset assistment17/multi_skill \
+python exp_baseline.py --dataset ednet_kt3/multi_skill \
 --model_name DKT \ 
---em_train 0 --epoch 200 --vcl 0 --multi_node 1 \
+--em_train 0 --epoch 5 --vcl 0 --multi_node 1 \
 --train_mode ls_split_time --overfit 16 \
 --batch_size 256 --eval_batch_size 256 \
 --test 1 --test_every 5 --save_every 5 --validate 1 \

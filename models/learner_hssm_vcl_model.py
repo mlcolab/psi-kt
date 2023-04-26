@@ -1,31 +1,25 @@
 import sys
 sys.path.append('..')
 
-import math 
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
 import torch
 from torch import nn, distributions
-from torch.nn import functional as F
 from torch.nn.parameter import Parameter
 
 from collections import defaultdict
 
 import ipdb
 
-from models.modules import build_rnn_cell
+from models.modules import build_rnn_cell, build_dense_network
 from models.BaseModel import BaseModel
-from models.learner_model import BaseLearnerModel
-from models.new_learner_model import build_dense_network
 from models.modules import CausalTransformerModel, VAEEncoder
-from models.variational_distributions import VarDIBS, VarTransformation, VarAttention
-from models.HSSM import HSSM, GraphHSSM
+from models.HSSM import GraphHSSM
 
 from enum import Enum
 
 torch.autograd.set_detect_anomaly(True)
 
-RANDOM_SEED = 131
 EPS = 1e-6
 T_SCALE = 60*60*24
 
@@ -42,9 +36,8 @@ class GraphContinualHSSM(GraphHSSM):
         nx_graph=None,
     ):
         super().__init__(mode, num_node, num_seq, args, device, logs, nx_graph)
-        self.fit_vi_global_s, self.fit_vi_transition_s, self.infer_global_s, self.infer_transition_s = 0,0,0,1
         
-        time_step_save = 50 # args.max_step
+        time_step_save = args.max_step
         num_seq_save = num_seq
 
         s_shape = (num_seq_save, 1, time_step_save, self.dim_s)

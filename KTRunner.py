@@ -435,7 +435,7 @@ class KTRunner(object):
             for i in range(5): # TODO: 5 is a hyperparameter
                 loss = self.fit_one_phase(model, epoch=epoch, mini_epoch=i, opt=opt)
 
-            self.test(model, corpus, epoch, loss)
+            self.test(model, corpus, train_loss=loss)
 
         model.module.scheduler_infer.step()
         model.module.scheduler_graph.step()

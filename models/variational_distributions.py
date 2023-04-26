@@ -303,7 +303,7 @@ class VarAttention(VarDistribution):
         else:
             u = torch.rand(size=(self.num_nodes, self.latent_dim))#, device=self.device)
             u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
-        u = nn.Parameter(u, requires_grad=True)
+        u = nn.Parameter(u, requires_grad=False)
         return u
 
 
@@ -315,8 +315,7 @@ class VarAttention(VarDistribution):
         Returns:
             tuple of tensors ``[..., d, d], [..., d, d]`` corresponding to ``log(p)`` and ``log(1-p)``
         """
-        u = self.u
-        u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
+        u = self._get_node_embedding()
        
         query_u = self.query_layer(u)
         key_u = self.key_layer(u)
@@ -332,6 +331,7 @@ class VarAttention(VarDistribution):
         u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
         return u
         
+        
     def edge_log_probs(self):
         """
         Edge log probabilities encoded by latent representation
@@ -342,10 +342,11 @@ class VarAttention(VarDistribution):
         """
         query_u, key_u, value_u, attn_output, attn_output_weights = self._get_atten_weights()
         # TODO need to mask acyclic edges
-        # TODO constrain the sparsity of edges: https://aclanthology.org/2021.acl-short.17.pdf; https://arxiv.org/pdf/2110.11299.pdf; https://arxiv.org/abs/1705.07704
+        # TODO constrain the sparsity of edges:
+        # https://aclanthology.org/2021.acl-short.17.pdf; https://arxiv.org/pdf/2110.11299.pdf; https://arxiv.org/abs/1705.07704
         # https://github.com/datnnt1997/multi-head_self-attention/blob/master/SelfAttention.ipynb
         
-        log_probs, log_probs_neg = torch.log(attn_output_weights), torch.log(1-attn_output_weights) # TODO in dibs paper, there is an alpha control the temperature here
+        log_probs, log_probs_neg = torch.log(attn_output_weights+EPS), torch.log(1-attn_output_weights+EPS) # TODO in dibs paper, there is an alpha control the temperature here
         
         return torch.stack([log_probs, log_probs_neg])
 
@@ -398,6 +399,7 @@ class VarTransformation(VarDistribution):
  
     def _get_node_embedding(self):
         return self.u
+        # return self.u / (torch.norm(self.u, dim=1, keepdim=True) + EPS)
         
         
     def edge_log_probs(self):
@@ -408,7 +410,7 @@ class VarTransformation(VarDistribution):
         # u = self._get_node_embedding().to(self.transformation_layer.device)
         EPS = 1e-6
         
-        u = self.u
+        u = self._get_node_embedding()
         trans_matrix = self.transformation_layer.to(u.device)
         
         prob_edge_existing = torch.sigmoid(u @ u.transpose(-1,-2))

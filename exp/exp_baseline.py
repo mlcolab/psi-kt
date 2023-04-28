@@ -13,7 +13,7 @@ import shutil
 import torch
 
 from data import data_loader
-from KTRunner import KTRunner
+from KTRunner_baseline import KTRunner
 from VCLRunner_baseline import VCLRunner
 from utils import utils, arg_parser, logger
 from models import DKT, DKTForgetting, HKT, AKT, HLR
@@ -24,8 +24,7 @@ if __name__ == '__main__':
 
     # ----- add aditional arguments for this exp. -----
     parser = argparse.ArgumentParser(description='Global')
-    # debug
-    parser.add_argument('--alpha_minimum', type=float, default=100)
+    
     parser.add_argument('--learned_graph', type=str, default='w_gt')
 
     # Training options 
@@ -95,9 +94,9 @@ if __name__ == '__main__':
                     global_args.log_path)
     shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/exp/exp_baseline.py',
                     global_args.log_path)
-    shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/VCLRunner.py',
+    shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/VCLRunner_baseline.py',
                     global_args.log_path)
-    shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/KTRunner.py',
+    shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/KTRunner_baseline.py',
                     global_args.log_path)
         
     if global_args.load > 0:
@@ -119,7 +118,6 @@ if __name__ == '__main__':
     else:
         runner = KTRunner(global_args, logs)
 
-# runner = VCLRunner(global_args, logs)
 runner.train(model, corpus)
 # logs.write_to_log_file('\nTest After Training: ' + runner._print_res(model, corpus))
 

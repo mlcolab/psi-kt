@@ -203,10 +203,10 @@ class KTRunner(object):
 
         # Return a random sample of items from an axis of object.
         epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) 
-        self.whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
         self.train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
         self.val_batches = None
         self.test_batches = None
+        self.whole_batches = None
         
         if self.args.test:
             self.test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
@@ -391,7 +391,7 @@ class KTRunner(object):
             model.module.scheduler_infer, model.module.scheduler_gen, model.module.scheduler_graph = sch
             model.module.optimizer = model.module.optimizer_infer
 
-        for phase in ['infer', 'gen_graph']: # 'model', 'graph', 'infer', 'gen'
+        for phase in ['infer_graph', 'gen_graph']: # 'model', 'graph', 'infer', 'gen'
 
             model.module.train()
             
@@ -457,7 +457,7 @@ class KTRunner(object):
 
         train_losses = defaultdict(list)
                 
-        for batch in tqdm(self.train_batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch): # TODO
+        for batch in tqdm(self.train_batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
 
             model.module.optimizer_infer.zero_grad(set_to_none=True)
             model.module.optimizer_graph.zero_grad(set_to_none=True)

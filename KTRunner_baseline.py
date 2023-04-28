@@ -1,9 +1,8 @@
-import gc, pickle, copy, os
+import gc, copy, os
 
 from time import time
 from tqdm import tqdm
 import numpy as np
-import matplotlib.pyplot as plt
 from collections import defaultdict
 
 import torch
@@ -12,7 +11,6 @@ from torch.optim import lr_scheduler
 
 from utils import utils
 from data.data_loader import DataReader
-from models.HSSM import HSSM, GraphHSSM
 
 import ipdb
         
@@ -93,38 +91,10 @@ class KTRunner(object):
         optimizer_class = OPTIMIZER_MAP[optimizer_name]
         self.logs.write_to_log_file(f"Optimizer: {optimizer_name}")
         
-        if not self.args.em_train:
-            optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay) # TODO some parameters are not initialized
-            scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay, gamma=lr_decay_gamma)
-            return optimizer, scheduler
+        optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay) # TODO some parameters are not initialized
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay, gamma=lr_decay_gamma)
+        return optimizer, scheduler
         
-        else:
-            generative_params = []
-            inference_params = []
-            graph_params = []
-            for param_group in list(model.module.named_parameters()):
-                if param_group[1].requires_grad:
-                    if 'node_' in param_group[0]:
-                        graph_params.append(param_group[1])
-                    elif 'infer_' in param_group[0] and param_group[1].requires_grad:
-                        inference_params.append(param_group[1])
-                    elif param_group[1].requires_grad:
-                        generative_params.append(param_group[1])
-
-            self.graph_params = graph_params
-            self.inference_params = inference_params
-            self.generative_params = generative_params
-
-            optimizer_infer = optimizer_class(inference_params, lr=lr, weight_decay=weight_decay)
-            optimizer_graph = optimizer_class(graph_params, lr=lr, weight_decay=weight_decay)
-            optimizer_gen = optimizer_class(generative_params, lr=lr, weight_decay=weight_decay)
-
-            scheduler_infer = lr_scheduler.StepLR(optimizer_infer, step_size=lr_decay, gamma=lr_decay_gamma)
-            scheduler_graph = lr_scheduler.StepLR(optimizer_graph, step_size=lr_decay, gamma=lr_decay_gamma)
-            scheduler_gen = lr_scheduler.StepLR(optimizer_gen, step_size=lr_decay, gamma=lr_decay_gamma)
-
-            return [optimizer_infer, optimizer_gen, optimizer_graph], [scheduler_infer, scheduler_gen, scheduler_graph]
-    
 
     def _print_res(
         self, 
@@ -203,14 +173,12 @@ class KTRunner(object):
 
         # Return a random sample of items from an axis of object.
         epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) 
-        self.whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
         self.train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
         self.val_batches = None
         self.test_batches = None
         
         if self.args.test:
             self.test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
-            self.whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
         if self.args.validate:
             self.val_batches = model.module.prepare_batches(corpus, epoch_val_data, self.eval_batch_size, phase='val')
 
@@ -221,11 +189,8 @@ class KTRunner(object):
                 
                 self._check_time()
                 
-                if not self.args.em_train:
-                    loss = self.fit(model, epoch=epoch+1)
-                    self.test(model, corpus, epoch, loss)
-                else:
-                    loss = self.fit_em_phases(model, corpus, epoch=epoch+1)
+                loss = self.fit(model, epoch=epoch+1)
+                test = self.test(model, corpus, epoch, loss)
 
                 if epoch % self.args.save_every == 0:
                     model.module.save_model(epoch=epoch)
@@ -383,106 +348,6 @@ class KTRunner(object):
         return self.logs.train_results['loss_total'][-1]
 
 
-    def fit_em_phases(self, model, corpus, epoch=-1):
-
-        if model.module.optimizer is None:
-            opt, sch = self._build_optimizer(model)
-            model.module.optimizer_infer, model.module.optimizer_gen, model.module.optimizer_graph = opt
-            model.module.scheduler_infer, model.module.scheduler_gen, model.module.scheduler_graph = sch
-            model.module.optimizer = model.module.optimizer_infer
-
-        for phase in ['infer', 'gen_graph']: # 'model', 'graph', 'infer', 'gen'
-
-            model.module.train()
-            
-            if phase == 'model':
-                opt = [model.module.optimizer_infer, model.module.optimizer_gen]
-                for param in self.graph_params: 
-                    param.requires_grad = False
-                for param in self.generative_params + self.inference_params:
-                    param.requires_grad = True
-            elif phase == 'graph':
-                opt = [model.module.optimizer_graph]
-                for param in self.generative_params + self.inference_params:
-                    param.requires_grad = False
-                for param in self.graph_params:
-                    param.requires_grad = True
-            elif phase == 'infer':
-                opt = [model.module.optimizer_infer]
-                for param in self.generative_params + self.graph_params:
-                    param.requires_grad = False
-                for param in self.inference_params:
-                    param.requires_grad = True
-            elif phase == 'gen':
-                opt = [model.module.optimizer_gen]
-                for param in self.inference_params + self.graph_params:
-                    param.requires_grad = False
-                for param in self.generative_params:
-                    param.requires_grad = True
-            elif phase == 'infer_graph':
-                opt = [model.module.optimizer_infer, model.module.optimizer_graph]
-                for param in self.generative_params:
-                    param.requires_grad = False
-                for param in self.inference_params + self.graph_params:
-                    param.requires_grad = True
-            elif phase == 'gen_graph':
-                opt = [model.module.optimizer_gen, model.module.optimizer_graph]
-                for param in self.inference_params:
-                    param.requires_grad = False
-                for param in self.generative_params + self.graph_params:
-                    param.requires_grad = True
-
-            for i in range(5): # TODO: 5 is a hyperparameter
-                loss = self.fit_one_phase(model, epoch=epoch, mini_epoch=i, opt=opt)
-
-            self.test(model, corpus, train_loss=loss)
-
-        model.module.scheduler_infer.step()
-        model.module.scheduler_graph.step()
-        model.module.scheduler_gen.step()
-
-        model.module.eval()
-
-        return self.logs.train_results['loss_total'][-1]
-    
-
-    def fit_one_phase(
-        self, 
-        model, 
-        epoch=-1, 
-        mini_epoch=-1, 
-        phase='infer',
-        opt=None,
-    ): 
-
-        train_losses = defaultdict(list)
-                
-        for batch in tqdm(self.train_batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch): # TODO
-
-            model.module.optimizer_infer.zero_grad(set_to_none=True)
-            model.module.optimizer_graph.zero_grad(set_to_none=True)
-            model.module.optimizer_gen.zero_grad(set_to_none=True)
-
-            output_dict = model(batch)
-            loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
-            loss_dict['loss_total'].backward()
-
-            # ipdb.set_trace()
-            torch.nn.utils.clip_grad_norm_(model.module.parameters(),100)
-
-            for o in opt:
-                o.step()
-
-            # Append the losses to the train_losses dictionary.
-            train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
-            
-        string = self.logs.result_string("train", epoch, train_losses, t=epoch, mini_epoch=mini_epoch) # TODO
-        self.logs.write_to_log_file(string)
-        self.logs.append_epoch_losses(train_losses, 'train')
-        
-        return self.logs.train_results['loss_total'][-1]
-
-
     def predict(
         self, 
         model, 
@@ -498,25 +363,14 @@ class KTRunner(object):
         model.module.eval()
         
         predictions, labels = [], []
-                
-        if isinstance(model.module, GraphHSSM) or isinstance(model.module, HSSM):
-            for batch in tqdm(self.whole_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
-                batch = model.module.batch_to_gpu(batch, self.device)
-                
-                out_dict = model.module.predictive_model(batch)
-                prediction, label = out_dict['prediction'], out_dict['label']
-                
-                predictions.extend(prediction.detach().cpu().data.numpy())
-                labels.extend(label.detach().cpu().data.numpy())
         
-        else:
-            for batch in tqdm(data_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
-                batch = model.module.batch_to_gpu(batch, self.device)
-                out_dict = model(batch)
-                
-                prediction, label = out_dict['prediction'], out_dict['label']
-                predictions.extend(prediction.detach().cpu().data.numpy())
-                labels.extend(label.detach().cpu().data.numpy())
+        for batch in tqdm(data_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
+            batch = model.module.batch_to_gpu(batch, self.device)
+            out_dict = model(batch)
+            
+            prediction, label = out_dict['prediction'], out_dict['label']
+            predictions.extend(prediction.detach().cpu().data.numpy())
+            labels.extend(label.detach().cpu().data.numpy())
                 
         return np.array(predictions), np.array(labels)
 

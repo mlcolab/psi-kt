@@ -28,7 +28,7 @@ class InferenceNet(nn.Module):
 
       # q(z|y,x)
       self.inference_qzyx = torch.nn.ModuleList([
-          nn.Linear(x_dim + y_dim, DIM),
+          nn.Linear(x_dim // 10 + y_dim, DIM),
           nn.ReLU(),
           nn.Linear(DIM, DIM),
           nn.ReLU(),
@@ -54,14 +54,14 @@ class InferenceNet(nn.Module):
         return concat
   
     def forward(self, x, temperature=1.0, hard=0):
-        x = x.reshape(x.size(0), -1)
+        x_faltten = x.reshape(x.size(0), -1)
         
         # q(y|x) 
-        logits, prob, y = self.qyx(x, temperature, hard) # [bs, num_categories]
+        logits, prob, y = self.qyx(x_faltten, temperature, hard) # [bs, num_categories]
         
         # q(z|x,y)
         # ipdb.set_trace() # TODO we can do it at every time step
-        mu, var, z = self.qzxy(x, y) # [bs, z_dim] # TODO would it be a little imbalanced? x, y are not the same dimension
+        mu, var, z = self.qzxy(x.mean(1), y) # [bs, z_dim] # TODO would it be a little imbalanced? x, y are not the same dimension
 
         output = {'mean': mu, 'var': var, 'gaussian': z, 
                   'logits': logits, 'prob_cat': prob, 'categorical': y}
@@ -100,7 +100,7 @@ class GenerativeNet(nn.Module):
             z = layer(z)
         return z
 
-    def forward(self, z, y):
+    def forward(self, y, z=None):
         # p(z|y)
         y_mu, y_var = self.pzy(y)
         
@@ -174,48 +174,48 @@ class Reshape(nn.Module):
 # Sample from the Gumbel-Softmax distribution and optionally discretize.
 class GumbelSoftmax(nn.Module):
 
-  def __init__(self, f_dim, c_dim):
-    super(GumbelSoftmax, self).__init__()
-    self.logits = nn.Linear(f_dim, c_dim)
-    self.f_dim = f_dim
-    self.c_dim = c_dim
+    def __init__(self, f_dim, c_dim):
+        super(GumbelSoftmax, self).__init__()
+        self.logits = nn.Linear(f_dim, c_dim)
+        self.f_dim = f_dim
+        self.c_dim = c_dim
      
-  def sample_gumbel(self, shape, is_cuda=False, eps=1e-20):
-    U = torch.rand(shape)
-    if is_cuda:
-      U = U.cuda()
-    return -torch.log(-torch.log(U + eps) + eps)
+    def sample_gumbel(self, shape, is_cuda=False, eps=1e-20):
+        U = torch.rand(shape)
+        if is_cuda:
+            U = U.cuda()
+        return -torch.log(-torch.log(U + eps) + eps)
 
-  def gumbel_softmax_sample(self, logits, temperature):
-    y = logits + self.sample_gumbel(logits.size(), logits.is_cuda)
-    return F.softmax(y / temperature, dim=-1)
+    def gumbel_softmax_sample(self, logits, temperature):
+        y = logits + self.sample_gumbel(logits.size(), logits.is_cuda)
+        return F.softmax(y / temperature, dim=-1)
 
-  def gumbel_softmax(self, logits, temperature, hard=False):
-    """
-    ST-gumple-softmax
-    input: [*, n_class]
-    return: flatten --> [*, n_class] an one-hot vector
-    """
-    #categorical_dim = 10
-    y = self.gumbel_softmax_sample(logits, temperature)
+    def gumbel_softmax(self, logits, temperature, hard=False):
+        """
+        ST-gumple-softmax
+        input: [*, n_class]
+        return: flatten --> [*, n_class] an one-hot vector
+        """
+        #categorical_dim = 10
+        y = self.gumbel_softmax_sample(logits, temperature)
 
-    if not hard:
-        return y
+        if not hard:
+            return y
 
-    shape = y.size()
-    _, ind = y.max(dim=-1)
-    y_hard = torch.zeros_like(y).view(-1, shape[-1])
-    y_hard.scatter_(1, ind.view(-1, 1), 1)
-    y_hard = y_hard.view(*shape)
-    # Set gradients w.r.t. y_hard gradients w.r.t. y
-    y_hard = (y_hard - y).detach() + y
-    return y_hard 
+        shape = y.size()
+        _, ind = y.max(dim=-1)
+        y_hard = torch.zeros_like(y).view(-1, shape[-1])
+        y_hard.scatter_(1, ind.view(-1, 1), 1)
+        y_hard = y_hard.view(*shape)
+        # Set gradients w.r.t. y_hard gradients w.r.t. y
+        y_hard = (y_hard - y).detach() + y
+        return y_hard 
   
-  def forward(self, x, temperature=1.0, hard=False):
-    logits = self.logits(x).view(-1, self.c_dim)
-    prob = F.softmax(logits, dim=-1)
-    y = self.gumbel_softmax(logits, temperature, hard)
-    return logits, prob, y
+    def forward(self, x, temperature=1.0, hard=False):
+        logits = self.logits(x).view(-1, self.c_dim)
+        prob = F.softmax(logits, dim=-1)
+        y = self.gumbel_softmax(logits, temperature, hard)
+        return logits, prob, y
 
 # Sample from a Gaussian distribution
 class Gaussian(nn.Module):
@@ -353,3 +353,11 @@ class LossFunctions:
         """
         log_q = F.log_softmax(logits, dim=-1)
         return -torch.mean(torch.sum(targets * log_q, dim=-1))
+    
+    def prior_entropy(self, num_classes, generative_network, device):
+
+        category = F.one_hot(torch.arange(num_classes), num_classes=num_classes).to(device)
+        out = generative_network(category.float())
+        mu = out['y_mean']
+        
+        return -mu.std(0).sum()

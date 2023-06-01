@@ -17,7 +17,11 @@ class DataReader(object):
     This contains the basic data features and aggregates the features according to different learners.
     For specific data features, it will be defined at get_feed_dict function in each KT model class.
     '''
-    def __init__(self, args, logs):
+    def __init__(
+        self, 
+        args, 
+        logs
+    ):
         '''
         Args:
             prefix:    data folder path
@@ -27,17 +31,19 @@ class DataReader(object):
             max_step:  the maximum step considered during training; NOTE: sometimes it has also been defined during the pre-processing process
             logs:      the log instance where defining the saving/loading information
         '''
-        self.prefix = args.data_dir
+        self.data_dir = args.data_dir
         self.dataset = args.dataset
-        self.sep = args.sep
         self.k_fold = args.kfold
         self.max_step = int(args.max_step)
         self.logs = logs
         
-        self.inter_df = pd.read_csv(os.path.join(self.prefix, self.dataset, 'interactions_{}.csv'.format(args.max_step)), sep=self.sep)
+        self.inter_df = pd.read_csv(os.path.join(self.data_dir, self.dataset, 'interactions_{}.csv'.format(args.max_step)), sep='\t')
         if 'problem_id' not in self.inter_df.columns:
             self.inter_df['problem_id'] = self.inter_df['skill_id']
-        logs.write_to_log_file('Reading data from \"{}\", dataset = \"{}\" '.format(self.prefix, self.dataset))
+        #  load the ground-truth graph if available  
+        self.adj = self.load_ground_truth_graph()
+        
+        logs.write_to_log_file('Reading data from \"{}\", dataset = \"{}\" '.format(self.data_dir, self.dataset))
 
         # Aggregate by user
         user_wise_dict = dict()
@@ -57,7 +63,7 @@ class DataReader(object):
             df['num_success'] = np.maximum(df['num_success']-1,0)
             df['num_failure'] = df['num_history'] - df['num_success']
             
-            # TODO normalize time stamp
+            # normalize time stamp -> because we care about the relative time
             new_df = df.sort_values('timestamp', ascending=True)
             new_df['timestamp'] = new_df['timestamp'] - min(new_df['timestamp'])
             
@@ -74,22 +80,30 @@ class DataReader(object):
             
             cnt += 1
             n_inters += len(df)
-        # ipdb.set_trace()
+        
         self.user_seq_df = pd.DataFrame.from_dict(user_wise_dict, orient='index')
         self.n_users = max(self.inter_df['user_id']) + 1
         self.n_skills = max(self.inter_df['skill_id']) + 1
         self.n_problems = max(self.inter_df['problem_id']) + 1
 
-        ##### load the ground-truth graph if available TODO 
-        graph_path = os.path.join(self.prefix, self.dataset, 'adj.npy')
-        if os.path.exists(graph_path):
-            self.adj = np.load(graph_path)
-        else: 
-            self.adj = np.zeros((self.n_skills, self.n_skills))
-
         self.logs.write_to_log_file('"n_users": {}, "n_skills": {}, "n_problems": {}, "n_interactions": {}'.format(
             self.n_users, self.n_skills, self.n_problems, n_inters
         ))
+
+
+    def load_ground_truth_graph(self):
+        """
+        Load the ground truth graph if available, otherwise create an empty graph.
+
+        Returns:
+        - adj (ndarray): Adjacency matrix representing the ground truth graph.
+        """
+        graph_path = os.path.join(self.data_dir, self.dataset, 'adj.npy')
+        if os.path.exists(graph_path):
+            adj = np.load(graph_path)
+        else:
+            adj = np.zeros((self.n_skills, self.n_skills))
+        return adj
 
 
     def gen_fold_data(self, k):

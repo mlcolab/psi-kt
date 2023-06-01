@@ -13,12 +13,10 @@ import ipdb
 class Logger:
     def __init__(self, args):
         self.args = args
-        self.num_models_to_keep = 1
-        assert self.num_models_to_keep > 0, "Dont delete all models!!!"
         
         self.train_results = pd.DataFrame()
         self.test_results = pd.DataFrame()
-        self.valid_results = pd.DataFrame()
+        self.val_results = pd.DataFrame()
         
         self.create_log_path(args)
 
@@ -31,9 +29,9 @@ class Logger:
         """
         Appends the losses dictionary to the losses_list.
 
-        Arguments:
-        losses_list -- the list of losses to append to
-        losses -- the dictionary of losses to append
+        Args:
+            losses_list -- the list of losses to append to
+            losses -- the dictionary of losses to append
         """
         for loss, value in losses.items():
             if isinstance(value, float):
@@ -53,14 +51,19 @@ class Logger:
         args, 
         add_path_var=""
     ):
+        """
+        Creates a log path for saving files related to the experiment.
+
+        Args:
+            args: An object containing various arguments.
+            add_path_var: Additional path variable to be included in the log path.
+        """
         args.log_path = os.path.join(args.save_folder, add_path_var, args.model_name, args.dataset,
                                      f"{args.time}_{args.expername}_overfit_{args.overfit}")
         os.makedirs(args.log_path, exist_ok=True)
 
         self.log_file = os.path.join(args.log_path, "log.txt")
         self.write_to_log_file(args)
-
-        args.optimizer_file = os.path.join(args.log_path, "optimizer.pt")
 
         args.plotdir = os.path.join(args.log_path, "plots")
         os.makedirs(args.plotdir, exist_ok=True)
@@ -94,7 +97,7 @@ class Logger:
         if phase == 'train':
             results_df = self.train_results
         elif phase == 'val':
-            results_df = self.valid_results
+            results_df = self.val_results
         elif phase == 'test':
             results_df = self.test_results
         else:
@@ -105,16 +108,38 @@ class Logger:
             results_df.at[str(results_idx), k] = np.mean(v)
         
         
-    def result_string(self, trainvaltest, epoch, losses, t=None, mini_epoch=''): # TODO
+    def result_string(
+        self, 
+        phase: str, 
+        epoch: int, 
+        losses: dict, 
+        t: float=None, 
+        mini_epoch: int=None,
+    ): 
+        """
+        Generates a string representation of the results.
+
+        Args:
+            phase: Specifies whether it is for training, validation, or testing.
+            epoch: The current epoch number.
+            losses: The dictionary of losses.
+            t: Optional time value for performance measurement.
+            mini_epoch: Optional mini-epoch identifier.
+
+        Returns:
+            The string representation of the results.
+        """
+        
         string = ""
-        if trainvaltest == "test":
+        
+        if phase == "test":
             string += (
                 "-------------------------------- \n"
                 "--------Testing----------------- \n"
                 "-------------------------------- \n"
             )
         else:
-            string += str(epoch) + " " + str(mini_epoch) + trainvaltest + "\t \t"
+            string += str(epoch) + " " + str(mini_epoch) + phase + "\t \t"
 
         for loss, value in losses.items():
             if type(value) == defaultdict:
@@ -138,8 +163,8 @@ class Logger:
             plt.figure()
             plt.plot(self.train_results[i], "-b", label="train " + i)
 
-            if self.valid_results is not None and i in self.valid_results:
-                plt.plot(self.valid_results[i], "-r", label="val " + i)
+            if self.val_results is not None and i in self.val_results:
+                plt.plot(self.val_results[i], "-r", label="val " + i)
 
             if self.test_results is not None and i in self.test_results:
                 plt.plot(self.test_results[i], "-g", label="test " + i)
@@ -198,8 +223,8 @@ class Logger:
         # Save losses throughout training and plot
         self.train_results.to_pickle(os.path.join(self.args.log_path, "out_dict", "train_loss"))
 
-        if self.valid_results is not None:
-            self.valid_results.to_pickle(os.path.join(self.args.log_path, "out_dict", "val_loss"))
+        if self.val_results is not None:
+            self.val_results.to_pickle(os.path.join(self.args.log_path, "out_dict", "val_loss"))
 
         if self.test_results is not None:
             self.test_results.to_pickle(os.path.join(self.args.log_path, "out_dict", "test_loss"))
@@ -248,12 +273,12 @@ class Logger:
 
 
     # def draw_val_curve(self):
-    #     for i in self.valid_results.columns:
+    #     for i in self.val_results.columns:
     #         plt.figure()
     #         plt.plot(self.train_results[i], "-b", label="train " + i)
 
-    #         if self.valid_results is not None and i in self.valid_results:
-    #             plt.plot(self.valid_results[i], "-r", label="val " + i)
+    #         if self.val_results is not None and i in self.val_results:
+    #             plt.plot(self.val_results[i], "-r", label="val " + i)
 
     #         plt.xlabel("epoch")
     #         plt.ylabel("loss")
@@ -264,11 +289,11 @@ class Logger:
     #         plt.close()
     
     # def draw_tta_curves(self):
-    #     for i in self.valid_results.columns:
+    #     for i in self.val_results.columns:
     #         if 'tta_ori_' in i:
     #             plt.figure()
-    #             plt.plot(self.valid_results[i], "-b", label="val " + i)
-    #             plt.plot(self.valid_results[i.replace('_ori_', '_')], "-r", label="val " + i.replace('_ori_', '_'))
+    #             plt.plot(self.val_results[i], "-b", label="val " + i)
+    #             plt.plot(self.val_results[i.replace('_ori_', '_')], "-r", label="val " + i.replace('_ori_', '_'))
 
     #             plt.xlabel("epoch")
     #             plt.ylabel("loss")
@@ -279,7 +304,7 @@ class Logger:
     #             plt.close()
     #         if 'tta' not in i:
     #             plt.figure()
-    #             plt.plot(self.valid_results[i], "-r", label="val " + i)
+    #             plt.plot(self.val_results[i], "-r", label="val " + i)
 
     #             plt.xlabel("epoch")
     #             plt.ylabel("loss")

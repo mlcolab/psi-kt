@@ -287,8 +287,6 @@ class Logger:
         # Save the model checkpoint
         self.save_checkpoint(args, model, optimizer, specifier=specifier)
     
-    
-
 
     # def draw_val_curve(self):
     #     for i in self.val_results.columns:
@@ -331,14 +329,3 @@ class Logger:
     #             # save image
     #             plt.savefig(os.path.join(self.args.log_path, 'val_' + i + ".png"))
     #             plt.close()
-
-
-    
-    
-
-
-
-
-
-
-

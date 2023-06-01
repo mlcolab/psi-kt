@@ -40,6 +40,7 @@ class DataReader(object):
         self.inter_df = pd.read_csv(os.path.join(self.data_dir, self.dataset, 'interactions_{}.csv'.format(args.max_step)), sep='\t')
         if 'problem_id' not in self.inter_df.columns:
             self.inter_df['problem_id'] = self.inter_df['skill_id']
+            
         #  load the ground-truth graph if available  
         self.adj = self.load_ground_truth_graph()
         
@@ -106,7 +107,10 @@ class DataReader(object):
         return adj
 
 
-    def gen_fold_data(self, k):
+    def gen_fold_data(
+        self, 
+        k: int
+    ):
         '''
         TODO: this function is not used in the current version
         Args:
@@ -129,7 +133,12 @@ class DataReader(object):
         self.data_df['whole'] = self.user_seq_df
 
 
-    def gen_time_split_data(self, train_ratio, test_ratio, val_ratio=0.2):
+    def gen_time_split_data(
+        self, 
+        train_ratio: float,
+        test_ratio: float, 
+        val_ratio: float=0.2,
+    ):
         '''
         Split the train/test/val based on time steps. 
         self.user_seq_df.keys(): ['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq',
@@ -163,7 +172,6 @@ class DataReader(object):
             self.data_df[key] = pd.DataFrame.from_dict(self.data_df[key], orient='columns')   
             self.data_df[key]['user_id'] = self.user_seq_df['user_id']
 
-        
         
     def show_columns(self):
         """

@@ -1,11 +1,5 @@
-# -*- coding: UTF-8 -*-
-
 import os
-import sys
 import math
-import pickle
-import argparse
-import logging
 import numpy as np
 import pandas as pd
 import ipdb
@@ -40,7 +34,7 @@ class DataReader(object):
         self.inter_df = pd.read_csv(os.path.join(self.data_dir, self.dataset, 'interactions_{}.csv'.format(args.max_step)), sep='\t')
         if 'problem_id' not in self.inter_df.columns:
             self.inter_df['problem_id'] = self.inter_df['skill_id']
-            
+
         #  load the ground-truth graph if available  
         self.adj = self.load_ground_truth_graph()
         

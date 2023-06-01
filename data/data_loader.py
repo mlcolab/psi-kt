@@ -108,6 +108,7 @@ class DataReader(object):
 
     def gen_fold_data(self, k):
         '''
+        TODO: this function is not used in the current version
         Args:
             k: select the k-th fold to run
         '''

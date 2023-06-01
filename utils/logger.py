@@ -11,7 +11,10 @@ import ipdb
 
 
 class Logger:
-    def __init__(self, args):
+    def __init__(
+        self,
+        args: argparse.Namespace
+    ):
         self.args = args
         
         self.train_results = pd.DataFrame()
@@ -21,12 +24,13 @@ class Logger:
         self.create_log_path(args)
 
 
-    @staticmethod
+    @staticmethod 
     def append_batch_losses(
-        losses_list, 
-        losses
+        losses_list: dict,
+        losses: dict,
     ):
         """
+        # TODO is it necesary to make this static?
         Appends the losses dictionary to the losses_list.
 
         Args:
@@ -48,8 +52,8 @@ class Logger:
     
     def create_log_path(
         self, 
-        args, 
-        add_path_var=""
+        args: argparse.Namespace,
+        add_path_var: str = "",
     ):
         """
         Creates a log path for saving files related to the experiment.
@@ -73,7 +77,7 @@ class Logger:
 
     def write_to_log_file(
         self, 
-        string
+        string: str,
     ):
         """
         Write given string in log-file and print as terminal output
@@ -88,8 +92,8 @@ class Logger:
 
     def append_epoch_losses(
         self, 
-        loss_dict, 
-        phase='train'
+        loss_dict: dict,
+        phase: str = 'train',
     ):
         '''
         Append loss results to corresponding data frame
@@ -113,8 +117,8 @@ class Logger:
         phase: str, 
         epoch: int, 
         losses: dict, 
-        t: float=None, 
-        mini_epoch: int=None,
+        t: float = None, 
+        mini_epoch: int = None,
     ): 
         """
         Generates a string representation of the results.
@@ -158,7 +162,13 @@ class Logger:
     
     
     def draw_loss_curves(self):
-        # ipdb.set_trace()
+        """
+        Draw loss curves for train, validation, and test results.
+
+        This method plots the loss curves based on the train, validation, and test results stored in the class.
+
+        """
+
         for i in self.train_results.columns:
             plt.figure()
             plt.plot(self.train_results[i], "-b", label="train " + i)
@@ -182,17 +192,19 @@ class Logger:
 
     def save_checkpoint(
         self, 
-        args, 
-        model, 
-        optimizer, 
-        specifier=""
+        args: argparse.Namespace,
+        model: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
+        specifier: str = "",
     ):
         """
         Save model and optimizer checkpoints at specified path and specifier.
-        :param args: object containing relevant training parameters
-        :param model: trained PyTorch model
-        :param optimizer: optimizer used during training
-        :param specifier: optional string specifier to differentiate checkpoints
+
+        Args:
+            args: object containing relevant training parameters
+            model: trained PyTorch model
+            optimizer: optimizer used during training
+            specifier: optional string specifier to differentiate checkpoints
         """
         # Set file paths for saving model and optimizer state dicts
         model_file_path = os.path.join(args.log_path, f"model_{specifier}.pt")
@@ -209,14 +221,21 @@ class Logger:
             
     def create_log( 
         self,
-        args,
-        accuracy=None,
-        model=None,
-        optimizer=None,
-        final_test=False,
-        test_results=None,
-        specifier="",
+        args: argparse.Namespace,
+        accuracy: float = None,
+        model: torch.nn.Module = None,
+        optimizer: torch.optim.Optimizer = None,
+        final_test: bool = False,
+        test_results: pd.DataFrame = None,
+        specifier: str = "",
     ):
+        """
+        Create a log file and save the model and results.
+
+        This method saves the losses throughout training, accuracy, and test results in a log file.
+        It also saves the model checkpoint.
+
+        """
 
         print("Saving model and log-file to " + args.log_path)
 
@@ -232,7 +251,6 @@ class Logger:
         if accuracy is not None:
             np.save(os.path.join(self.args.log_path, "accuracy"), accuracy)
 
-        # specifier = ""
         if final_test:
             pd_test_results = pd.DataFrame(
                 [

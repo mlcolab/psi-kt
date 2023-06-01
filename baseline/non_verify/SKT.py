@@ -9,7 +9,7 @@ import joblib, json
 import torch
 import torch.nn.functional as F
 
-from models.BaseModel import BaseModel
+from baseline.BaseModel import BaseModel
 from utils import utils
 
 import ipdb
@@ -18,7 +18,7 @@ class MyGRUCell(torch.nn.Module): # rnn.py
     def __init__(self, hidden_num):
         super(MyGRUCell, self).__init__()
         self.hidden_num = hidden_num
-        self.i2h = torch.nn.Linear(3*hidden_num, 3*hidden_num)
+        self.i2h = torch.nn.Linear(2*hidden_num, 3*hidden_num)
         self.h2h = torch.nn.Linear(hidden_num, 3*hidden_num)
         self.reset_act = torch.nn.Sigmoid()
         self.update_act = torch.nn.Sigmoid()
@@ -195,11 +195,20 @@ class Graph(object):
 
 
 
-class SKTF(BaseModel):
+
+
+
+
+## for debug use: use ass09-10
+# interaction data from hkt
+# graph data from skt 
+
+
+class SKT(BaseModel):
     extra_log_args = ['graph_params']
 
     @staticmethod
-    def parse_model_args(parser, model_name='SKTF'):
+    def parse_model_args(parser, model_name='SKT'):
         parser.add_argument('--graph_params', default=[['correct_transition_graph.json', True]])
         parser.add_argument('--hidden_num', default=16)
         parser.add_argument('--latent_dim', default=None)
@@ -237,7 +246,7 @@ class SKTF(BaseModel):
             graph_path[-1].append(os.path.join(args.path, args.dataset, 'graph', graph[0]))
             graph_path[-1].append(graph[1])
 
-        self.graph = Graph.from_file(self.skill_num, graph_path) 
+        self.graph = Graph.from_file(self.skill_num, graph_path) # TODO check graph_params
 
         self.alpha = args.alpha
 
@@ -286,8 +295,6 @@ class SKTF(BaseModel):
         self.dropout = torch.nn.Dropout(self.dp)
         self.out = torch.nn.Linear(self.hidden_num, 1).to(torch.float64) # TODO loss function
 
-        self.fin = torch.nn.Linear(3, self.hidden_num)
-
         self.loss_function = torch.nn.BCELoss()
 
 
@@ -318,27 +325,18 @@ class SKTF(BaseModel):
         else:
             raise TypeError("cannot handle %s" % type(indexes))
             
-    def forward(self, feed_dict):
-    # def forward(self, states=None, layout='NTC', compressed_out=True,
-    #             *args, **kwargs):
-    #     ctx = questions.context # cpu or gpu?
+    def forward(self, feed_dict, states=None): # TODO check load model states
 
         problems = feed_dict['problem_seq']  # [batch_size, seq_len] #=questions 
         skills = feed_dict['skill_seq']      # [batch_size, seq_len]
         times = feed_dict['time_seq']        # [batch_size, seq_len]
         labels = feed_dict['label_seq']      # [batch_size, seq_len]
 
-        repeated_time_gap_seq = feed_dict['repeated_time_gap_seq']  # [batch_size, max_step]
-        sequence_time_gap_seq = feed_dict['sequence_time_gap_seq']  # [batch_size, max_step]
-        past_trial_counts_seq = feed_dict['past_trial_counts_seq']  # [batch_size, max_step]
-
         batch_size = problems.shape[0]
         length = problems.shape[1]
         
-        # if states is None: #TODO
-            # initialize the hidden state of concepts???
-            # states = self.begin_states(shapes=[(batch_size, self.skill_num, self.hidden_num)], prefix=self.prefix)[0]
-        states = self.begin_states(shapes=[(batch_size, self.skill_num, self.hidden_num)], prefix=self.prefix)[0]
+        if states is None: #TODO
+            states = self.begin_states(shapes=[(batch_size, self.skill_num, self.hidden_num)], prefix=self.prefix)[0]
 
         # states = states.as_in_context(ctx) TODO put states to gpu???
         outputs = []
@@ -351,18 +349,15 @@ class SKTF(BaseModel):
             inputs = skills[:, i] # (bs,)
             answers = labels[:, i] # (bs,)
             # - current state is indexed by the skill_id(inputs)
-            _self_state = self.get_states(inputs, states)  # (bs, hidden_num)
-
-            # - time embedding
-            fin = self.fin(torch.cat((repeated_time_gap_seq[:,i], sequence_time_gap_seq[:,i], past_trial_counts_seq[:,i]), dim=-1))
-            
-            # - use current answer to update current states(from last step)
+            _self_state = self.get_states(inputs, states) 
+            ipdb.set_trace()
+            # - use current answer to update self states
             answer_index = inputs * (answers+1)
-            _next_self_state = self.f_self(self.response_embedding(answer_index), _self_state)  # TODO test answer_index
+            _next_self_state = self.f_self(self.response_embedding(answer_index), _self_state)  
             _next_self_state = self.self_dropout(_next_self_state) # (bs, hidden_num)
 
             # get self mask
-            # - give each skill a one-hot vector
+            # - current skill mask
             # https://stackoverflow.com/questions/55549843/pytorch-doesnt-support-one-hot-vector
             _self_mask = torch.zeros((batch_size, self.skill_num))
             _self_mask[range(batch_size), inputs] = 1
@@ -379,10 +374,9 @@ class SKTF(BaseModel):
             _broadcast_next_self_states = torch.broadcast_to(_broadcast_next_self_states, (batch_size, self.skill_num, self.hidden_num))
             # - fuse [original states + answer fused states]
             _sync_diff = torch.cat((states, _broadcast_next_self_states), dim=-1)
-            _sync_inf = _neighbors_mask * self.f_sync(_sync_diff)
-
-            # reflection on current vertex
-            _reflec_inf = torch.sum(_sync_inf, dim=1)
+            _sync_inf = _neighbors_mask * self.f_sync(_sync_diff) # (bs, skill_num, hidden_num)
+            # - reflection on current vertex; neighbors' influence on current vertex after current vertex influence them
+            _reflec_inf = torch.sum(_sync_inf, dim=1) # (bs, hidden_num)
             _reflec_inf = torch.broadcast_to(_reflec_inf.unsqueeze(1), (batch_size, self.skill_num, self.hidden_num))
             _sync_inf = _sync_inf + _self_mask * _reflec_inf
 
@@ -391,20 +385,27 @@ class SKTF(BaseModel):
             _successors_mask = _successors.unsqueeze(-1)
             _successors_mask = torch.broadcast_to(_successors_mask, (batch_size, self.skill_num, self.hidden_num))
 
-            # propagation
+            # propagation - difference between states affected by answers
             _prop_diff = _next_self_state - _self_state
 
             # 1
             _prop_inf = self.f_prop(_prop_diff)
             _prop_inf = _successors_mask * torch.broadcast_to(_prop_inf.unsqueeze(1), (batch_size, self.skill_num, self.hidden_num))
-            # concept embedding
+            # 2
+            # _broadcast_diff = mx.nd.broadcast_to(mx.nd.expand_dims(_prop_diff, axis=1), (0, self.ku_num, 0))
+            # _pro_inf = _successors_mask * self.f_prop(
+            #     mx.nd.concat(_broadcast_diff, concept_embeddings, dim=-1)
+            # )
+            # _pro_inf = _successors_mask * self.f_prop(
+            #     _broadcast_diff
+            # )
+            # concept embedding # TODO why???
             concept_embeddings = self.concept_embedding.weight.data
             concept_embeddings = torch.broadcast_to(concept_embeddings.unsqueeze(0), _prop_inf.shape)
-
+            ipdb.set_trace()
             # aggregate
-            fin = torch.broadcast_to(fin.unsqueeze(1), states.shape)
             _inf = self.f_agg(self.alpha * _sync_inf + (1 - self.alpha) * _prop_inf)
-            next_states, _ = self.rnn(torch.cat((_inf, concept_embeddings, fin), dim=-1), states)
+            next_states, _ = self.rnn(torch.cat((_inf, concept_embeddings), dim=-1), states)
             states = next_states
             
             output = torch.sigmoid(torch.squeeze(self.out(self.dropout(states)), dim=-1))
@@ -416,6 +417,18 @@ class SKTF(BaseModel):
             if self.valid_length is not None and not self.compressed_out:
                 all_states.append([states])
 
+        # TODO
+        # if self.valid_length is not None:
+        #     if self.compressed_out:
+        #         states = None
+        #     else:
+        #         states = [mx.nd.SequenceLast(mx.nd.stack(*ele_list, axis=0),
+        #                                      sequence_length=valid_length,
+        #                                      use_sequence_length=True,
+        #                                      axis=0)
+        #                   for ele_list in zip(*all_states)]
+        #     outputs = mask_sequence_variable_length(mx.nd, outputs, length, valid_length, axis, True)
+        # outputs, _, _, _ = format_sequence(length, outputs, layout, merge=True)
         outputs = torch.swapaxes(torch.stack(outputs), 0, 1)
         out_dict = {
             'prediction': outputs,
@@ -423,12 +436,22 @@ class SKTF(BaseModel):
         }
         return out_dict
 
+
     def loss(self, feed_dict, outdict):
         prediction = outdict['prediction'].flatten()
         label = outdict['label'].flatten()
         mask = label > -1
+        # ipdb.set_trace()
         loss = self.loss_function(prediction[mask], label[mask])
         return loss
+
+
+        
+
+
+
+        
+        
 
     def get_feed_dict(self, corpus, data, batch_start, batch_size, phase):
         batch_end = min(len(data), batch_start + batch_size)
@@ -438,74 +461,29 @@ class SKTF(BaseModel):
         time_seqs = data['time_seq'][batch_start: batch_start + real_batch_size].values
         problem_seqs = data['problem_seq'][batch_start: batch_start + real_batch_size].values
 
-        user_seqs = data['skill_seq'][batch_start: batch_start + real_batch_size].values
-
-        sequence_time_gap_seq, repeated_time_gap_seq, past_trial_counts_seq = \
-            self.get_time_features(user_seqs, time_seqs)
-        lengths = np.array(list(map(lambda lst: len(lst), user_seqs)))
-        indice = np.array(np.argsort(lengths, axis=-1)[::-1])
-        inverse_indice = np.zeros_like(indice)
-
         feed_dict = {
             'skill_seq': torch.from_numpy(utils.pad_lst(skill_seqs)),            # [batch_size, seq_len]
             'label_seq': torch.from_numpy(utils.pad_lst(label_seqs, value=-1)),  # [batch_size, seq_len]
             'problem_seq': torch.from_numpy(utils.pad_lst(problem_seqs)),        # [batch_size, seq_len]
             'time_seq': torch.from_numpy(utils.pad_lst(time_seqs)),              # [batch_size, seq_len]
-            'repeated_time_gap_seq': torch.from_numpy(repeated_time_gap_seq[indice]),  # [batch_size, max_step]
-            'sequence_time_gap_seq': torch.from_numpy(sequence_time_gap_seq[indice]),  # [batch_size, max_step]
-            'past_trial_counts_seq': torch.from_numpy(past_trial_counts_seq[indice]),  # [batch_size, max_step]
-            'length': torch.from_numpy(lengths[indice]),  # [batch_size]
-            'inverse_indice': torch.from_numpy(inverse_indice),
-            'indice': torch.from_numpy(indice),
         }
         return feed_dict
 
-    @staticmethod
-    def get_time_features(user_seqs, time_seqs):
-        skill_max = max([max(i) for i in user_seqs])
-        inner_max_len = max(map(len, user_seqs))
-        repeated_time_gap_seq = np.zeros([len(user_seqs), inner_max_len, 1], np.double)
-        sequence_time_gap_seq = np.zeros([len(user_seqs), inner_max_len, 1], np.double)
-        past_trial_counts_seq = np.zeros([len(user_seqs), inner_max_len, 1], np.double)
-        for i in range(len(user_seqs)):
-            last_time = None
-            skill_last_time = [None for _ in range(skill_max)]
-            skill_cnt = [0 for _ in range(skill_max)]
-            for j in range(len(user_seqs[i])):
-                sk = user_seqs[i][j] - 1
-                ti = time_seqs[i][j]
-
-                if skill_last_time[sk] is None:
-                    repeated_time_gap_seq[i][j][0] = 0
-                else:
-                    repeated_time_gap_seq[i][j][0] = ti - skill_last_time[sk]
-                skill_last_time[sk] = ti
-
-                if last_time is None:
-                    sequence_time_gap_seq[i][j][0] = 0
-                else:
-                    sequence_time_gap_seq[i][j][0] = (ti - last_time)
-                last_time = ti
-
-                past_trial_counts_seq[i][j][0] = (skill_cnt[sk])
-                skill_cnt[sk] += 1
-
-        repeated_time_gap_seq[repeated_time_gap_seq < 0] = 1
-        sequence_time_gap_seq[sequence_time_gap_seq < 0] = 1
-        repeated_time_gap_seq[repeated_time_gap_seq == 0] = 1e4
-        sequence_time_gap_seq[sequence_time_gap_seq == 0] = 1e4
-        past_trial_counts_seq += 1
-        sequence_time_gap_seq *= 1.0 / 60
-        repeated_time_gap_seq *= 1.0 / 60
-
-        sequence_time_gap_seq = np.log(sequence_time_gap_seq)
-        repeated_time_gap_seq = np.log(repeated_time_gap_seq)
-        past_trial_counts_seq = np.log(past_trial_counts_seq)
-        return sequence_time_gap_seq, repeated_time_gap_seq, past_trial_counts_seq
 
 
+def expand_tensor(tensor, expand_axis, expand_num, ctx=None, dtype=None): # rnn.py
+    if not isinstance(tensor, torch.Tensor):
+        tensor = torch.Tensor(tensor, ctx, dtype)
+    assert len(tensor.shape) == 2
 
+    _tensor = tensor.unsqueeze(expand_axis)
 
+    shape = [0] * 3
+    shape[expand_axis] = expand_num
+
+    _tensor = torch.broadcast_to(_tensor, tuple(shape))
+
+    return _tensor
 
 # https://github.com/apache/incubator-mxnet/blob/9491442d147e51e883708ebdf3a2b4cbf5b5247a/python/mxnet/gluon/rnn/rnn_cell.py#L52
 def format_sequence(length, inputs, layout, merge, in_layout=None):

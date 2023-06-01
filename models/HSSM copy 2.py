@@ -15,7 +15,7 @@ from collections import defaultdict
 import ipdb
 
 from models.modules import build_rnn_cell, build_dense_network
-from models.BaseModel import BaseModel
+from baseline.BaseModel import BaseModel
 from models.modules import CausalTransformerModel, VAEEncoder
 from models.variational_distributions import VarTransformation, VarAttention
 from models.gmvae import *

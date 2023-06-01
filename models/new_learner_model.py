@@ -48,7 +48,7 @@ import ipdb
 
 from models.learner_model import BaseLearnerModel
 from utils.utils import ConfigDict
-from models.BaseModel import BaseModel
+from baseline.BaseModel import BaseModel
 from models.modules import build_dense_network, generate_fully_connected, build_rnn_cell
 
 torch.autograd.set_detect_anomaly(True)

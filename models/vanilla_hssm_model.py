@@ -13,7 +13,7 @@ import ipdb
 
 from models.HSSM import HSSM
 from models.modules import build_rnn_cell
-from models.BaseModel import BaseModel
+from baseline.BaseModel import BaseModel
 from models.learner_model import BaseLearnerModel
 from models.new_learner_model import build_dense_network
 from models.modules import CausalTransformerModel, VAEEncoder

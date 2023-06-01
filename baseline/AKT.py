@@ -7,7 +7,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from models.BaseModel import BaseModel
+from baseline.BaseModel import BaseModel
 from utils import utils
 
 import ipdb

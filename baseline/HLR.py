@@ -12,7 +12,7 @@ import ipdb
 import torch
 import torch.nn as nn
 
-from models.BaseModel import BaseModel, BaseLearnerModel
+from baseline.BaseModel import BaseModel, BaseLearnerModel
 
 torch.autograd.set_detect_anomaly(True) 
 class HLR(BaseLearnerModel):

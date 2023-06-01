@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from collections import defaultdict
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
-from models.BaseModel import BaseModel
+from baseline.BaseModel import BaseModel
 from utils import utils
 import ipdb
 

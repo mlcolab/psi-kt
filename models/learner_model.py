@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 
 from utils import utils
-from models.BaseModel import BaseLearnerModel, BaseModel
+from baseline.BaseModel import BaseLearnerModel, BaseModel
 
 from enum import Enum
 

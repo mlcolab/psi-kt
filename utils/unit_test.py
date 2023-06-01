@@ -2,7 +2,7 @@
 def test_pred_evaluate_method():
     import numpy as np
     from sklearn.metrics import mean_squared_error, mean_absolute_error, roc_auc_score, f1_score, accuracy_score, precision_score, recall_score
-    from models.BaseModel import pred_evaluate_method
+    from baseline.BaseModel import pred_evaluate_method
     
     # Generate random predictions and true labels
     y_pred = np.random.rand(100)

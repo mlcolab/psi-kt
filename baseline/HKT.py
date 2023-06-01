@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 from collections import defaultdict
 
-from models.BaseModel import BaseModel
+from baseline.BaseModel import BaseModel
 from utils import utils
 
 import ipdb

@@ -40,6 +40,7 @@ def parse_args(parser):
     parser.add_argument('--em_train', type=int, default=0)
     parser.add_argument('--vcl', type=int, default=0)
     parser.add_argument('--train_time_ratio', type=float, default=0.4, help='')
+    parser.add_argument('--val_time_ratio', type=float, default=0.2, help='')
     parser.add_argument('--test_time_ratio', type=float, default=0.5, help='')
 
     parser.add_argument(

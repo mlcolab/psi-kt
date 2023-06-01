@@ -41,16 +41,13 @@ def load_corpus(logs, args):
     
     # Check the value of the train_mode argument to determine the type of data split.
     if 'split_learner' in args.train_mode:
-        # Generate folds of data for a learner-based split using the gen_fold_data method of the corpus object.
         corpus.gen_fold_data(args.fold)
         logs.write_to_log_file('# Training mode splits LEARNER')
 
     elif 'split_time' in args.train_mode:
-        # Generate splits of data based on time ratios using the gen_time_split_data method of the corpus object.
-        corpus.gen_time_split_data(args.train_time_ratio, args.test_time_ratio)
+        corpus.gen_time_split_data(args.train_time_ratio, args.test_time_ratio, args.val_time_ratio*args.validate)
         logs.write_to_log_file('# Training mode splits TIME')
         
-    # Write to logs the number of examples in the train, val, and test sets.
     logs.write_to_log_file('# Train: {}, # val: {}, # Test: {}'.format(
             len(corpus.data_df['train']), len(corpus.data_df['val']), len(corpus.data_df['test'])
         ))

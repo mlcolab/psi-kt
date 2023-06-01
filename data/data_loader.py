@@ -128,16 +128,16 @@ class DataReader(object):
         self.data_df['whole'] = self.user_seq_df
 
 
-    def gen_time_split_data(self, train_ratio, test_ratio):
+    def gen_time_split_data(self, train_ratio, test_ratio, val_ratio=0.2):
         '''
         Split the train/test/val based on time steps. 
-        E.g., for each learner, the first 70% interactions are training data, the next 10% validation data, and final 20% test data.
         self.user_seq_df.keys(): ['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq',
                                   'num_history', 'num_success', 'num_failure']
         Args:
             
         '''
-        assert train_ratio + test_ratio <= 1
+        assert train_ratio + test_ratio + val_ratio <= 1
+
         n_time_steps = len(self.user_seq_df['time_seq'][0])
         self.data_df = {
             'train': dict(),
@@ -154,13 +154,14 @@ class DataReader(object):
             if key != 'user_id':
                 value = np.stack(self.user_seq_df[key].values)
                 self.data_df['train'][key] = value[:, :train_size].tolist()
-                self.data_df['test'][key] = value[:, -test_size:].tolist()
                 self.data_df['val'][key] = value[:, train_size:val_size+train_size].tolist()
+                self.data_df['test'][key] = value[:, train_size+val_size:val_size+train_size+test_size].tolist()
                 self.data_df['whole'][key] = value[:, :].tolist()
 
         for key in self.data_df.keys():     
             self.data_df[key] = pd.DataFrame.from_dict(self.data_df[key], orient='columns')   
             self.data_df[key]['user_id'] = self.user_seq_df['user_id']
+
         
         
     def show_columns(self):

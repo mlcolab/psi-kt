@@ -1,5 +1,7 @@
-import gc, copy, os
+import sys
+sys.path.append('..')
 
+import gc, copy, os
 from time import time
 from tqdm import tqdm
 import numpy as np
@@ -13,6 +15,7 @@ from utils import utils
 from data.data_loader import DataReader
 
 import ipdb
+        
         
 OPTIMIZER_MAP = {
     'gd': optim.SGD,

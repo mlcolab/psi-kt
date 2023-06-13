@@ -32,13 +32,15 @@ def parse_args(parser):
     parser.add_argument('--regenerate_corpus', action="store_true", default=False)
 
     ############## logger ##############
-    parser.add_argument("--save_folder", type=str, default="/mnt/qb/work/mlcolab/hzhou52/Exp3_continual",)
+    parser.add_argument('--create_logs', default=1)
+    parser.add_argument("--save_folder", type=str, default="/mnt/qb/work/mlcolab/hzhou52/kt/logs",)
     parser.add_argument("--save_every", type=int, default=10,)
     parser.add_argument("--expername", type=str, default="",)
 
     ############## KTRunner ##############
     parser.add_argument('--em_train', type=int, default=0)
     parser.add_argument('--vcl', type=int, default=0)
+
     parser.add_argument('--train_time_ratio', type=float, default=0.4, help='')
     parser.add_argument('--val_time_ratio', type=float, default=0.2, help='')
     parser.add_argument('--test_time_ratio', type=float, default=0.5, help='')

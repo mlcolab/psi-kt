@@ -1,12 +1,12 @@
-import time
-import os
-import torch
+import time, os, argparse, math, itertools
+
 import matplotlib.pyplot as plt
 import numpy as np
-import math
 import pandas as pd
 from collections import defaultdict
-import itertools
+
+import torch
+
 import ipdb
 
 
@@ -21,7 +21,8 @@ class Logger:
         self.test_results = pd.DataFrame()
         self.val_results = pd.DataFrame()
         
-        self.create_log_path(args)
+        if args.create_logs:
+            self.create_log_path(args)
 
 
     @staticmethod 

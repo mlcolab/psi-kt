@@ -57,12 +57,11 @@ if __name__ == '__main__':
     
     # ----- data part -----
     corpus_path = os.path.join(global_args.data_dir, global_args.dataset, 'Corpus_{}.pkl'.format(global_args.max_step))
+    data = data_loader.DataReader(global_args, logs)
     if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
-        data = data_loader.DataReader(global_args, logs)
+        data.create_corpus()
         data.show_columns() 
-        logs.write_to_log_file('Save corpus to {}'.format(corpus_path))
-        pickle.dump(data, open(corpus_path, 'wb'))
-    corpus = utils.load_corpus(logs, global_args) 
+    corpus = data.load_corpus() 
     
     # ----- logger information -----
     log_args = [global_args.model_name, global_args.dataset, str(global_args.random_seed)]

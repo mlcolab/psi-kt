@@ -12,7 +12,7 @@ from torch.optim import lr_scheduler
 
 from utils import utils
 from data.data_loader import DataReader
-from models.HSSM import HSSM, GraphHSSM
+from models.HSSM import HSSM, AmortizedHSSM
 
 import ipdb
         
@@ -34,10 +34,10 @@ class KTRunner(object):
             args: the global arguments
             logs: the Logger instance for logging information
         '''
-        self.overfit = args.overfit # TODO debug args
         self.time = None
-
-        self.args = args
+        
+        self.overfit = args.overfit # TODO debug args
+        
         self.epoch = args.epoch
         self.batch_size = args.batch_size_multiGPU 
         self.eval_batch_size = args.eval_batch_size
@@ -46,9 +46,36 @@ class KTRunner(object):
         for i in range(len(self.metrics)):
             self.metrics[i] = self.metrics[i].strip()
 
+        self.args = args
         self.early_stop = args.early_stop
         self.logs = logs
         self.device = args.device
+
+
+    def _eva_termination(
+        self, 
+        model: torch.nn.Module,
+        metrics_list: list = None,
+        metrics_log: dict = None,
+    ):
+        """
+        Determine whether the training should be terminated based on the validation results.
+
+        Returns:
+        - True if the training should be terminated, False otherwise
+        """
+        
+        for m in metrics_list:
+            valid = list(metrics_log[m])
+
+            # Check if the last 10 validation results have not improved
+            if not (len(valid) > 10 and utils.non_increasing(valid[-10:])):
+                return False
+            # Check if the maximum validation result has not improved for the past 10 epochs
+            elif not (len(valid) - valid.index(max(valid)) > 10):
+                return False
+            
+        return True
 
 
     def _check_time(
@@ -93,45 +120,19 @@ class KTRunner(object):
         optimizer_class = OPTIMIZER_MAP[optimizer_name]
         self.logs.write_to_log_file(f"Optimizer: {optimizer_name}")
         
-        if not self.args.em_train:
-            optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay) # TODO some parameters are not initialized
-            scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay, gamma=lr_decay_gamma)
-            return optimizer, scheduler
+        optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay)
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay, gamma=lr_decay_gamma)
         
-        else:
-            generative_params = []
-            inference_params = []
-            graph_params = []
-            for param_group in list(model.module.named_parameters()):
-                if param_group[1].requires_grad:
-                    if 'node_' in param_group[0]:
-                        graph_params.append(param_group[1])
-                    elif 'infer_' in param_group[0] and param_group[1].requires_grad:
-                        inference_params.append(param_group[1])
-                    elif param_group[1].requires_grad:
-                        generative_params.append(param_group[1])
-
-            self.graph_params = graph_params
-            self.inference_params = inference_params
-            self.generative_params = generative_params
-
-            optimizer_infer = optimizer_class(inference_params, lr=lr, weight_decay=weight_decay)
-            optimizer_graph = optimizer_class(graph_params, lr=lr, weight_decay=weight_decay)
-            optimizer_gen = optimizer_class(generative_params, lr=lr, weight_decay=weight_decay)
-
-            scheduler_infer = lr_scheduler.StepLR(optimizer_infer, step_size=lr_decay, gamma=lr_decay_gamma)
-            scheduler_graph = lr_scheduler.StepLR(optimizer_graph, step_size=lr_decay, gamma=lr_decay_gamma)
-            scheduler_gen = lr_scheduler.StepLR(optimizer_gen, step_size=lr_decay, gamma=lr_decay_gamma)
-
-            return [optimizer_infer, optimizer_gen, optimizer_graph], [scheduler_infer, scheduler_gen, scheduler_graph]
+        return optimizer, scheduler
     
 
     def _print_res(
         self, 
         model: torch.nn.Module,
         corpus: DataReader,
-    ): # TODO
+    ): 
         '''
+        # TODO: this is not used in current version
         Print the model prediction on test data set.
         This is used in main function to compare the performance of model before and after training.
         Args:
@@ -147,31 +148,27 @@ class KTRunner(object):
     def _eva_termination(
         self, 
         model: torch.nn.Module,
+        metrics_list: list = None,
+        metrics_log: dict = None,
     ):
         """
-        A private method that determines whether the training should be terminated based on the validation results.
-
-        Args:
-        - self: the object itself
-        - model: the trained model
+        Determine whether the training should be terminated based on the validation results.
 
         Returns:
         - True if the training should be terminated, False otherwise
         """
+        
+        for m in metrics_list:
+            valid = list(metrics_log[m])
 
-        # Extract the validation results from the logs
-        valid = list(self.logs.valid_results[self.metrics[0]])
-
-        # Check if the last 10 validation results have not improved
-        if len(valid) > 20 and utils.non_increasing(valid[-10:]):
-            return True
-
-        # Check if the maximum validation result has not improved for the past 20 epochs
-        elif len(valid) - valid.index(max(valid)) > 20:
-            return True
-
-        # Otherwise, return False to continue the training
-        return False
+            # Check if the last 10 validation results have not improved
+            if not (len(valid) > 10 and utils.non_increasing(valid[-10:])):
+                return False
+            # Check if the maximum validation result has not improved for the past 10 epochs
+            elif not (len(valid) - valid.index(max(valid)) > 10):
+                return False
+            
+        return True
     
 
     def train(
@@ -201,6 +198,7 @@ class KTRunner(object):
                 copy.deepcopy(corpus.data_df[key]) for key in set_name
             ]
 
+        ipdb.set_trace()
         # Return a random sample of items from an axis of object.
         epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) 
         self.whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
@@ -334,7 +332,7 @@ class KTRunner(object):
         train_losses = defaultdict(list)
         
         # Iterate through each batch.
-        for batch in tqdm(self.train_batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
+        for batch in tqdm(self.whole_batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
             
             batch = model.module.batch_to_gpu(batch, self.device)
             
@@ -457,7 +455,7 @@ class KTRunner(object):
 
         train_losses = defaultdict(list)
                 
-        for batch in tqdm(self.train_batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch): # TODO
+        for batch in tqdm(self.whole_batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch): # TODO
 
             model.module.optimizer_infer.zero_grad(set_to_none=True)
             model.module.optimizer_graph.zero_grad(set_to_none=True)
@@ -499,7 +497,7 @@ class KTRunner(object):
         
         predictions, labels = [], []
                 
-        if isinstance(model.module, GraphHSSM) or isinstance(model.module, HSSM):
+        if isinstance(model.module, AmortizedHSSM) or isinstance(model.module, HSSM):
             for batch in tqdm(self.whole_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
                 batch = model.module.batch_to_gpu(batch, self.device)
                 

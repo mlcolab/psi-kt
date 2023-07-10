@@ -1,7 +1,7 @@
+import gc, copy, os
 import sys
 sys.path.append('..')
 
-import gc, copy, os
 from time import time
 from tqdm import tqdm
 import numpy as np
@@ -13,9 +13,9 @@ from torch.optim import lr_scheduler
 
 from utils import utils
 from data.data_loader import DataReader
+from KTRunner import KTRunner
 
 import ipdb
-        
         
 OPTIMIZER_MAP = {
     'gd': optim.SGD,
@@ -24,21 +24,25 @@ OPTIMIZER_MAP = {
     'adam': optim.Adam
 }
 
-class KTRunner(object):
+class BaselineKTRunner(KTRunner):
     '''
     This implements the training loop, testing & validation, optimization etc. 
     '''
 
-    def __init__(self, args, logs):
+    def __init__(
+        self,
+        args, 
+        logs
+    ):
         '''
         Args:
             args: the global arguments
             logs: the Logger instance for logging information
         '''
-        self.overfit = args.overfit # TODO debug args
         self.time = None
-
-        self.args = args
+        
+        self.overfit = args.overfit # TODO debug args
+        
         self.epoch = args.epoch
         self.batch_size = args.batch_size_multiGPU 
         self.eval_batch_size = args.eval_batch_size
@@ -47,11 +51,38 @@ class KTRunner(object):
         for i in range(len(self.metrics)):
             self.metrics[i] = self.metrics[i].strip()
 
+        self.args = args
         self.early_stop = args.early_stop
         self.logs = logs
         self.device = args.device
 
 
+    def _eva_termination(
+        self, 
+        model: torch.nn.Module,
+        metrics_list: list = None,
+        metrics_log: dict = None,
+    ):
+        """
+        Determine whether the training should be terminated based on the validation results.
+
+        Returns:
+        - True if the training should be terminated, False otherwise
+        """
+        
+        for m in metrics_list:
+            valid = list(metrics_log[m])
+
+            # Check if the last 10 validation results have not improved
+            if not (len(valid) > 10 and utils.non_increasing(valid[-10:])):
+                return False
+            # Check if the maximum validation result has not improved for the past 10 epochs
+            elif not (len(valid) - valid.index(max(valid)) > 10):
+                return False
+            
+        return True
+    
+    
     def _check_time(
         self, 
         start=False
@@ -94,8 +125,9 @@ class KTRunner(object):
         optimizer_class = OPTIMIZER_MAP[optimizer_name]
         self.logs.write_to_log_file(f"Optimizer: {optimizer_name}")
         
-        optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay) # TODO some parameters are not initialized
+        optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay)
         scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay, gamma=lr_decay_gamma)
+        
         return optimizer, scheduler
         
 
@@ -103,8 +135,9 @@ class KTRunner(object):
         self, 
         model: torch.nn.Module,
         corpus: DataReader,
-    ): # TODO
+    ): 
         '''
+        # TODO: this is not used in current version
         Print the model prediction on test data set.
         This is used in main function to compare the performance of model before and after training.
         Args:
@@ -116,36 +149,7 @@ class KTRunner(object):
         res_str = utils.format_metric(result)
         return res_str
 
-
-    def _eva_termination(
-        self, 
-        model: torch.nn.Module,
-    ):
-        """
-        A private method that determines whether the training should be terminated based on the validation results.
-
-        Args:
-        - self: the object itself
-        - model: the trained model
-
-        Returns:
-        - True if the training should be terminated, False otherwise
-        """
-
-        # Extract the validation results from the logs
-        valid = list(self.logs.valid_results[self.metrics[0]])
-
-        # Check if the last 10 validation results have not improved
-        if len(valid) > 20 and utils.non_increasing(valid[-10:]):
-            return True
-
-        # Check if the maximum validation result has not improved for the past 20 epochs
-        elif len(valid) - valid.index(max(valid)) > 20:
-            return True
-
-        # Otherwise, return False to continue the training
-        return False
-    
+        
 
     def train(
         self, 
@@ -162,8 +166,7 @@ class KTRunner(object):
         assert(corpus.data_df['train'] is not None)
         self._check_time(start=True)
         
-        ##### prepare training data (if needs quick test then specify overfit arguments in the args);
-        ##### prepare the batches of training data; this is specific to different KT models (different models may require different features)
+        # Prepare training data (if needs quick test then specify overfit arguments in the args);
         set_name = ['train', 'val', 'test', 'whole']
         if self.overfit > 0:
             epoch_train_data, epoch_val_data, epoch_test_data, epoch_whole_data = [
@@ -192,15 +195,15 @@ class KTRunner(object):
                 
                 self._check_time()
                 
-                loss = self.fit(model, epoch=epoch+1)
+                loss = self.fit(model, epoch=epoch)
                 test = self.test(model, corpus, epoch, loss)
 
                 if epoch % self.args.save_every == 0:
                     model.module.save_model(epoch=epoch)
                     
                 if self.early_stop:
-                    if self._eva_termination(model): 
-                        self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
+                    if _eva_termination(model, self.metrics, self.logs.val_results): 
+                        self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch))
                         break
                 self.logs.draw_loss_curves()
 
@@ -215,9 +218,9 @@ class KTRunner(object):
         valid_res_dict, test_res_dict = dict(), dict()
 
         if self.args.validate:
-            best_valid_epoch = self.logs.valid_results[self.metrics[0]].argmax()
+            best_valid_epoch = self.logs.val_results[self.metrics[0]].argmax()
             for metric in self.metrics:
-                valid_res_dict[metric] = self.logs.valid_results[metric][best_valid_epoch]
+                valid_res_dict[metric] = self.logs.val_results[metric][best_valid_epoch]
                 test_res_dict[metric] = self.logs.test_results[metric][best_valid_epoch]
             self.logs.write_to_log_file("\nBest Iter(val)=  %5d\t valid=(%s) test=(%s) [%.1f s] "
                         % (best_valid_epoch + 1,
@@ -250,43 +253,56 @@ class KTRunner(object):
         epoch: int = 0, 
         train_loss: float = 0.,
     ):
+        """
+        Perform testing on the model.
+
+        Args:
+            model: The torch.nn.Module model to test.
+            corpus: The DataReader object containing the test data.
+            epoch: The current epoch number.
+            train_loss: The training loss.
+
+        Returns:
+            Tuple containing the test and validation results (test_result, val_result).
+        """
+        
         training_time = self._check_time()
-
-        model.module.eval()
-        if (self.args.test) & (epoch % self.args.test_every == 0):
-            with torch.no_grad():
-                test_result = self.evaluate(model, corpus, 'test', self.test_batches, epoch=epoch+1)
-                
-                if self.args.validate:
-                    valid_result = self.evaluate(model, corpus, 'val', self.val_batches, epoch=epoch+1)
-                    self.logs.append_epoch_losses(valid_result, 'val')
-
-                    if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
-                        model.module.save_model(epoch=epoch)
-                else:
-                    valid_result = test_result
-
-            testing_time = self._check_time()
+        val_result, test_result = None, None
+        
+        with torch.no_grad():
             
-            self.logs.append_epoch_losses(test_result, 'test')
-            self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
-                        epoch + 1, train_loss, training_time, utils.format_metric(valid_result),
-                        utils.format_metric(test_result), testing_time))
+            if self.args.validate:
+                val_result = self.evaluate(model, corpus, 'val', self.val_batches, epoch=epoch)
+
+                self.logs.append_epoch_losses(val_result, 'val')
+                if max(self.logs.val_results[self.metrics[0]]) == val_result[self.metrics[0]]:
+                    model.module.save_model(epoch=epoch)
+                
+                val_time = self._check_time()
+                self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) [{:<.1f} s] ".format(
+                            epoch, train_loss, training_time, utils.format_metric(val_result), val_time))
+                        
+            if (self.args.test) & (epoch % self.args.test_every == 0):
+                test_result = self.evaluate(model, corpus, 'test', self.test_batches, epoch=epoch)
+                
+                testing_time = self._check_time()
+                self.logs.append_epoch_losses(test_result, 'test')
+                self.logs.write_to_log_file("Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t test=({}) [{:<.1f} s] ".format(
+                            epoch, train_loss, training_time, utils.format_metric(test_result), testing_time))
+        
+        return test_result, val_result
 
 
     def fit(
         self, 
         model: torch.nn.Module,
-        batches = None,
-        epoch_train_data = None, 
-        epoch=-1,
+        epoch: int = 0,
     ): 
         """
         Trains the given model on the given batches of data.
 
         Args:
             model: The model to train.
-            batches: A list of data, where each element is a batch to train.
             epoch_train_data: A pandas DataFrame containing the training data.
             epoch: The current epoch number.
 
@@ -323,7 +339,7 @@ class KTRunner(object):
             # Append the losses to the train_losses dictionary.
             train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
             
-        string = self.logs.result_string("train", epoch, train_losses, t=epoch) # TODO
+        string = self.logs.result_string("train", epoch, train_losses, t=epoch) 
         self.logs.write_to_log_file(string)
         self.logs.append_epoch_losses(train_losses, 'train')
 
@@ -331,7 +347,7 @@ class KTRunner(object):
         model.module.eval()
             
         # # TODO DEBUG: to visualize the difference of synthetic data adj
-        # if 'synthetic' in self.args.dataset and epoch%2 == 0:
+        # if 'synthetic' in self.args.dataset:
         #     import matplotlib.patches as mpatches
         #     gt_adj = batch['gt_adj']
         #     _, probs, pred_adj = model.module.var_dist_A.sample_A(num_graph=100)
@@ -369,7 +385,7 @@ class KTRunner(object):
         
         for batch in tqdm(data_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
             batch = model.module.batch_to_gpu(batch, self.device)
-            out_dict = model(batch)
+            out_dict = model.module.predictive_model(batch)
             
             prediction, label = out_dict['prediction'], out_dict['label']
             predictions.extend(prediction.detach().cpu().data.numpy())

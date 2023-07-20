@@ -22,34 +22,45 @@ from baseline.BaseModel import BaseModel, BaseLearnerModel
 EPS = 1e-6
 T_SCALE = 60
 
+
 class HSSM(BaseModel):
+    
     def __init__(
         self,
         mode: str = 'train',
         num_node: int = 1,
         num_seq: int = 1,
-        args: argparse.Namespace=None,
-        device: torch.device='cpu',
-        logs=None,
-        nx_graph=None,
+        nx_graph = None,
+        device: torch.device = None,
+        args: argparse.Namespace = None,
+        logs = None,
     ):
-        
-        self.user_time_dependent_covariance = 1
-        self.diagonal_std, self.lower_tri_std = 1, 0
-        
+        '''
+        Args:
+            mode: the training model. E.g., when mode=='ls_split_time', the model is trained with 
+                    learner-specific parameters and the training data is split across time for each learner.
+            num_node: the number of nodes in the graph.
+            num_seq: the number of sequences in the dataset. This is an argument for the model when the mode
+                        is 'synthetic' to generate synthetic data. 
+            nx_graph: the graph adjacancy matrix. If mode=='synthetic', the graph is generated in advance. 
+                        Otherwise, the ground-truth graph will be provided if the real-world dataset has one. 
+        '''  
         self.num_node = num_node
         self.logs = logs
         self.device = device
         self.args = args
         self.num_seq = num_seq
         self.num_sample = args.num_sample
+        self.node_dim = args.node_dim
+        self.var_log_max = torch.tensor(args.var_log_max) 
 
         # Set the device to use for computations
-        self.device = args.device
+        self.device = device if device != None else args.device
 
         # Store the arguments and logs for later use
         self.args = args
         self.logs = logs
+        
         BaseModel.__init__(self, model_path=os.path.join(args.log_path, 'Model/Model_{}_{}.pt'))
         
 

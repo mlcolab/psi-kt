@@ -65,11 +65,16 @@ class HSSM(BaseModel):
         
 
     @staticmethod	
-    def normalize_timestamps(
+    def _normalize_timestamps(
         timestamps: torch.Tensor,
     ):	
         '''	
-        timestamps: [bs, T, ...]
+        Normalizes timestamps by subtracting the mean and dividing by the standard deviation.
+        Args:
+            timestamps (torch.Tensor): Input timestamps of shape [bs, T, ...].
+
+        Returns:
+            torch.Tensor: Normalized timestamps of the same shape as the input.
         '''	
         mean_val = torch.mean(timestamps, dim=1, keepdim=True)	
         std_val = torch.std(timestamps, dim=1, keepdim=True)	

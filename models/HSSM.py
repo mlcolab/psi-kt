@@ -3,26 +3,21 @@ sys.path.append('..')
 
 import math, os, argparse
 import numpy
+from enum import Enum
+from collections import defaultdict
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable
-from utils.logger import Logger
 
 import torch
 from torch import nn, distributions
 from torch.nn import functional as F
 
-from collections import defaultdict
-
-import ipdb
-
 from models.modules import build_rnn_cell, build_dense_network
-from baseline.BaseModel import BaseModel
 from models.modules import CausalTransformerModel, VAEEncoder
-from models.variational_distributions import VarTransformation, VarAttention
+from models.hssm_graph_representation import VarTransformation, VarAttention
 from models.gmvae import *
+from utils.logger import Logger
 
-from enum import Enum
-
-torch.autograd.set_detect_anomaly(True)
+from baseline.BaseModel import BaseModel, BaseLearnerModel
 
 RANDOM_SEED = 131 
 EPS = 1e-6

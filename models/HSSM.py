@@ -19,12 +19,8 @@ from utils.logger import Logger
 
 from baseline.BaseModel import BaseModel, BaseLearnerModel
 
-RANDOM_SEED = 131 
 EPS = 1e-6
-T_SCALE = 60*60*24 
-# junyi 60*60*24 
-# as 17 60
-
+T_SCALE = 60
 
 class HSSM(BaseModel):
     def __init__(

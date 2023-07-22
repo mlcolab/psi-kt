@@ -735,6 +735,19 @@ class GraphHSSM(HSSM):
         item_train = feed_dict['skill_seq']
         
         emb_history = self.embedding_process(time=t_train, label=y_train, item=item_train)
+        
+        qs_sampled, qz_sampled_scalar, qs_entropy = self.inference_process(feed_dict, emb_history)
+        
+        [log_prob_st, log_prob_zt, log_prob_yt], recon_inputs_items = self.generative_process(
+            feed_dict, qs_sampled, qz_sampled_scalar)
+
+        return_dict = self.get_objective_values(
+            [log_prob_st, log_prob_zt, log_prob_yt], 
+            [None, None],
+            [qs_entropy, torch.zeros_like(qs_entropy)], 
+        )
+        
+        return return_dict
 
     def embedding_process(
         self,
@@ -756,96 +769,8 @@ class GraphHSSM(HSSM):
     ):
         pass
     
-        t_train = feed_dict['time_seq'][:, :train_step] # [bs, times]
-        y_train = feed_dict['label_seq'][:, :train_step]
-        item_train = feed_dict['skill_seq'][:, :train_step]
 
-        y_val = feed_dict['label_seq'][:, train_step:train_step+val_step]
-        item_train_val = feed_dict['skill_seq'][:, :train_step+val_step]
         
-        bs, _ = t_train.shape
-        device = t_train.device
-        
-        self.z0_dist = distributions.MultivariateNormal(
-            self.gen_z0_mean.to(device), 
-            scale_tril=torch.tril(torch.diag_embed(torch.exp(self.gen_z0_log_var.to(device)) + EPS))
-        )
-        
-        t_pe = self.get_time_embedding(t_train, 'absolute') # [bs, times, dim] 
-        y_pe = torch.tile(y_train.unsqueeze(-1), (1,1, self.node_dim)) # + t_pe # TODO # [bs, times, dim]]   
-        node_pe = self.node_dist._get_node_embedding()[item_train] # [bs, times, dim]      
-        emb_input = torch.cat([node_pe, y_pe], dim=-1) # [bs, times, dim*4]
-        self.infer_network_emb.flatten_parameters()
-        emb_history, _ = self.infer_network_emb(emb_input) # [bs, trian_t, dim]
-        emb_history = emb_history + t_pe
-
-        # ----- Sample continuous hidden variable from `q(s[1:T] | y[1:T])' -----
-        s_sampled, s_entropy, s_log_prob_q, _, s_mean, s_log_var = self.st_transition_infer(
-            feed_dict, self.num_sample, emb_inputs=emb_history
-        )
-
-        # ----- joint log likelihood -----
-        log_prob_st = self.get_s_prior(s_sampled, feed_dict) # [bs*n, num_steps]
-        
-        # Get log p(z[t] | z[t-1], s[t])
-        feed_dict_train_val = {
-            'time_seq': feed_dict['time_seq'][:, :train_step+val_step],
-            'skill_seq': feed_dict['skill_seq'][:, :train_step+val_step],
-            'label_seq': feed_dict['label_seq'][:, :train_step+val_step],
-        }
-        prior_z_dist = self.get_z_prior(s_sampled, feed_dict_train_val) # [bs*n, num_steps-1]
-        log_prob_zt = torch.zeros_like(log_prob_st)
-        
-        # Get log p(y[t] | z[t])
-        sampled_scalar_z = prior_z_dist.rsample()
-        bsn = sampled_scalar_z.shape[0]
-        items = item_train_val.unsqueeze(1).repeat(1, self.num_sample, 1).reshape(bsn, 1, -1) # [bsn, 1, time]
-        sampled_scalar_z_item = torch.gather(sampled_scalar_z[..., 0], 1, items).transpose(-1,-2).contiguous() # [bsn, time, 1]
-        
-        y_prob_train = self.y_emit(sampled_scalar_z_item[:, :train_step])
-        y_dist_train = torch.distributions.bernoulli.Bernoulli(probs=y_prob_train)
-        y_train_mc = y_train.unsqueeze(1).repeat(1, self.num_sample, 1).reshape(bsn, -1, 1).float()
-        log_prob_yt = y_dist_train.log_prob(y_train_mc) # [bsn, time, 1]
-        log_prob_yt = log_prob_yt.squeeze(-1)
-
-        y_prob_val = self.y_emit(sampled_scalar_z_item[:, train_step:])
-        y_dist_val = torch.distributions.bernoulli.Bernoulli(probs=y_prob_val)
-        y_val_mc_sample = y_dist_val.sample() # ??
-        
-        recon_val_inputs_items = y_val_mc_sample.reshape(bs, self.num_sample, 1, val_step, -1)
-
-        recon_inputs = self.y_emit(sampled_scalar_z) # [bsn, num_node, time, dim_y]
-        recon_inputs = recon_inputs.reshape(bs, self.num_sample, self.num_node, train_step+val_step, -1)
-        recon_inputs_items = y_prob_train.reshape(bs, self.num_sample, 1, train_step, -1)
-
-        z_sampled_scalar = sampled_scalar_z.reshape(bs, self.num_sample, self.num_node, train_step+val_step, 1)
-        s_sampled = s_sampled.reshape(bs, self.num_sample, 1, 1, self.dim_s)
-        
-        return_dict = self.get_objective_values(
-            [log_prob_st, log_prob_zt, log_prob_yt], 
-            [s_log_prob_q, None],
-            [s_entropy, torch.zeros_like(s_entropy)], 
-        )
-
-        return_dict["label"] = y_train[:, None, :, None]
-        return_dict["prediction"] = recon_inputs_items   
-        return_dict["sampled_s"] = s_sampled  
-        return_dict['val_label'] = y_val[:, None, :, None]
-        return_dict['val_prediction'] = recon_val_inputs_items
-        
-        self.register_buffer(name="output_mean_s", tensor=s_mean.clone().detach())
-        self.register_buffer(name="output_var_s", tensor=s_log_var.clone().detach())
-        self.register_buffer(name="output_emb_input", tensor=emb_input.clone().detach())
-        self.register_buffer(name="output_sampled_z_scalar", tensor=z_sampled_scalar.clone().detach())
-        self.register_buffer(name="output_sampled_y", tensor=recon_inputs.clone().detach())
-        self.register_buffer(name="output_sampled_s", tensor=s_sampled.clone().detach())
-        self.register_buffer(name="output_items", tensor=items.clone().detach())
-        
-        return_dict['log_prob_st'] = log_prob_st.mean()
-        return_dict['log_prob_zt'] = log_prob_zt.mean()
-        return_dict['log_prob_yt'] = log_prob_yt.mean()
-
-        return return_dict
     
     
     def loss(

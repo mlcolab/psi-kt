@@ -730,11 +730,32 @@ class GraphHSSM(HSSM):
         self, 
         feed_dict: Dict[str, torch.Tensor], 
     ):
-        time_step = int(feed_dict['skill_seq'].shape[-1])
-        train_step = int(time_step * self.args.train_time_ratio)
-        test_step = int(time_step * self.args.test_time_ratio)
-        val_step = time_step - train_step - test_step
+        t_train = feed_dict['time_seq']
+        y_train = feed_dict['label_seq']
+        item_train = feed_dict['skill_seq']
+        
+        emb_history = self.embedding_process(time=t_train, label=y_train, item=item_train)
 
+    def embedding_process(
+        self,
+    ):
+        pass
+    
+    def inference_process(
+        self,
+    ):
+        pass
+    
+    def generative_process(
+        self,
+    ):
+        pass
+    
+    def predictive_model(
+        self,
+    ):
+        pass
+    
         t_train = feed_dict['time_seq'][:, :train_step] # [bs, times]
         y_train = feed_dict['label_seq'][:, :train_step]
         item_train = feed_dict['skill_seq'][:, :train_step]

@@ -258,7 +258,7 @@ class HSSM(BaseModel):
         prev_var = ps0_var
         prev_mean = ps0_mean
         pst_cov_mat = torch.diag_embed(torch.exp(self.gen_st_log_r) + EPS) 
-        logprob_multi_step = []
+        logprob_multi_step, ps_means, ps_vars = [], [], []
         for i in range(time_step):
             next_mean = prev_mean @ self.gen_st_h + self.gen_st_b # [bs, 1, dim_s]
             next_var = self.gen_st_h @ prev_var @ self.gen_st_h.transpose(-1, -2) + pst_cov_mat # [bs, 1, dim_s, dim_s]
@@ -268,14 +268,37 @@ class HSSM(BaseModel):
                 )
             logprob = dist_multi_step.log_prob(qst_sample[:, :, :, i]) # [n, bs, 1]
             logprob_multi_step.append(logprob)
+            ps_means.append(next_mean)
+            ps_vars.append(next_var)
             prev_mean = next_mean
             prev_var = next_var
         
         log_prob_st = torch.stack(logprob_multi_step, dim=-1) # [n, bs, 1, time-1]
 
-        self.register_buffer('output_s_prior_distributions_mean', prior_distributions.mean.clone().detach())
-        self.register_buffer('output_s_prior_distributions_var', prior_distributions.variance.clone().detach())
+        # # -- one-step transition --
+        # prior_distributions = self.st_transition_gen(qs_dist, qs_sampled) # [bs, 1, dim_s]
+        # if self.time_dependent_s:
+        #     sampled_s0 = qs_sampled[:, :, 0] # [bsn, 1, s_dim]
+        #     log_prob_s0 = self.s0_dist.log_prob(sampled_s0) # [bsn, 1]
+        #     future_tensor = qs_sampled[:, :, 1:] # [bsn, 1, time-1, s_dim]
+        # else:
+        #     log_prob_s0 = torch.zeros((bs*self.num_sample,1)).to(qs_sampled.device)
+        #     future_tensor = qs_sampled
+            
+        # if prior_distributions.mean.shape[0] != future_tensor.shape[0]:
+        #     future_tensor = future_tensor.reshape(bs, self.num_sample, -1, self.dim_s).permute(1,0,2,3).contiguous() 
+        #     log_prob_st = prior_distributions.log_prob(future_tensor) # [n, bs, time-1]
+        #     log_prob_st = log_prob_st.permute(1,0,2).contiguous().reshape(bs*self.num_sample, -1)
+        # else:
+        #     log_prob_st = prior_distributions.log_prob(future_tensor) # [bsn, 1, time-1]
+        #     log_prob_st = log_prob_st[:,0]
+        
+        self.register_buffer('ps_mean', ps_means.mean.clone().detach())
+        self.register_buffer('ps_var', ps_vars.variance.clone().detach())
           
+        log_prob_st = torch.cat([log_prob_s0, log_prob_st], dim=-1) / self.dim_s  # [bsn, time]
+        log_prob_st = log_prob_st.squeeze(-2).permute(1,0,2).contiguous().reshape(bs*self.num_sample, -1)
+        
         return log_prob_st
     
     

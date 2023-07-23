@@ -569,74 +569,12 @@ class GraphHSSM(HSSM):
     
     def zt_transition_gen(
         self, 
-        sampled_s: torch.Tensor,
+        qs_sampled: torch.Tensor,
         feed_dict: Dict[str, torch.Tensor],
+        idx: int = 0,
         sampled_z: torch.Tensor = None,
         eval: bool = False,
     ):
-        '''
-        Compute the transition function of the scalar outcomes `z_t` in the model.
-
-        Args:
-            sampled_z_set (tuple): Tuple containing:
-                - sampled_z (torch.Tensor): Sampled scalar outcomes `z_t` of shape [bsn, 1, time, dim_z]
-                - sampled_scalar_z (torch.Tensor): Sampled scalar outcomes `z_t` of shape [bsn, num_node, time, dim_z (1)]
-            sampled_s (torch.Tensor): Sampled latent skills `s_t` of shape [bsn, 1, 1, dim_s]
-            feed_dict (dict): Dictionary of input tensors containing the following keys:
-                - time_seq (torch.Tensor): Sequence of time intervals of shape [batch_size, times].
-
-        Returns:
-            z_prior_dist (torch.distributions.MultivariateNormal): Multivariate normal distribution of `z_t`
-                with mean and covariance matrix computed using the sampled latent skills `s_t`.
-        '''
-        
-        input_t = feed_dict['time_seq']
-        bs, num_steps = input_t.shape
-        bsn = bs * self.num_sample
-        
-        # ----- calculate time difference -----
-        dt = torch.diff(input_t.unsqueeze(1), dim=-1) /T_SCALE + EPS  # [bs, 1, num_steps-1] 
-        dt = dt.unsqueeze(1).repeat(1, self.num_sample, 1, 1).reshape(bsn, 1, num_steps-1) # [bsn, 1, num_steps-1]
-        
-        z0 = self.z0_dist.rsample((self.num_sample,)).repeat(bs, self.num_node, 1).to(sampled_s.device) # [bsn, num_node, 1]
-        z0_var = (torch.exp(self.gen_z0_log_var.to(dt.device)) + EPS).reshape(1, 1, 1, 1).repeat(bsn,1,1,1)
-        sampled_st = sampled_s
-
-        sampled_alpha = torch.relu(sampled_st[..., 0]) + EPS # *self.args.alpha_minimum # TODO # [bsn, 1, 1]
-        decay = torch.exp(-sampled_alpha * dt)
-        sampled_mean = sampled_st[..., 1]
-        sampled_gamma = torch.sigmoid(sampled_st[..., 3])
-        sampled_log_var = torch.minimum(sampled_st[..., 2], self.var_log_max.to(sampled_st.device)) # torch.exp(sampled_log_var) * decay + EPS # TODO not constrained
-        sampled_var = torch.exp(sampled_log_var) * decay + EPS 
-        
-        # adj = self.node_dist.sample_A(self.num_sample)[-1][:,0].mean(0).to(sampled_s.device) # [n, num_node, num_node] # adj_ij means i has influence on j
-        adj =  torch.exp(self.node_dist.edge_log_probs()[0]).to(sampled_s.device) # adj_ij means i has influence on j
-        
-        # ----- Simulate the path of `z_t` -----
-        z_preds = [z0]
-        for i in range(0, dt.shape[-1]):
-            empower =  torch.einsum('bin,ij->bjn', z_preds[-1], adj) / self.num_node * sampled_gamma 
-            
-            stable = sampled_mean 
-            tmp_mean_level = (empower + stable) / 2
-            
-            z_mean = z_preds[-1] * decay[..., i:i+1]  + tmp_mean_level * (1 - decay[..., i:i+1])
-            z_preds.append(z_mean)
-
-        z_var = torch.cat([z0_var, sampled_var.reshape(bsn, 1, num_steps-1, 1)], dim=-2)
-        z_mean = torch.stack(z_preds, -2)
-        
-        z_prior_dist = distributions.multivariate_normal.MultivariateNormal(
-            loc=z_mean, 
-            scale_tril=torch.tril(torch.diag_embed(z_var))
-        )
-        
-        self.register_buffer('output_prior_z_decay', decay.clone().detach())
-        self.register_buffer('output_prior_z_empower', empower.clone().detach())
-        self.register_buffer('output_prior_z_tmp_mean_level', ((sampled_mean + empower)/2).clone().detach())
-        
-        self.register_buffer(name="output_prior_mean_z", tensor=z_mean.clone().detach())
-        self.register_buffer(name="output_prior_var_z", tensor=z_var.clone().detach())
             
         
         return z_prior_dist 

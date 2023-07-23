@@ -677,7 +677,10 @@ class GraphHSSM(HSSM):
     def inference_process(
         self,
     ):
+        # Sample continuous hidden variable from `q(s[1:T] | y[1:T])'
         qs_dist = self.st_transition_infer()
+        
+        # Sample continuous hidden variable from `q(z[1:T] | y[1:T])'
         qz_dist = self.zt_transition_infer()
         
     

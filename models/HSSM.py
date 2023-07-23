@@ -611,61 +611,8 @@ class GraphHSSM(HSSM):
         num_sample: int = 1,
         emb_inputs: Optional[torch.Tensor] = None,
     ):
-
-        """
-        Recursively sample z[t] ~ q(z[t]|h[t]=f_RNN(h[t-1], z[t-1], h[t]^b)).
-
-        Args:
-        inputs:     a float `Tensor` of size [batch_size, num_steps, obs_dim], where each observation 
-                    should be flattened.
-        num_sample: an `int` scalar for number of samples per time-step, for posterior inference networks, 
-                    `z[i] ~ q(z[1:T] | x[1:T])`.
-        emb_inputs: [batch_size, num_steps, emb_dim], where `emb_dim` is the dimension of the embeddings
-
-        Returns:
-        s_sampled: [batch_size * num_sample, num_node (1), time_steps, dim_s]
-        s_entropy: [batch_size, time_steps]
-        s_log_prob_q: [batch_size, time_steps]
-        s_posterior_states: [batch_size, time_steps, dim_emb]
-        s_mus: [batch_size, time_steps, dim_s]
-        s_log_vars: [batch_size, time_steps, dim_s]
-        
-        """
-        bs, time_step, _ = emb_inputs.shape # train: [bs, time (10), dim_emb]
-        bsn = bs * self.num_sample
-        
-        temperature = 1.0
-        hard = 1
-
-        out_inf = self.infer_network_posterior_s(emb_inputs, temperature, hard) 
-
-        _, s_category = out_inf['gaussian'], out_inf['categorical'] # s_latent not time-dependent?
-        self.s_catoegory = s_category # [bs, num_cat]
-        self.logits = out_inf['logits'] # [bs, num_cat]
-        self.prob_cat = out_inf['prob_cat'] # [bs, num_cat]
-        
-        self.register_buffer('s_category', s_category.clone().detach())
-
-        mean = out_inf['mean'] # [bs, dim_s]
-        var = out_inf['var'] # [bs, dim_s]
-        cov_mat = torch.diag_embed(var + EPS) 
-
-        dist_s = distributions.multivariate_normal.MultivariateNormal(
-            loc=mean, 
-            scale_tril=torch.tril(cov_mat)
-            )
-        
-        samples = dist_s.rsample((num_sample,)) # [n, bs, 1, dim_s] 
-        s_sampled = samples.transpose(1,0).reshape(bsn, 1, 1, self.dim_s) 
-        s_entropy = dist_s.entropy() # [bs, times]
-        s_log_prob_q = dist_s.log_prob(samples).mean(0)
-        
-        s_posterior_states = None  
-        s_mus = mean
-        s_log_var = torch.log(var)
-
-        return s_sampled, s_entropy, s_log_prob_q, s_posterior_states, s_mus, s_log_var
- 
+        pass
+    
 
     def zt_transition_infer(
         self, 
@@ -673,57 +620,7 @@ class GraphHSSM(HSSM):
         num_sample: int,
         emb_inputs: Optional[torch.Tensor] = None,
     ):
-        '''
-        Compute the posterior distribution of the latent variable `z_t` given the input and output sequences.
-
-        Args:
-            inputs (tuple): A tuple containing the feed dictionary and the sampled skills `s_t`.
-                feed_dict: A dictionary containing the input and output sequences.
-                sampled_s: [batch_size * num_sample, num_node (1), time_step, dim_s]
-            num_sample (int): Number of samples for Monte Carlo estimation of the posterior distribution.
-            emb_inputs (torch.Tensor): [batch_size, time_step, dim_emb] Optional embedded input sequence of shape.
-
-        Returns:
-            z_sampled (torch.Tensor): [batch_size * num_sample, num_node (1), time_steps, dim_z], Sampled latent variable `z_t` of shape.
-            z_entropy (torch.Tensor): [batch_size, time_steps], Entropy of the posterior distribution of `z_t`.
-            z_log_prob_q (torch.Tensor): [batch_size, time_steps], Log probability of the posterior distribution of `z_t`.
-            z_posterior_states (torch.Tensor): [batch_size, time_steps, dim_emb], Output states of the posterior network.
-            z_mean (torch.Tensor): [batch_size, time_steps, dim_z], Mean of the posterior distribution of `z_t`.
-            z_log_var (torch.Tensor): [batch_size, time_steps, dim_z], Log variance of the posterior distribution of `z_t`.
-        '''
-        
-        feed_dict, _ = inputs
-        bs, time_step, _ = emb_inputs.shape
-        
-        # Compute the output of the posterior network
-        self.infer_network_posterior_z.flatten_parameters()
-        output, _ = self.infer_network_posterior_z(emb_inputs, None)
-        
-        # Compute the mean and covariance matrix of the posterior distribution of `z_t`
-        mean, log_var = self.infer_network_posterior_mean_var_z(output) # [bs, times, out_dim]
-
-        # ipdb.set_trace()
-        log_var = torch.minimum(log_var, self.var_log_max.to(log_var.device))
-        cov_mat = torch.diag_embed(torch.exp(log_var) + EPS) 
-        dist_z = distributions.multivariate_normal.MultivariateNormal(
-            loc=mean, 
-            scale_tril=torch.tril(cov_mat)
-        )
-        
-        # Sample the latent variable `z_t` using Monte Carlo estimation
-        samples = dist_z.rsample((self.num_sample,))  # [num_sample, batch_size, time_step, out_dim]
-        z_sampled = samples.transpose(1, 0).reshape(self.num_sample * bs, 1, time_step, -1).contiguous() 
-        
-        # Compute the entropy and log probability of the posterior distribution of `z_t`
-        z_entropy = dist_z.entropy()  # [batch_size, time_step]
-        z_log_prob_q = dist_z.log_prob(samples).mean(0)
-        
-        # Store the posterior mean, log variance, and output states
-        z_posterior_states = None # output.reshape(bs, time_step, output.shape[-1])
-        z_mean = mean
-        z_log_var = cov_mat
-        
-        return z_sampled, z_entropy, z_log_prob_q, z_posterior_states, z_mean, z_log_var 
+        pass
     
     
     def forward(
@@ -748,6 +645,7 @@ class GraphHSSM(HSSM):
         )
         
         return return_dict
+
 
     def embedding_process(
         self,
@@ -779,7 +677,9 @@ class GraphHSSM(HSSM):
     def inference_process(
         self,
     ):
-        pass
+        qs_dist = self.st_transition_infer()
+        qz_dist = self.zt_transition_infer()
+        
     
     def generative_process(
         self,

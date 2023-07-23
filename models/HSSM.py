@@ -229,31 +229,49 @@ class HSSM(BaseModel):
     
     def get_s_prior(
         self, 
-        sampled_s: torch.Tensor,
-        inputs: torch.Tensor = None
+        qs_dist: distributions.MultivariateNormal,
+        qs_sampled: torch.Tensor=None,
     ):
         """
-        p(s[t] | s[t-1]) transition.
         """ 
+        # -- multi-step transition --
+        # -- prior of multiple steps of H, R --
+        # ipdb.set_trace()
+        qs_sample = qs_dist.rsample((self.num_sample,))
+        qst_sample = qs_sample[:, :, :, 1:]
+        qs0_sample = qs_sample[:, :, :, 0:1]
+         
+        bs = qst_sample.shape[1]
+        device = qst_sample.device # useful when doing DDP
+        time_step = qst_sample.shape[-2]
         
-        prior_distributions = self.st_transition_gen(sampled_s, inputs) # [bs, dim_s]
-        
-        # sampled_s0 = sampled_s[:, :, 0] # [bsn, 1, s_dim]
-        # log_prob_s0 = self.s0_dist.log_prob(sampled_s0) # [bsn, 1]
-        
-        future_tensor = sampled_s # [bsn, 1,1,dim_s]
-        if prior_distributions.mean.shape[0] != future_tensor.shape[0]:
-            bs = prior_distributions.mean.shape[0]
-            # future_tensor = future_tensor.reshape(bs, self.num_sample, -1, self.dim_s).transpose(0,1).contiguous()
-            future_tensor = future_tensor.reshape(bs, self.num_sample, -1, self.dim_s).permute(1,2,0,3).contiguous()
-            log_prob_st = prior_distributions.log_prob(future_tensor)
-            # log_prob_st = log_prob_st.transpose(0,1).contiguous().reshape(bs*self.num_sample, -1)
-            log_prob_st = log_prob_st.permute(2,0,1).contiguous().reshape(bs*self.num_sample, -1)
-        else:
-            log_prob_st = prior_distributions.log_prob(future_tensor)
+        # log-probability of initial value s0
+        ps0_var = torch.diag_embed(torch.exp(self.gen_s0_log_var.to(device)) + EPS)
+        ps0_mean = self.gen_s0_mean.to(device)
+        ps0_dist = MultivariateNormal(
+            loc=ps0_mean, 
+            scale_tril=torch.tril(ps0_var)
+        )
+        log_prob_s0 = ps0_dist.log_prob(qs0_sample)
 
-        log_prob_s0 = torch.zeros((bs*self.num_sample,1)).to(log_prob_st.device)
-        log_prob_st = torch.cat([log_prob_s0, log_prob_st], dim=-1) / self.dim_s
+        # log-probability of sequential value s_{1:t} # TODO: a bit hacky
+        prev_var = ps0_var
+        prev_mean = ps0_mean
+        pst_cov_mat = torch.diag_embed(torch.exp(self.gen_st_log_r) + EPS) 
+        logprob_multi_step = []
+        for i in range(time_step):
+            next_mean = prev_mean @ self.gen_st_h + self.gen_st_b # [bs, 1, dim_s]
+            next_var = self.gen_st_h @ prev_var @ self.gen_st_h.transpose(-1, -2) + pst_cov_mat # [bs, 1, dim_s, dim_s]
+            dist_multi_step = MultivariateNormal(
+                loc=next_mean,
+                covariance_matrix=next_var,
+                )
+            logprob = dist_multi_step.log_prob(qst_sample[:, :, :, i]) # [n, bs, 1]
+            logprob_multi_step.append(logprob)
+            prev_mean = next_mean
+            prev_var = next_var
+        
+        log_prob_st = torch.stack(logprob_multi_step, dim=-1) # [n, bs, 1, time-1]
 
         self.register_buffer('output_s_prior_distributions_mean', prior_distributions.mean.clone().detach())
         self.register_buffer('output_s_prior_distributions_var', prior_distributions.variance.clone().detach())

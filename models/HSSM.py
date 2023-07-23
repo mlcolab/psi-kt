@@ -234,6 +234,7 @@ class HSSM(BaseModel):
     ):
         """
         """ 
+        # TODO move log-likelihood to objective function
         # -- multi-step transition --
         # -- prior of multiple steps of H, R --
         # ipdb.set_trace()

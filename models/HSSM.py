@@ -510,32 +510,6 @@ class GraphHSSM(HSSM):
         
         return return_dict
 
-
-    def embedding_process(
-        self,
-    ):
-        # Concatenate three kinds of input features: KC embedding + time info + label info
-        # TODO: the simplest way is to concatenate them and input into an NN, 
-        #       in Transformer architecture, the time info is added to the input embedding,
-        #       not sure which one is better
-        
-        if isinstance(self.infer_network_emb, nn.LSTM):
-            t_pe = self.get_time_embedding(time, 'absolute') # [bs, times, dim] 
-            y_pe = torch.tile(label.unsqueeze(-1), (1,1, self.node_dim)) # + t_pe 
-            node_pe = self.node_dist._get_node_embedding()[item] # [bs, times, dim]      
-            emb_input = torch.cat([node_pe, y_pe], dim=-1) # [bs, times, dim*2]
-            self.infer_network_emb.flatten_parameters()
-            emb_history, _ = self.infer_network_emb(emb_input) # [bs, trian_t, dim]
-            emb_history = emb_history + t_pe
-            
-        else:
-            t_emb = self.get_time_embedding(time, 'absolute') # [bs, times, dim] 
-            y_emb = torch.tile(label.unsqueeze(-1), (1,1, self.node_dim)) + t_emb 
-            node_emb = self.node_dist._get_node_embedding()[item] # [bs, times, dim]      
-            emb_input = torch.cat([node_emb, y_emb], dim=-1) # [bs, times, dim*2]
-            emb_history = self.infer_network_emb(emb_input)
-        
-        return emb_history
     
     
     def inference_process(
@@ -667,4 +641,45 @@ class GraphHSSM(HSSM):
     
 
     
-    
+
+
+    def embedding_process(
+        self,
+        time: torch.Tensor, 
+        label: torch.Tensor,
+        item: torch.Tensor,
+    ):
+        """
+        Process the input features to create the embedding history.
+
+        Args:
+            time (torch.Tensor): Time information tensor of shape [batch_size, times].
+            label (torch.Tensor): Label information tensor of shape [batch_size, times].
+            item (torch.Tensor): Item information tensor of shape [batch_size].
+
+        Returns:
+            torch.Tensor: The embedding history tensor of shape [batch_size, trian_t, dim].
+        """
+        
+        # Concatenate three kinds of input features: KC embedding + time info + label info
+        # TODO: the simplest way is to concatenate them and input into an NN, 
+        #       in Transformer architecture, the time info is added to the input embedding,
+        #       not sure which one is better
+        
+        if isinstance(self.infer_network_emb, nn.LSTM):
+            t_pe = self.get_time_embedding(time, 'absolute') # [bs, times, dim] 
+            y_pe = torch.tile(label.unsqueeze(-1), (1,1, self.node_dim)) # + t_pe 
+            node_pe = self.node_dist._get_node_embedding()[item] # [bs, times, dim]      
+            emb_input = torch.cat([node_pe, y_pe], dim=-1) # [bs, times, dim*2]
+            self.infer_network_emb.flatten_parameters()
+            emb_history, _ = self.infer_network_emb(emb_input) # [bs, trian_t, dim]
+            emb_history = emb_history + t_pe
+            
+        else:
+            t_emb = self.get_time_embedding(time, 'absolute') # [bs, times, dim] 
+            y_emb = torch.tile(label.unsqueeze(-1), (1,1, self.node_dim)) + t_emb 
+            node_emb = self.node_dist._get_node_embedding()[item] # [bs, times, dim]      
+            emb_input = torch.cat([node_emb, y_emb], dim=-1) # [bs, times, dim*2]
+            emb_history = self.infer_network_emb(emb_input)
+        
+        return emb_history

@@ -502,15 +502,16 @@ class GraphHSSM(HSSM):
         
         emb_history = self.embedding_process(time=t_train, label=y_train, item=item_train)
         
-        qs_sampled, qz_sampled_scalar, qs_entropy = self.inference_process(feed_dict, emb_history)
+        # Compute the posterior distribution of `s_t` and `z_t`
+        qs_dist, qz_dist = self.inference_process(emb_history, feed_dict)
         
-        [log_prob_st, log_prob_zt, log_prob_yt], recon_inputs_items = self.generative_process(
-            feed_dict, qs_sampled, qz_sampled_scalar)
+        # Compute the prior distribution of `s_t` and `z_t`
+        ps_dist, pz_dist = self.generative_process(qs_dist, qz_dist, feed_dict)
 
         return_dict = self.get_objective_values(
-            [log_prob_st, log_prob_zt, log_prob_yt], 
-            [None, None],
-            [qs_entropy, torch.zeros_like(qs_entropy)], 
+            [qs_dist, qz_dist],
+            [ps_dist, pz_dist], 
+            feed_dict,
         )
         
         return return_dict

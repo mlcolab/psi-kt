@@ -446,9 +446,7 @@ class GraphHSSM(HSSM):
     ):
         
         num_sample = self.num_sample if num_sample == 0 else num_sample
-        bs, time_step, _ = emb_inputs.shape # train: [bs, time (10), dim_emb]
-        bsn = bs * num_sample
-    
+        
         qs_out_inf = self.infer_network_posterior_s(
             emb_inputs, 
             self.qs_temperature, 
@@ -459,16 +457,12 @@ class GraphHSSM(HSSM):
         s_category = qs_out_inf['categorical'] # [bs, 1, num_cat]
         s_mean = qs_out_inf['s_mu_infer'] # [bs, time, dim_s]
         s_var = qs_out_inf['s_var_infer'] # [bs, time, dim_s]
-        
+
         s_var_mat = torch.diag_embed(s_var + EPS)   # [bs, time, dim_s, dim_s]
-        qs_dist = distributions.multivariate_normal.MultivariateNormal(
+        qs_dist = MultivariateNormal(
             loc=s_mean, 
             scale_tril=torch.tril(s_var_mat)
         )
-        samples = qs_dist.rsample((num_sample,)) # [n, bs, time, dim_s] 
-        qs_sampled = samples.transpose(1,0).reshape(bsn, 1, time_step, self.dim_s) 
-
-        qs_entropy = qs_dist.entropy() # [bs]
 
         # NOTE: For debug use
         if not eval:
@@ -480,7 +474,7 @@ class GraphHSSM(HSSM):
             self.s_category = s_category
         self.register_buffer('qs_category', s_category.clone().detach())
         
-        return qs_sampled, qs_entropy, qs_dist
+        return qs_dist
         
         
     def zt_transition_infer(

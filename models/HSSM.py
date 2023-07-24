@@ -509,22 +509,6 @@ class GraphHSSM(HSSM):
         )
         
         return return_dict
-
-    
-    
-    def inference_process(
-        self,
-        emb_history: torch.Tensor,
-        feed_dict: Dict[str, torch.Tensor] = None,
-        eval: bool = False,
-    ): 
-        # Sample continuous hidden variable from `q(s[1:T] | y[1:T])'
-        qs_dist = self.st_transition_infer()
-        
-        # Sample continuous hidden variable from `q(z[1:T] | y[1:T])'
-        qz_dist = self.zt_transition_infer()
-        
-        return qs_dist, qz_dist
         
     
     def generative_process(
@@ -637,11 +621,6 @@ class GraphHSSM(HSSM):
             
         return losses
     
-    
-    
-
-    
-
 
     def embedding_process(
         self,
@@ -683,3 +662,36 @@ class GraphHSSM(HSSM):
             emb_history = self.infer_network_emb(emb_input)
         
         return emb_history
+    
+    
+    def inference_process(
+        self,
+        emb_history: torch.Tensor,
+        feed_dict: Dict[str, torch.Tensor] = None,
+        eval: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Perform the inference process to sample continuous hidden variables.
+
+        Args:
+            emb_history (torch.Tensor): The embedding history tensor of shape [batch_size, trian_t, dim].
+            feed_dict (Optional[Dict[str, torch.Tensor]], optional): A dictionary containing additional input tensors.
+                Defaults to None.
+            eval (bool, optional): A boolean flag indicating whether to run in evaluation mode. 
+                Evaluation mode may change the behavior of certain operations like dropout. 
+                Defaults to False.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: A tuple containing the sampled continuous hidden variables
+            `qs_dist` (shape [batch_size, trian_t, dim]) and `qz_dist` (shape [batch_size, trian_t, dim]).
+        """
+        
+        # sample continuous hidden variable from `q(s[1:T] | y[1:T])' 
+        qs_dist = self.st_transition_infer(emb_inputs=emb_history, eval=eval)
+        
+        # sample continuous hidden variable from `q(z[1:T] | y[1:T])'
+        qz_dist  = self.zt_transition_infer(
+            feed_dict=feed_dict, emb_inputs=emb_history, eval=eval
+        ) 
+        
+        return qs_dist, qz_dist

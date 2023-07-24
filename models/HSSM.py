@@ -546,12 +546,17 @@ class GraphHSSM(HSSM):
     
     def inference_process(
         self,
-    ):
+        emb_history: torch.Tensor,
+        feed_dict: Dict[str, torch.Tensor] = None,
+        eval: bool = False,
+    ): 
         # Sample continuous hidden variable from `q(s[1:T] | y[1:T])'
         qs_dist = self.st_transition_infer()
         
         # Sample continuous hidden variable from `q(z[1:T] | y[1:T])'
         qz_dist = self.zt_transition_infer()
+        
+        return qs_dist, qz_dist
         
     
     def generative_process(

@@ -3,7 +3,6 @@ sys.path.append('..')
 
 import math, os, argparse
 import numpy
-from enum import Enum
 from collections import defaultdict
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
@@ -17,7 +16,7 @@ from models.hssm_graph_representation import VarTransformation, VarAttention
 from models.gmvae import *
 from utils.logger import Logger
 
-from baseline.BaseModel import BaseModel, BaseLearnerModel
+from baseline.BaseModel import BaseModel
 
 EPS = 1e-6
 T_SCALE = 60

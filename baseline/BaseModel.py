@@ -220,6 +220,7 @@ class BaseModel(torch.nn.Module):
         Returns:
             A list of batches of the input data
         """
+        
         num_examples = len(data)
         total_batches = (num_examples + batch_size - 1) // batch_size
         assert num_examples > 0
@@ -233,8 +234,8 @@ class BaseModel(torch.nn.Module):
 
 
     def count_variables(
-        self
-    ):
+        self,
+    ) -> int:
         """
         Counts the number of trainable parameters in a PyTorch model.
 
@@ -244,7 +245,9 @@ class BaseModel(torch.nn.Module):
         Returns:
             The total number of trainable parameters in the model.
         """
+        
         total_parameters = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        
         return total_parameters
     
 
@@ -268,17 +271,19 @@ class BaseModel(torch.nn.Module):
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
         torch.save(self.state_dict(), model_path)
         self.logs.write_to_log_file('Save model to ' + model_path)
+        
 
-        # self.model_path = model_path
-
-
-    def load_model(self, model_path: str = None) -> None:
+    def load_model(
+        self, 
+        model_path: str = None,
+    ) -> None:
         """
         Load the model from a file.
 
         Args:
             model_path: the path to load the model from
         """
+        
         if model_path is None:
             model_path = self.model_path
 
@@ -287,13 +292,16 @@ class BaseModel(torch.nn.Module):
         self.logs.write_to_log_file('Load model from ' + model_path)
 
 
-    def customize_parameters(self) -> List[Dict]:
+    def customize_parameters(
+        self,
+    ) -> List[Dict]:
         """
         Customize the optimizer settings for different parameters.
 
         Returns:
             A list of dictionaries specifying the optimization settings for each parameter group
         """
+        
         weight_p, bias_p = [], []
         # Find parameters that require gradient
         for name, p in filter(lambda x: x[1].requires_grad, self.named_parameters()): 
@@ -303,25 +311,54 @@ class BaseModel(torch.nn.Module):
                 weight_p.append(p)
 
         optimize_dict = [{'params': weight_p}, {'params': bias_p, 'weight_decay': 0}]
+        
         return optimize_dict
 
 
     def actions_before_train(
         self
-    ):
+    ) -> None:
+        """
+        Perform actions before starting the training process.
+
+        1. Compute the total number of trainable parameters in the model.
+        2. Write the total number of parameters to a log file.
+
+        Returns:
+            None
+        """
+        # Step 1: Compute the total number of trainable parameters
         total_parameters = self.count_variables()
+
+        # Step 2: Write the total number of parameters to a log file
         self.logs.write_to_log_file('#params: %d' % total_parameters)
 
 
     def actions_after_train(
         self
-    ): # TODO: add more actions
+    ) -> None:
+        """
+        Perform actions after completing the training process.
+
+        1. Compute the total training time.
+        2. Get the final training loss.
+        3. Write the training time and final training loss to a log file.
+
+        Returns:
+            None
+        """
+        # Step 1: Compute the total training time
         end_time = time.time()
         train_time = end_time - self.start_time
+
+        # Step 2: Get the final training loss
         final_loss = self.logs.get_last_loss()
+
+        # Step 3: Write the training time and final training loss to a log file
         self.logs.write_to_log_file('Training time: {:.2f} seconds'.format(train_time))
         self.logs.write_to_log_file('Final training loss: {:.4f}'.format(final_loss))
 
+        # TODO: Add more actions if needed
 
 
 ##########################################################################################

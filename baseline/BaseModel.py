@@ -138,17 +138,24 @@ class BaseModel(torch.nn.Module):
         self.optimizer = None
 
 
-    def _init_weights(
-        self
-    ):
-        pass
+    def _init_weights(self):
+        """
+        Initialize the model's weights. Subclasses should override this method.
+        """
+        raise NotImplementedError("Subclasses of BaseModel must implement _init_weights() method.")
 
 
     def forward(
         self, 
-        feed_dict
-    ):
-        pass
+        feed_dict: Dict[str, torch.Tensor],
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Perform the forward pass of the model.
+
+        Args:
+            feed_dict (dict): A dictionary containing input tensors.
+        """
+        raise NotImplementedError("Subclasses of BaseModel must implement _init_weights() method.")
 
 
     def get_feed_dict(

@@ -148,7 +148,7 @@ class BaselineKTRunner(KTRunner):
         self, 
         model: torch.nn.Module,
         corpus: DataReader,
-    ): 
+    ) -> str:
         '''
         # TODO: this is not used in current version
         Print the model prediction on test data set.
@@ -157,12 +157,13 @@ class BaselineKTRunner(KTRunner):
             model: KT model instance
             corpus: data containing test dataset
         '''
+        
         set_name = 'test'
         result = self.evaluate(model, corpus, set_name)
         res_str = utils.format_metric(result)
+        
         return res_str
 
-        
 
     def train(
         self, 

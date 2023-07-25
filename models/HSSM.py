@@ -483,6 +483,23 @@ class GraphHSSM(HSSM):
         num_sample: int,
         emb_inputs: Optional[torch.Tensor] = None,
     ):
+        """
+        Compute the posterior distribution of `z_t` using an inference network.
+
+        Args:
+            feed_dict (Tuple[torch.Tensor, torch.Tensor]): A tuple of tensors containing the input data.
+                The first tensor is of shape [batch_size, times], and the second tensor is of shape [batch_size, times].
+            emb_inputs (Optional[torch.Tensor], optional): An optional tensor representing additional embeddings.
+                Defaults to None.
+            eval (bool, optional): A boolean flag indicating whether to run in evaluation mode. 
+                Evaluation mode may change the behavior of certain operations like dropout. 
+                Defaults to False.
+
+        Returns:
+            torch.distributions.MultivariateNormal: The posterior distribution of `z_t` with mean and covariance matrix.
+                The mean has shape [batch_size, times, num_node], and the covariance matrix has shape [batch_size, times, num_node, num_node].
+        """
+        
         # Compute the output of the posterior network
         self.infer_network_posterior_z.flatten_parameters() # useful when using DistributedDataParallel (DDP)
         qz_emb_out, _ = self.infer_network_posterior_z(emb_inputs, None) # [bs, times, dim*2]
@@ -501,7 +518,7 @@ class GraphHSSM(HSSM):
             self.register_buffer(name="qz_mean", tensor=qz_mean.clone().detach())
             self.register_buffer(name="qz_var", tensor=torch.exp(qz_log_var).clone().detach())
             
-        return q_dist
+        return qz_dist
     
     
     def forward(

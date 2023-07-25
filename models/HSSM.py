@@ -419,7 +419,13 @@ class GraphHSSM(HSSM):
         qs_cov_mat = qs_dist.covariance_matrix # [bs, 1, time, dim_s, dim_s]
         device = qs_mean.device
         bs = qs_mean.shape[0]
-    
+        
+        # -- 1. the prior from generative model of GMVAE --
+        
+        # -- 2. prior of single step of H, R -- 
+        
+        # # -- 3. multi-step transition --
+        # # -- prior of multiple steps of H, R --
     
     def zt_transition_gen(
         self, 

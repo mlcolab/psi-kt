@@ -517,25 +517,39 @@ class BaseLearnerModel(BaseModel):
     def forward(
         self,
         feed_dict: Dict[str, torch.Tensor],
-    ):
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass of the model.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data as tensors.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing output tensors, including predictions and labels.
+        """
+        
+        # Extract input data from the feed_dict
         skills = feed_dict['skill_seq']      # [batch_size, seq_len]
         times = feed_dict['time_seq']        # [batch_size, seq_len]
         labels = feed_dict['label_seq']      # [batch_size, seq_len]
 
         bs, _ = labels.shape
         self.num_seq = bs
-        
-        x0 = torch.zeros((bs, self.num_node)).to(labels.device)
+
+        # Set initial state x0 for simulation
+        x0 = torch.zeros((bs, self.num_node), requires_grad=True).to(labels.device)
         if self.num_node > 1:
-            x0[torch.arange(bs), skills[:,0]] += labels[:, 0]
+            x0[torch.arange(bs), skills[:, 0]] += labels[:, 0]
             items = skills
-        else: 
+        else:
             x0[:, 0] += labels[:, 0]
             items = None
-        
+
+        # Prepare stats for simulation
         stats = torch.stack([feed_dict['num_history'], feed_dict['num_success'], feed_dict['num_failure']], dim=-1)
         stats = stats.unsqueeze(1)
         
+        # Perform simulation using the 'simulate_path' method
         out_dict = self.simulate_path(
             x0=x0, 
             t=times, 
@@ -543,11 +557,12 @@ class BaseLearnerModel(BaseModel):
             user_id=feed_dict['user_id'],
             stats=stats,
         )
-        
+
+        # Update the output dictionary with predictions and labels
         out_dict.update({
-            'prediction': out_dict['x_item_pred'],
-            'label': labels.unsqueeze(1) # [bs, 1, time]
+            'prediction': out_dict['x_item_pred'],  # Add the prediction tensor
+            'label': labels.unsqueeze(1)  # Add the label tensor [bs, 1, time]
         })
-        
+
         return out_dict
     

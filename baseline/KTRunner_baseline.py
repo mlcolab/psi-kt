@@ -114,8 +114,8 @@ class BaselineKTRunner(KTRunner):
 
     def _build_optimizer(
         self, 
-        model
-    ):
+        model: torch.nn.Module,
+    ) -> tuple:
         '''
         Choose the optimizer based on the optimizer name in the global arguments.
         The optimizer has the setting of weight decay, and learning rate decay which can be modified in global arguments.
@@ -123,6 +123,7 @@ class BaselineKTRunner(KTRunner):
         Args:
             model: the training KT model
         '''
+        
         optimizer_name = self.args.optimizer.lower()
         lr = self.args.lr
         weight_decay = self.args.l2
@@ -132,9 +133,11 @@ class BaselineKTRunner(KTRunner):
         if optimizer_name not in OPTIMIZER_MAP:
             raise ValueError("Unknown optimizer: " + optimizer_name)
 
+        # Get the optimizer class based on the optimizer name
         optimizer_class = OPTIMIZER_MAP[optimizer_name]
         self.logs.write_to_log_file(f"Optimizer: {optimizer_name}")
-        
+
+        # Create the optimizer and set up learning rate decay using StepLR scheduler
         optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay)
         scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay, gamma=lr_decay_gamma)
         

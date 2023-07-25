@@ -32,7 +32,7 @@ class BaseModel(torch.nn.Module):
         y_pred: np.ndarray, 
         y_true: np.ndarray, 
         metrics: List[str],
-    ): # -> unit test
+    ) -> dict: 
         """
         Compute evaluation metrics for a set of predictions.
 
@@ -73,7 +73,20 @@ class BaseModel(torch.nn.Module):
 
 
     @staticmethod
-    def init_weights(m): # TODO: add more initialization methods
+    def init_weights(
+        m: torch.nn.Module
+    ) -> None:
+        """
+        Initialize weights and biases of the neural network module.
+
+        Args:
+            m (torch.nn.Module): The neural network module to initialize.
+
+        Returns:
+            None: The method modifies the weights and biases of the input module in-place.
+        """
+        
+        # TODO: add more initialization methods
         if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Embedding):
             torch.nn.init.normal_(m.weight, mean=0.0, std=0.01)
             if m.bias is not None:
@@ -94,6 +107,7 @@ class BaseModel(torch.nn.Module):
                     torch.nn.init.orthogonal_(param.data)
                 elif 'bias' in name:
                     param.data.fill_(0)
+                    
                     
     @staticmethod
     def batch_to_gpu(batch, device):

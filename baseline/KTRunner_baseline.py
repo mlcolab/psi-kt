@@ -86,30 +86,6 @@ class BaselineKTRunner(KTRunner):
                 return False
             
         return True
-    
-    
-    def _check_time(
-        self, 
-        start=False
-    ) -> float:
-        """
-        Check the time to compute the training/test/val time.
-
-        Args:
-            start (bool, optional): If True, reset the timer to the current time. Defaults to False.
-
-        Returns:
-            float: The elapsed time since the last call to this method or the start time.
-        """
-        if self.time is None or start:
-            # If 'start' is True or self.time is None, set the timer to the current time
-            self.time = [time()] * 2
-            return self.time[0]
-        else:
-            # If 'start' is False, compute the elapsed time since the last call to this method
-            tmp_time = self.time[1]
-            self.time[1] = time()
-            return self.time[1] - tmp_time
 
 
     def _build_optimizer(

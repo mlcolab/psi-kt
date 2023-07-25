@@ -166,7 +166,7 @@ class BaseModel(torch.nn.Module):
         Args:
             feed_dict (dict): A dictionary containing input tensors.
         """
-        raise NotImplementedError("Subclasses of BaseModel must implement _init_weights() method.")
+        raise NotImplementedError("Subclasses of BaseModel must implement forward() method.")
 
 
     def get_feed_dict(

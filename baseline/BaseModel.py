@@ -459,7 +459,23 @@ class BaseLearnerModel(BaseModel):
         stats_cal_on_fly: bool = False,
         items: torch.Tensor = None,
         stats: torch.Tensor = None,
-    ):
+    ) -> torch.Tensor:
+        """
+        Compute the tensor 'all_feature' based on the provided input arguments.
+
+        Args:
+            num_seq (int): The number of sequences (batch size).
+            num_node (int): Number of nodes (items).
+            time_step (int): The number of time steps.
+            device (torch.device): The device to run the computation on (e.g., 'cpu', 'cuda:0').
+            stats_cal_on_fly (bool, optional): Whether to compute 'all_feature' on the fly. Defaults to False.
+            items (torch.Tensor, optional): Tensor of shape [num_seq, num_time_step] containing item indices. Defaults to None.
+            stats (torch.Tensor, optional): Tensor of shape [num_seq, num_node, num_time_step, 3] containing precomputed stats. Defaults to None.
+
+        Returns:
+            torch.Tensor: The computed tensor 'all_feature'.
+        """
+        
         if stats_cal_on_fly or items is None:
             item_start = items[:, 0]
             all_feature = torch.zeros((num_seq, num_node, 3), device=device)
@@ -468,6 +484,7 @@ class BaseLearnerModel(BaseModel):
             all_feature = all_feature.unsqueeze(-2).tile((1, 1, time_step, 1))
         else:
             all_feature = stats.float()  # [num_seq/bs, num_node, num_time_step, 3]
+            
         return all_feature
 
 
@@ -475,7 +492,7 @@ class BaseLearnerModel(BaseModel):
     def _initialize_parameter(
         shape: Tuple,
         device: torch.device,
-    ):
+    ) -> torch.nn.Parameter:
         """
         A static method to initialize a PyTorch parameter tensor with Xavier initialization.
 
@@ -487,9 +504,14 @@ class BaseLearnerModel(BaseModel):
             param (nn.Parameter): A PyTorch parameter tensor with the specified shape, initialized using Xavier initialization.
 
         """
-        param = torch.nn.Parameter(torch.empty(shape, device=device))  # create a parameter tensor with the specified shape on the specified device
-        torch.nn.init.xavier_uniform_(param)  # apply Xavier initialization to the parameter tensor
-        return param  # return the initialized parameter tensor
+        
+        # create a parameter tensor with the specified shape on the specified device
+        param = torch.nn.Parameter(torch.empty(shape, device=device))  
+        
+        # apply Xavier initialization to the parameter tensor
+        torch.nn.init.xavier_uniform_(param)  
+        
+        return param 
 
     
     def forward(

@@ -78,18 +78,23 @@ class KTRunner(object):
 
     def _check_time(
         self, 
-        start=False
-    ):
+        start: bool = False,
+    ) -> float:
         """
         Check the time to compute the training/test/val time.
 
+        Args:
+            start (bool, optional): If True, reset the timer to the current time. Defaults to False.
+
         Returns:
-        The elapsed time since the last call to this method or the start time.
+            float: The elapsed time since the last call to this method or the start time.
         """
         if self.time is None or start:
+            # If 'start' is True or self.time is None, set the timer to the current time
             self.time = [time()] * 2
             return self.time[0]
         else:
+            # If 'start' is False, compute the elapsed time since the last call to this method
             tmp_time = self.time[1]
             self.time[1] = time()
             return self.time[1] - tmp_time
@@ -97,8 +102,8 @@ class KTRunner(object):
 
     def _build_optimizer(
         self, 
-        model
-    ) -> 
+        model: torch.nn.Module,
+    ) -> tuple:
         '''
         Choose the optimizer based on the optimizer name in the global arguments.
         The optimizer has the setting of weight decay, and learning rate decay which can be modified in global arguments.
@@ -106,6 +111,7 @@ class KTRunner(object):
         Args:
             model: the training KT model
         '''
+        
         optimizer_name = self.args.optimizer.lower()
         lr = self.args.lr
         weight_decay = self.args.l2
@@ -128,7 +134,7 @@ class KTRunner(object):
         self, 
         model: torch.nn.Module,
         corpus: DataReader,
-    ): 
+    ) -> str:
         '''
         # TODO: this is not used in current version
         Print the model prediction on test data set.
@@ -137,9 +143,11 @@ class KTRunner(object):
             model: KT model instance
             corpus: data containing test dataset
         '''
+        
         set_name = 'test'
         result = self.evaluate(model, corpus, set_name)
         res_str = utils.format_metric(result)
+        
         return res_str
 
 

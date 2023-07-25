@@ -21,11 +21,29 @@ class BaseModel(torch.nn.Module):
     runner = 'KTRunner'
     extra_log_args = []
 
+    def __init__(
+        self, 
+        model_path: str = '../model/Model/Model_{}_{}.pt',
+    ):
+        """
+        Initialize the base model.
+
+        Args:
+            model_path (str, optional): The path to save/load the model. Defaults to '../model/Model/Model_{}_{}.pt'.
+        """
+        
+        super(BaseModel, self).__init__()
+        self.model_path = model_path
+        self._init_weights()
+        self.optimizer = None
+        
+        
     @staticmethod
     def parse_model_args(parser, model_name='BaseModel'):
         parser.add_argument('--model_path', type=str, default='',
                             help='Model save path.')
         return parser
+
 
     @staticmethod
     def pred_evaluate_method(
@@ -129,13 +147,6 @@ class BaseModel(torch.nn.Module):
             for key in batch:
                 batch[key] = batch[key].to(device)
         return batch
-
-
-    def __init__(self, model_path='../model/Model/Model_{}_{}.pt'):
-        super(BaseModel, self).__init__()
-        self.model_path = model_path
-        self._init_weights()
-        self.optimizer = None
 
 
     def _init_weights(self):

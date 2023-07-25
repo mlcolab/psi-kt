@@ -1,4 +1,4 @@
-import gc, pickle, copy, os
+import gc, copy, os, argparse
 
 from time import time
 from tqdm import tqdm
@@ -11,10 +11,8 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 
 from utils import utils
+from utils import logger
 from data.data_loader import DataReader
-from models.HSSM import HSSM, AmortizedHSSM
-
-import ipdb
         
 OPTIMIZER_MAP = {
     'gd': optim.SGD,
@@ -100,7 +98,7 @@ class KTRunner(object):
     def _build_optimizer(
         self, 
         model
-    ):
+    ) -> 
         '''
         Choose the optimizer based on the optimizer name in the global arguments.
         The optimizer has the setting of weight decay, and learning rate decay which can be modified in global arguments.

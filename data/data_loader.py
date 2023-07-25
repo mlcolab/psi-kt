@@ -88,7 +88,6 @@ class DataReader(object):
             cnt += 1
             n_inters += len(df)
         
-        ipdb.set_trace()
         self.user_seq_df = pd.DataFrame.from_dict(user_wise_dict, orient='index')
         self.n_users = max(self.inter_df['user_id']) + 1
         self.n_skills = max(self.inter_df['skill_id']) + 1
@@ -190,7 +189,6 @@ class DataReader(object):
     def gen_time_split_data_improve(self):
         '''
         '''
-        ipdb.set_trace()
         self.data_df = {
             'train': dict(),
             'val': dict(),
@@ -200,10 +198,19 @@ class DataReader(object):
         
         n_learners = len(self.user_seq_df)
         
-        assert self.overfit*(1+self.val_ratio) <= n_learners
-        n_val_learners = int(self.overfit * self.val_ratio)
-        train_user_list = self.user_seq_df.sample(n=n_val_learners + self.overfit)
-        val_user_list = train_user_list.sample(n=n_val_learners)
+        if self.overfit:
+            assert self.overfit*(1+self.val_ratio) <= n_learners
+            n_val_learners = int(self.overfit * self.val_ratio)
+            train_val_user_list = self.user_seq_df.sample(
+                n=n_val_learners + self.overfit, random_state=self.args.random_seed)
+            val_user_list = train_val_user_list.sample(
+                n=n_val_learners, random_state=self.args.random_seed)
+            test_user_list = train_val_user_list.loc[~train_val_user_list.index.isin(val_user_list.index)]
+        else:
+            train_val_user_list = self.user_seq_df
+            val_user_list = self.user_seq_df.sample(
+                frac=self.val_ratio, random_state=self.args.random_seed)
+            test_user_list = self.user_seq_df.loc[~self.user_seq_df.index.isin(val_user_list.index)]
 
         n_time_steps = len(self.user_seq_df['time_seq'][0])
         train_time_size = math.ceil(n_time_steps * self.train_time_ratio)
@@ -212,16 +219,18 @@ class DataReader(object):
         
         for key in self.user_seq_df.keys():
             if key != 'user_id':
-                value = np.stack(train_user_list[key].values)
-                self.data_df['train'][key] = value[:, :train_time_size].tolist()
-                self.data_df['test'][key] = value[:, :whole_time_size].tolist()
-                self.data_df['whole'][key] = value[:, :whole_time_size].tolist()
-                value = np.stack(val_user_list[key].values)
-                self.data_df['val'][key] = value[:, :whole_time_size].tolist()
+                train_value = np.stack(train_val_user_list[key].values)
+                test_value = np.stack(test_user_list[key].values)
+                val_value = np.stack(val_user_list[key].values)
+                
+                self.data_df['train'][key] = train_value[:, :train_time_size].tolist()
+                self.data_df['test'][key] = test_value[:, :whole_time_size].tolist()
+                self.data_df['whole'][key] = train_value[:, :whole_time_size].tolist()
+                self.data_df['val'][key] = val_value[:, :whole_time_size].tolist()
             else:
-                self.data_df['train'][key] = train_user_list['user_id'] 
-                self.data_df['test'][key] = train_user_list['user_id']
-                self.data_df['whole'][key] = train_user_list['user_id']
+                self.data_df['train'][key] = train_val_user_list['user_id'] 
+                self.data_df['test'][key] = test_user_list['user_id']
+                self.data_df['whole'][key] = train_val_user_list['user_id']
                 self.data_df['val'][key] = val_user_list['user_id']
                 
         for key in self.data_df.keys():     

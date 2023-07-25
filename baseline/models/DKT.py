@@ -24,12 +24,11 @@ class DKT(BaseModel):
                             help='Number of GRU layers.')
         return BaseModel.parse_model_args(parser, model_name)
 
-
     def __init__(
         self, 
-        args, 
-        corpus, 
-        logs
+        args: argparser.Namespace,
+        corpus: DataReader,
+        logs: logger.Logger,
     ):
         """
         Initialize the model.
@@ -44,6 +43,7 @@ class DKT(BaseModel):
         Returns:
             None
         """
+        
         # Set the size of the skill embedding, the hidden size of the LSTM layer, the number of LSTM layers, and the dropout rate
         self.skill_num = int(corpus.n_skills)
         self.emb_size = args.emb_size

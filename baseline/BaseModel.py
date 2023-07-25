@@ -405,12 +405,22 @@ class BaseLearnerModel(BaseModel):
         t: torch.Tensor,
         items: torch.Tensor,
         num_node: int,
-    ):
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         '''
+        Compute learning history statistics for the given input. Including
+        - Number of total interactions for specific KC, number of success, and number of failure.
+        - The time stampes of last interactions. 
+
         Args:
-            all_feature: [bs, 1, num_step, 3]
-            items/t: [bs, num_step]
+            all_feature (torch.Tensor): Tensor of shape [bs, 1, num_step, 3].
+            t (torch.Tensor): Tensor of shape [bs, num_step].
+            items (torch.Tensor): Tensor of shape [bs, num_step].
+            num_node (int): Number of nodes (items).
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: A tuple containing the computed whole_stats and whole_last_time tensors.
         '''
+        
         all_feature = all_feature.long()
         device = all_feature.device
         num_seq, num_step = t.shape

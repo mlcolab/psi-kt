@@ -483,7 +483,25 @@ class GraphHSSM(HSSM):
         num_sample: int,
         emb_inputs: Optional[torch.Tensor] = None,
     ):
-        pass
+        # Compute the output of the posterior network
+        self.infer_network_posterior_z.flatten_parameters() # useful when using DistributedDataParallel (DDP)
+        qz_emb_out, _ = self.infer_network_posterior_z(emb_inputs, None) # [bs, times, dim*2]
+        
+        # Compute the mean and covariance matrix of the posterior distribution of `z_t`
+        qz_mean, qz_log_var = self.infer_network_posterior_mean_var_z(qz_emb_out)
+
+        qz_log_var = torch.minimum(qz_log_var, self.var_log_max.to(qz_log_var.device))
+        qz_cov_mat = torch.diag_embed(torch.exp(qz_log_var) + EPS)  # [bs, times, num_node, num_node]
+        qz_dist = MultivariateNormal(
+            loc=qz_mean, 
+            scale_tril=torch.tril(qz_cov_mat)
+        ) # [bs, times, num_node]; [bs, times, num_node, num_node]
+        
+        if not eval:
+            self.register_buffer(name="qz_mean", tensor=qz_mean.clone().detach())
+            self.register_buffer(name="qz_var", tensor=torch.exp(qz_log_var).clone().detach())
+            
+        return q_dist
     
     
     def forward(

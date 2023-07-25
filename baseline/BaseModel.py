@@ -110,7 +110,21 @@ class BaseModel(torch.nn.Module):
                     
                     
     @staticmethod
-    def batch_to_gpu(batch, device):
+    def batch_to_gpu(
+        batch: Dict[str, torch.Tensor],
+        device: torch.device,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Move the tensors in a batch to the specified GPU device.
+
+        Args:
+            batch (Dict[str, torch.Tensor]): A dictionary containing tensors as values.
+            device (torch.device): The target GPU device to move the tensors to.
+
+        Returns:
+            Dict[str, torch.Tensor]: The batch with tensors moved to the specified device.
+        """
+        
         if torch.cuda.device_count() > 0:
             for key in batch:
                 batch[key] = batch[key].to(device)

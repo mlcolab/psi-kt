@@ -363,21 +363,40 @@ class BaseModel(torch.nn.Module):
 
 ##########################################################################################
 # Learner Model
+# It is previously used to simulate learning trajectories based on PPE/HLR/OU process.
 ##########################################################################################
 
 
 class BaseLearnerModel(BaseModel):
-    def __init__(self, 
-                 mode, 
-                 device='cpu', 
-                 logs=None):
+    def __init__(
+        self, 
+        mode, 
+        device='cpu', 
+        logs=None
+    ) -> None:
+        """
+        Initialize the BaseLearnerModel.
+
+        Args:
+            mode (str): The mode of the learner model (e.g., 'train', 'val', 'test').
+            device (str, optional): The device to run the model on (e.g., 'cpu', 'cuda:0'). Defaults to 'cpu'.
+            logs (LogWriter, optional): An instance of LogWriter class for logging. Defaults to None.
+        """
+        
         super(BaseLearnerModel, self).__init__()
+        # Store the mode, device, and logs
         self.mode = mode
         self.device = device
         self.logs = logs
+
+        # Initialize optimizer (set to None by default)
         self.optimizer = None
         
-        self.model_path = os.path.join(logs.args.log_path, 'Model/Model_{}_{}.pt')
+        # Set the model_path for saving the trained model
+        if logs is not None:
+            self.model_path = os.path.join(logs.args.log_path, 'Model/Model_{}_{}.pt')
+        else:
+            self.model_path = None
         
         
     @staticmethod

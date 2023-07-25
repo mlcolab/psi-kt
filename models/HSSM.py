@@ -8,6 +8,7 @@ from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
 import torch
 from torch import nn, distributions
+from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.nn import functional as F
 
 from models.modules import build_rnn_cell, build_dense_network
@@ -481,45 +482,7 @@ class GraphHSSM(HSSM):
         
         return qs_dist
 
-    
-    
-    def forward(
-        self, 
-        feed_dict: Dict[str, torch.Tensor], 
-    ) -> Dict[str, torch.Tensor]:
-        """
-        Forward pass through the model.
 
-        Args:
-            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input tensors, 
-                including 'time_seq' (shape [batch_size, times]), 'label_seq' (shape [batch_size, times]), 
-                and 'skill_seq' (shape [batch_size]).
-
-        Returns:
-            Dict[str, torch.Tensor]: A dictionary containing the computed objective values.
-        """
-        
-        # Embed the input sequence
-        t_train = feed_dict['time_seq']
-        y_train = feed_dict['label_seq']
-        item_train = feed_dict['skill_seq']
-        emb_history = self.embedding_process(time=t_train, label=y_train, item=item_train)
-        
-        # Compute the posterior distribution of `s_t` and `z_t`
-        qs_dist, qz_dist = self.inference_process(emb_history, feed_dict)
-        
-        # Compute the prior distribution of `s_t` and `z_t`
-        ps_dist, pz_dist = self.generative_process(qs_dist, qz_dist, feed_dict)
-
-        return_dict = self.get_objective_values(
-            [qs_dist, qz_dist],
-            [ps_dist, pz_dist], 
-            feed_dict,
-        )
-
-        self.register_buffer(name="output_emb_input", tensor=emb_history.clone().detach())
-
-        return return_dict
         
     
     def generative_process(
@@ -747,3 +710,42 @@ class GraphHSSM(HSSM):
             self.register_buffer(name="qz_var", tensor=torch.exp(qz_log_var).clone().detach())
             
         return qz_dist
+    
+    
+    def forward(
+        self, 
+        feed_dict: Dict[str, torch.Tensor], 
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass through the model.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input tensors, 
+                including 'time_seq' (shape [batch_size, times]), 'label_seq' (shape [batch_size, times]), 
+                and 'skill_seq' (shape [batch_size]).
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing the computed objective values.
+        """
+        
+        # Embed the input sequence
+        t_train = feed_dict['time_seq']
+        y_train = feed_dict['label_seq']
+        item_train = feed_dict['skill_seq']
+        emb_history = self.embedding_process(time=t_train, label=y_train, item=item_train)
+        
+        # Compute the posterior distribution of `s_t` and `z_t`
+        qs_dist, qz_dist = self.inference_process(emb_history, feed_dict)
+        
+        # Compute the prior distribution of `s_t` and `z_t`
+        ps_dist, pz_dist = self.generative_process(qs_dist, qz_dist, feed_dict)
+
+        return_dict = self.get_objective_values(
+            [qs_dist, qz_dist],
+            [ps_dist, pz_dist], 
+            feed_dict,
+        )
+
+        self.register_buffer(name="output_emb_input", tensor=emb_history.clone().detach())
+
+        return return_dict

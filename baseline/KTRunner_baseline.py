@@ -1,7 +1,7 @@
-import gc, copy, os
 import sys
 sys.path.append('..')
 
+import gc, copy, os, argparse
 from time import time
 from tqdm import tqdm
 import numpy as np
@@ -11,11 +11,10 @@ import torch
 import torch.optim as optim
 from torch.optim import lr_scheduler
 
+from utils import logger
 from utils import utils
 from data.data_loader import DataReader
 from KTRunner import KTRunner
-
-import ipdb
         
 OPTIMIZER_MAP = {
     'gd': optim.SGD,
@@ -31,22 +30,28 @@ class BaselineKTRunner(KTRunner):
 
     def __init__(
         self,
-        args, 
-        logs
+        args: argparse.Namespace,
+        logs: logger.Logger,
     ):
-        '''
+        """
+        Initialize the BaselineKTRunner instance.
+
         Args:
-            args: the global arguments
-            logs: the Logger instance for logging information
-        '''
+            args (argparse.Namespace): Global arguments provided as a namespace.
+            logs (logger.Logger): The Logger instance for logging information.
+        """
+        
         self.time = None
         
-        self.overfit = args.overfit # TODO debug args
+        # number of data to train
+        self.overfit = args.overfit
         
+        # training options
         self.epoch = args.epoch
         self.batch_size = args.batch_size_multiGPU 
         self.eval_batch_size = args.eval_batch_size
         
+        # list of evaluation metrics to use during training
         self.metrics = args.metric.strip().lower().split(',')
         for i in range(len(self.metrics)):
             self.metrics[i] = self.metrics[i].strip()

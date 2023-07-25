@@ -21,6 +21,8 @@ OPTIMIZER_MAP = {
     'adam': optim.Adam
 }
 
+# TODO merge more functions from KTRunner_baseline and KTRunner_hssm 
+
 class KTRunner(object):
     '''
     This implements the training loop, testing & validation, optimization etc. 

@@ -486,11 +486,23 @@ class GraphHSSM(HSSM):
     def forward(
         self, 
         feed_dict: Dict[str, torch.Tensor], 
-    ):
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass through the model.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input tensors, 
+                including 'time_seq' (shape [batch_size, times]), 'label_seq' (shape [batch_size, times]), 
+                and 'skill_seq' (shape [batch_size]).
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing the computed objective values.
+        """
+        
+        # Embed the input sequence
         t_train = feed_dict['time_seq']
         y_train = feed_dict['label_seq']
         item_train = feed_dict['skill_seq']
-        
         emb_history = self.embedding_process(time=t_train, label=y_train, item=item_train)
         
         # Compute the posterior distribution of `s_t` and `z_t`
@@ -504,7 +516,9 @@ class GraphHSSM(HSSM):
             [ps_dist, pz_dist], 
             feed_dict,
         )
-        
+
+        self.register_buffer(name="output_emb_input", tensor=emb_history.clone().detach())
+
         return return_dict
         
     

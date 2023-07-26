@@ -139,7 +139,7 @@ class BaselineKTRunner(KTRunner):
                     model.module.save_model(epoch=epoch)
                     
                 if self.early_stop:
-                    if _eva_termination(model, self.metrics, self.logs.val_results): 
+                    if self._eva_termination(model, self.metrics, self.logs.val_results): 
                         self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch))
                         break
                 self.logs.draw_loss_curves()

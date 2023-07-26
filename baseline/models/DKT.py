@@ -209,7 +209,11 @@ class DKT(BaseModel):
         label = labels[:, 1:] if time_step > 1 else labels
         label = label[indices].double()
 
-        out_dict = {'prediction': prediction, 'label': label, 'emb': output}
+        out_dict = {
+            'prediction': prediction, 
+            'label': label, 
+            'emb': output,
+            'learner_id': feed_dict['user_id'],}
         
         return out_dict
 

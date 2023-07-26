@@ -1,14 +1,19 @@
-# -*- coding: UTF-8 -*-
+import sys
+sys.path.append('..')
+
 import os
 import numpy as np
-import torch
-import torch.nn.functional as F
+import argparse
 from collections import defaultdict
+
+import torch
+
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
 from baseline.BaseModel import BaseModel
 from utils import utils
-import ipdb
+from utils import logger
+from data.data_loader import DataReader
 
 
 class DKT(BaseModel):
@@ -26,7 +31,7 @@ class DKT(BaseModel):
 
     def __init__(
         self, 
-        args: argparser.Namespace,
+        args: argparse.Namespace,
         corpus: DataReader,
         logs: logger.Logger,
     ):

@@ -13,7 +13,7 @@
 #SBATCH --array=0
 
 python exp_baseline.py \
---dataset assistment12/multi_skill --model_name DKTForgetting --random_seed 2023 \
+--dataset assistment17/multi_skill --model_name DKT --random_seed 2023 \
 --epoch 500 --vcl 0 --multi_node 1 \
 --train_mode ls_split_time --overfit 100 \
 --batch_size 256 --eval_batch_size 256 \

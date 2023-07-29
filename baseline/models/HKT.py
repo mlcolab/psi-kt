@@ -187,11 +187,13 @@ class HKT(BaseModel):
         self,
         feed_dict: Dict[str, torch.Tensor],
     ):
+        train_step = int(self.args.max_step * self.args.train_time_ratio)
+        test_step = int(self.args.max_step * self.args.test_time_ratio)
         
-        items = feed_dict['skill_seq']      # [batch_size, seq_len]
-        problems = feed_dict['problem_seq']  # [batch_size, seq_len]
-        times = feed_dict['time_seq']        # [batch_size, seq_len]
-        labels = feed_dict['label_seq']      # [batch_size, seq_len]
+        items = feed_dict['skill_seq'][:, train_step-1:]      # [batch_size, seq_len]
+        problems = feed_dict['problem_seq'][:, train_step-1:]  # [batch_size, seq_len]
+        times = feed_dict['time_seq'][:, train_step-1:]        # [batch_size, seq_len]
+        labels = feed_dict['label_seq'][:, train_step-1:]      # [batch_size, seq_len]
 
         test_time = items.shape[-1]
         predictions = []

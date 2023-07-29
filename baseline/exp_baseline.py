@@ -12,8 +12,8 @@ import torch
 
 from data import data_loader
 from KTRunner_baseline import BaselineKTRunner
-from VCLRunner_baseline import VCLRunner
-from FTRunner_baseline import FTRunner
+from VCLRunner_baseline import BaselineVCLRunner
+# from FTRunner_baseline import FTRunner
 from utils import utils, arg_parser, logger
 from models import DKT, DKTForgetting, HKT, AKT, HLR, PPE
 

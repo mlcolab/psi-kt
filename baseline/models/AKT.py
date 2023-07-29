@@ -1,4 +1,6 @@
 # -*- coding: UTF-8 -*-
+import sys
+sys.path.append('..')
 import os
 import numpy as np
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable
@@ -73,10 +75,39 @@ class AKT(BaseModel):
         self.loss_function = nn.BCELoss(reduction='sum')
 
 
+    def forward_cl(
+        self, 
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+    ):
+        """
+        Forward pass for the classification task, given the input feed_dict and the current time index.
+
+        Args:
+            feed_dict: A dictionary containing the input tensors for the model.
+            idx: The current time index. Only items and labels up to this index are used.
+
+        Returns:
+            A dictionary containing the output tensors for the classification task.
+        """
+        
+        # Extract input tensors from feed_dict
+        cur_feed_dict = {
+            'skill_seq': feed_dict['skill_seq'][:, :idx+1],
+            'label_seq': feed_dict['label_seq'][:, :idx+1],
+            'quest_seq': feed_dict['quest_seq'][:, :idx+1],
+        }
+        
+        out_dict = self.forward(cur_feed_dict)
+        
+        return out_dict
+    
+    
     def forward(self, feed_dict):
         skills = feed_dict['skill_seq']        # [batch_size, real_max_step]
         questions = feed_dict['quest_seq']     # [batch_size, real_max_step]
         labels = feed_dict['label_seq']        # [batch_size, real_max_step]
+        time_step = labels.shape[-1]
 
         mask_labels = labels * (labels > -1).long()
         inters = skills + mask_labels * self.skill_num
@@ -104,7 +135,62 @@ class AKT(BaseModel):
         concat_q = torch.cat([x, skill_data], dim=-1)
         prediction = self.out(concat_q).squeeze(-1).sigmoid()
 
-        out_dict = {'prediction': prediction[:, 1:], 'label': labels[:, 1:].float()}
+        prediction = prediction[:, 1:] if time_step > 1 else prediction
+        label = labels[:, 1:] if time_step > 1 else labels
+        
+        out_dict = {
+            'prediction': prediction, 
+            'label': label.float(), 
+            'emb': x,
+        }
+        
+        return out_dict
+
+
+    def predictive_model(self, feed_dict):
+        skills = feed_dict['skill_seq']        # [batch_size, real_max_step]
+        questions = feed_dict['quest_seq']     # [batch_size, real_max_step]
+        labels = feed_dict['label_seq']        # [batch_size, real_max_step]
+
+        test_time = skills.shape[-1]
+        predictions = []
+        for i in range(0, test_time-1):
+            if i == 0:
+                inters = skills[:, :2] + labels[:, :2] * self.skill_num
+
+            else:
+                pred_labels = torch.cat([labels[:, 0:1], (torch.cat(predictions,-1)>=0.5)*1, labels[:, i+1:i+2]], dim=-1)
+                inters = skills[:, :i+2] + pred_labels * self.skill_num
+
+            skill_data = self.skill_embeddings(skills[:, :i+2])
+            inter_data = self.inter_embeddings(inters)
+
+            skill_diff_data = self.skill_diff(skills[:, :i+2])
+            inter_diff_data = self.inter_diff(inters)
+
+            q_diff = self.difficult_param(questions[:, :i+2])
+            skill_data = skill_data + q_diff * skill_diff_data
+            inter_data = inter_data + q_diff * inter_diff_data
+
+            x, y = skill_data, inter_data
+            for block in self.blocks_1:  # encode
+                y = block(mask=1, query=y, key=y, values=y)
+            flag_first = True
+            for block in self.blocks_2:
+                if flag_first:  # peek current question
+                    x = block(mask=1, query=x, key=x, values=x, apply_pos=False)
+                    flag_first = False
+                else:  # don't peek current response
+                    x = block(mask=0, query=x, key=x, values=y, apply_pos=True)
+                    flag_first = True
+
+            concat_q = torch.cat([x, skill_data], dim=-1)
+            prediction = self.out(concat_q).squeeze(-1).sigmoid()[:, -1:]
+
+            predictions.append(prediction)
+
+        prediction = torch.cat(predictions, dim=-1)
+        out_dict = {'prediction': prediction, 'label': labels[:, 1:].float()}
         return out_dict
 
 

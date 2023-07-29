@@ -101,7 +101,7 @@ class BaselineKTRunner(KTRunner):
             corpus: data
         '''
         assert(corpus.data_df['train'] is not None)
-        self._check_time(start=True)
+        self.start_time = self._check_time(start=True)
         
         # Prepare training data (if needs quick test then specify overfit arguments in the args);
         set_name = ['train', 'val', 'test', 'whole']

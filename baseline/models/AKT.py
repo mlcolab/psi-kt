@@ -35,7 +35,6 @@ class AKT(BaseModel):
         corpus, 
         logs
     ):
-        super().__init__(model_path=os.path.join(args.log_path, 'Model/Model_{}_{}.pt'))
         self.skill_num = int(corpus.n_skills)
         self.question_num = int(corpus.n_problems)
         self.emb_size = args.emb_size
@@ -48,6 +47,7 @@ class AKT(BaseModel):
         # Store the arguments and logs for later use
         self.args = args
         self.logs = logs
+        super().__init__(model_path=os.path.join(args.log_path, 'Model/Model_{}_{}.pt'))
 
 
     def _init_weights(
@@ -160,23 +160,32 @@ class AKT(BaseModel):
         questions = feed_dict['quest_seq']     # [batch_size, real_max_step]
         labels = feed_dict['label_seq']        # [batch_size, real_max_step]
 
-        test_time = skills.shape[-1]
+        all_step = skills.shape[-1]
+        train_step = int(self.args.max_step * self.args.train_time_ratio)
+        test_time = int(self.args.max_step * self.args.test_time_ratio)
+        test_item = skills[:, train_step:] 
+        
         predictions = []
-        for i in range(0, test_time-1):
+        
+        for i in range(0, test_time):
             if i == 0:
-                inters = skills[:, :2] + labels[:, :2] * self.skill_num
+                inters = skills[:, train_step-1:train_step+1] + labels[:, train_step-1:train_step+1] * self.skill_num
 
             else:
-                pred_labels = torch.cat([labels[:, 0:1], (torch.cat(predictions,-1)>=0.5)*1, labels[:, i+1:i+2]], dim=-1)
-                inters = skills[:, :i+2] + pred_labels * self.skill_num
+                pred_labels = torch.cat([
+                    labels[:, train_step-1:train_step], (torch.cat(predictions,-1)>=0.5)*1, 
+                    labels[:, train_step+i:train_step+i+1]
+                    ], dim=-1)
+                
+                inters = skills[:, train_step-1:train_step+i+1] + pred_labels * self.skill_num
 
-            skill_data = self.skill_embeddings(skills[:, :i+2])
+            skill_data = self.skill_embeddings(skills[:, train_step-1:train_step+i+1])
             inter_data = self.inter_embeddings(inters)
 
-            skill_diff_data = self.skill_diff(skills[:, :i+2])
+            skill_diff_data = self.skill_diff(skills[:, train_step-1:train_step+i+1])
             inter_diff_data = self.inter_diff(inters)
 
-            q_diff = self.difficult_param(questions[:, :i+2])
+            q_diff = self.difficult_param(questions[:, train_step-1:train_step+i+1])
             skill_data = skill_data + q_diff * skill_diff_data
             inter_data = inter_data + q_diff * inter_diff_data
 
@@ -198,7 +207,10 @@ class AKT(BaseModel):
             predictions.append(prediction)
 
         prediction = torch.cat(predictions, dim=-1)
-        out_dict = {'prediction': prediction, 'label': labels[:, 1:].float()}
+        out_dict = {
+            'prediction': prediction, 
+            'label': labels[:, train_step:].float() if all_step > 1 else labels.float()
+        }
         return out_dict
 
 

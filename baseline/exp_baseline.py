@@ -60,7 +60,7 @@ if __name__ == '__main__':
     if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
         data.create_corpus()
         data.show_columns() 
-    corpus = data.load_corpus() 
+    corpus = data.load_corpus(global_args.train_time_ratio, global_args.test_time_ratio, global_args.val_time_ratio) 
     
     # ----- logger information -----
     log_args = [global_args.model_name, global_args.dataset, str(global_args.random_seed)]

@@ -15,6 +15,7 @@ from KTRunner_baseline import BaselineKTRunner
 from VCLRunner_baseline import VCLRunner
 from FTRunner_baseline import FTRunner
 from utils import utils, arg_parser, logger
+from models import DKT, DKTForgetting, HKT, AKT, HLR, PPE
 
 # TODO: this is duplicate with the one in exp
 
@@ -26,6 +27,9 @@ if __name__ == '__main__':
     parser.add_argument('--finetune', type=int, default=0)
     parser.add_argument('--vcl_predict_step', type=int, default=10)
     parser.add_argument('--start_epoch', type=int, default=0)
+    parser.add_argument('--multi_node', type=int, default=1)
+    
+    parser.add_argument('--id', type=int, default=0)
     
     # Define an argument parser for the model name.
     init_parser = argparse.ArgumentParser(description='Model')

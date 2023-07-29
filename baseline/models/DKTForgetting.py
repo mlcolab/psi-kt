@@ -1,17 +1,22 @@
-# -*- coding: UTF-8 -*-
+# @Date: 2023/07/29
+
+import sys
+sys.path.append('..')
 
 import os
 import numpy as np
-from tqdm import tqdm
+import pandas as pd
+import argparse
 from collections import defaultdict
-from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
 import torch
-import torch.nn.functional as F
+
+from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
 from baseline.BaseModel import BaseModel
 from utils import utils
-import ipdb
+from utils import logger
+from data.data_loader import DataReader
 
 
 class DKTForgetting(BaseModel):
@@ -27,7 +32,21 @@ class DKTForgetting(BaseModel):
                             help='Number of GRU layers.')
         return BaseModel.parse_model_args(parser, model_name)
 
-    def __init__(self, args, corpus, logs):
+    def __init__(
+        self, 
+        args: argparse.Namespace,
+        corpus: DataReader,
+        logs: logger.Logger,
+    ) -> None:
+        """
+        Initialize the instance of your class.
+
+        Parameters:
+            args: The arguments object containing various configurations.
+            corpus: An instance of the DataReader class containing corpus data.
+            logs: An instance of the Logger class for logging purposes.
+        """
+        
         self.problem_num = int(corpus.n_problems)
         self.skill_num = int(corpus.n_skills)
         self.emb_size = args.emb_size
@@ -35,15 +54,22 @@ class DKTForgetting(BaseModel):
         self.num_layer = args.num_layer
         self.dropout = args.dropout
 
+        # Set the device to use for computations
         self.device = args.device
-        
+
+        # Store the logs and arguments for later use
         self.logs = logs
         self.args = args
+
+        # Call the constructor of the superclass (BaseModel) with the specified model path
         BaseModel.__init__(self, model_path=os.path.join(args.log_path, 'Model/Model_{}.pt'))
 
 
     @staticmethod
-    def get_time_features(item_seqs, time_seqs):
+    def get_time_features(
+        item_seqs: List[List[int]], 
+        time_seqs: List[List[int]]
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Extracts time-related features from a sequence of item and time sequences.
 
@@ -110,7 +136,7 @@ class DKTForgetting(BaseModel):
     
     def _init_weights(
         self
-    ):
+    ) -> None:
         """
         Initialize the weights of the model.
 
@@ -140,7 +166,7 @@ class DKTForgetting(BaseModel):
         self, 
         feed_dict: Dict[str, torch.Tensor],
         idx: int = None,
-    ):
+    ) -> Dict[str, torch.Tensor]:
         """
         Computes the forward pass of the model.
 
@@ -204,7 +230,7 @@ class DKTForgetting(BaseModel):
     def forward(
         self, 
         feed_dict: Dict[str, torch.Tensor],
-    ):
+    ) -> Dict[str, torch.Tensor]:
         """
         Computes the forward pass of the model.
 
@@ -214,6 +240,7 @@ class DKTForgetting(BaseModel):
         Returns:
             A dictionary containing the model's predictions and corresponding labels.
         """
+        
         items = feed_dict['skill_seq']  # [bs, max_step]
         labels = feed_dict['label_seq']  # [bs, max_step]
         lengths = feed_dict['length']  # [bs]
@@ -267,7 +294,7 @@ class DKTForgetting(BaseModel):
         feed_dict: Dict[str, torch.Tensor],
         out_dict: Dict[str, torch.Tensor],
         metrics: List[str] = None,
-    ):
+    ) -> Dict[str, torch.Tensor]:
         """
         Compute the loss and evaluation metrics for the model given the input feed_dict and the output out_dict.
 
@@ -315,13 +342,13 @@ class DKTForgetting(BaseModel):
 
     def get_feed_dict(
         self, 
-        corpus, 
-        data, 
+        corpus: DataReader,
+        data: pd.DataFrame,
         batch_start: int,
         batch_size: int,
         phase: str,
         device: torch.device = None,
-    ):
+    ) -> Dict[str, torch.Tensor]:
         """
         Get the input feed dictionary for a batch of data.
 
@@ -377,7 +404,7 @@ class DKTForgetting(BaseModel):
     def predictive_model(
         self, 
         feed_dict: Dict[str, torch.Tensor],
-    ):
+    ) -> Dict[str, torch.Tensor]:
         """
         Computes the forward pass of the model.
 

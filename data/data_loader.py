@@ -150,6 +150,7 @@ class DataReader(object):
         train_ratio: float,
         test_ratio: float, 
         val_ratio: float=0.2,
+        id: int=0
     ):
         '''
         Split the train/test/val based on time steps. 
@@ -176,7 +177,7 @@ class DataReader(object):
         for key in self.user_seq_df.keys():
             if key != 'user_id':
                 value = np.stack(self.user_seq_df[key].values)
-                self.data_df['train'][key] = value[:, :train_size].tolist()
+                self.data_df['train'][key] = value[:, train_size*id:train_size*(id+1)].tolist()
                 self.data_df['val'][key] = value[:, train_size:val_size+train_size].tolist()
                 self.data_df['test'][key] = value[:, train_size+val_size:val_size+train_size+test_size].tolist()
                 self.data_df['whole'][key] = value[:, :whole_size].tolist()
@@ -186,7 +187,7 @@ class DataReader(object):
             self.data_df[key]['user_id'] = self.user_seq_df['user_id']
 
         
-    def gen_time_split_data_improve(self):
+    def gen_time_split_data_improve(self, train_time_ratio, test_time_ratio, val_time_ratio):
         '''
         '''
         self.data_df = {
@@ -199,8 +200,8 @@ class DataReader(object):
         n_learners = len(self.user_seq_df)
         
         if self.overfit:
-            assert self.overfit*(1+self.val_ratio) <= n_learners
-            n_val_learners = int(self.overfit * self.val_ratio)
+            assert self.overfit*(1+val_time_ratio) <= n_learners
+            n_val_learners = int(self.overfit * val_time_ratio)
             train_val_user_list = self.user_seq_df.sample(
                 n=n_val_learners + self.overfit, random_state=self.args.random_seed)
             val_user_list = train_val_user_list.sample(
@@ -209,12 +210,12 @@ class DataReader(object):
         else:
             train_val_user_list = self.user_seq_df
             val_user_list = self.user_seq_df.sample(
-                frac=self.val_ratio, random_state=self.args.random_seed)
+                frac=val_time_ratio, random_state=self.args.random_seed)
             test_user_list = self.user_seq_df.loc[~self.user_seq_df.index.isin(val_user_list.index)]
 
         n_time_steps = len(self.user_seq_df['time_seq'][0])
-        train_time_size = math.ceil(n_time_steps * self.train_time_ratio)
-        test_time_size = math.ceil(n_time_steps * self.test_time_ratio)
+        train_time_size = math.ceil(n_time_steps * train_time_ratio)
+        test_time_size = math.ceil(n_time_steps * test_time_ratio)
         whole_time_size = train_time_size + test_time_size
         
         for key in self.user_seq_df.keys():
@@ -246,7 +247,7 @@ class DataReader(object):
         self.logs.write_to_log_file(self.user_seq_df.iloc[np.random.randint(0, len(self.user_seq_df))])
 
 
-    def load_corpus(self):
+    def load_corpus(self, train_time_ratio, test_time_ratio, val_time_ratio):
         '''
         Load corpus from the corpus path, and split the data into k folds. 
 
@@ -270,7 +271,7 @@ class DataReader(object):
 
         elif 'split_time' in self.train_mode:
             # corpus.gen_time_split_data(args.train_time_ratio, args.test_time_ratio, args.val_time_ratio*args.validate)
-            corpus.gen_time_split_data_improve()
+            corpus.gen_time_split_data_improve(train_time_ratio, test_time_ratio, val_time_ratio)
             self.logs.write_to_log_file('# Training mode splits TIME')
             
         self.logs.write_to_log_file('# Train: {}, # val: {}, # Test: {}'.format(

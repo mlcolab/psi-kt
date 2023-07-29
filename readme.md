@@ -38,10 +38,8 @@ python exp_learner_predict.py --dataset assistment17 --model_name AmortizedHSSM 
 
 ## Authors
 
-Contributors names and contact info
+Contributors and contact info
 
-ex. Dominique Pizzie  
-ex. [@DomPizzie](https://twitter.com/dompizzie)
 
 ## Version History
 

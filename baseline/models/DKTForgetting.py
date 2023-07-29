@@ -374,4 +374,86 @@ class DKTForgetting(BaseModel):
         return feed_dict
 
 
+    def predictive_model(
+        self, 
+        feed_dict: Dict[str, torch.Tensor],
+    ):
+        """
+        Computes the forward pass of the model.
 
+        Args:
+            feed_dict: A dictionary containing input data.
+
+        Returns:
+            A dictionary containing the model's predictions and corresponding labels.
+        """
+        
+        train_step = int(self.args.max_step * self.args.train_time_ratio)
+        test_step = int(self.args.max_step * self.args.test_time_ratio)
+        
+        items = feed_dict['skill_seq'][:, train_step-1:]  # [bs, max_step]
+        labels = feed_dict['label_seq'][:, train_step-1:]  # [bs, max_step]
+        time_step = items.shape[-1]
+            
+        repeated_time_gap_seq = feed_dict['repeated_time_gap_seq']  # [bs, max_step]
+        sequence_time_gap_seq = feed_dict['sequence_time_gap_seq']  # [bs, max_step]
+        past_trial_counts_seq = feed_dict['past_trial_counts_seq']  # [bs, max_step]
+
+        # Compute item embeddings and feature interaction
+        predictions = []
+        last_emb = self.skill_embeddings(items[:, 0:1] + labels[:, 0:1] * self.skill_num) # [bs, 1, emb_size]
+        last_fin = self.fin(torch.cat((repeated_time_gap_seq[:, 0:1], 
+                                       sequence_time_gap_seq[:, 0:1], 
+                                       past_trial_counts_seq[:, 0:1]), dim=-1)) # [bs, max_stpe, emb_size]
+        last_emb = torch.cat(
+            (last_emb.mul(last_fin), 
+             repeated_time_gap_seq[:, 0:1], 
+             sequence_time_gap_seq[:, 0:1], 
+             past_trial_counts_seq[:, 0:1]), dim=-1
+        )
+        
+        for i in range(time_step - 1):
+            if i == 0: 
+                output, latent_states = self.rnn(last_emb, None) # [bs, 1, emb_size]
+            else:
+                output, latent_states = self.rnn(last_emb, latent_states)
+
+            fout = self.fout(torch.cat((repeated_time_gap_seq[:, i:i+1], 
+                                        sequence_time_gap_seq[:, i:i+1], 
+                                        past_trial_counts_seq[:, i:i+1]), dim=-1)) # [bs, 1, emb_size]
+            
+            output = torch.cat((
+                output.mul(fout), repeated_time_gap_seq[:, i+1:i+2],
+                sequence_time_gap_seq[:, i+1:i+2], past_trial_counts_seq[:, i+1:i+2]
+            ), dim=-1) # [bs, time-1, emb_size+3]
+        
+            pred_vector = self.out(output) # [bs, 1, skill_num]
+
+            target_item = items[:, i+1:i+2]
+            prediction_sorted = torch.gather(pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)).squeeze(dim=-1) # [bs, 1]
+            prediction_sorted = torch.sigmoid(prediction_sorted)
+            prediction = prediction_sorted[feed_dict['inverse_indice']]
+            predictions.append(prediction)
+
+            # last embedding
+            last_emb = self.skill_embeddings(items[:, i+1:i+2] + (prediction>=0.5)*1 * self.skill_num) # [bs, 1, emb_size]
+            last_fin = self.fin(torch.cat((repeated_time_gap_seq[:, i+1:i+2], 
+                                        sequence_time_gap_seq[:, i+1:i+2], 
+                                        past_trial_counts_seq[:, i+1:i+2]), dim=-1)) # [bs, 1, emb_size]
+            last_emb = torch.cat(
+                (last_emb.mul(last_fin), 
+                repeated_time_gap_seq[:, i+1:i+2], 
+                sequence_time_gap_seq[:, i+1:i+2], 
+                past_trial_counts_seq[:, i+1:i+2]), dim=-1
+            )
+
+        label = labels[:, 1:]
+        label = label[feed_dict['inverse_indice']].double()
+        prediction = torch.cat(predictions, -1)
+
+        out_dict = {
+            'prediction': prediction, 
+            'label': label
+        }
+
+        return out_dict

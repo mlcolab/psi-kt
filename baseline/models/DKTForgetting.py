@@ -422,9 +422,9 @@ class DKTForgetting(BaseModel):
         labels = feed_dict['label_seq'][:, train_step-1:]  # [bs, max_step]
         time_step = items.shape[-1]
             
-        repeated_time_gap_seq = feed_dict['repeated_time_gap_seq']  # [bs, max_step]
-        sequence_time_gap_seq = feed_dict['sequence_time_gap_seq']  # [bs, max_step]
-        past_trial_counts_seq = feed_dict['past_trial_counts_seq']  # [bs, max_step]
+        repeated_time_gap_seq = feed_dict['repeated_time_gap_seq'][:, train_step-1:]  # [bs, max_step]
+        sequence_time_gap_seq = feed_dict['sequence_time_gap_seq'][:, train_step-1:]  # [bs, max_step]
+        past_trial_counts_seq = feed_dict['past_trial_counts_seq'][:, train_step-1:]  # [bs, max_step]
 
         # Compute item embeddings and feature interaction
         predictions = []

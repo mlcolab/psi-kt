@@ -42,28 +42,36 @@ class AKT(BaseModel):
         self.num_head = args.num_head
         self.dropout = args.dropout
 
-        self.skill_embeddings = nn.Embedding(self.skill_num, self.emb_size)
-        self.inter_embeddings = nn.Embedding(self.skill_num * 2, self.emb_size)
-        self.difficult_param = nn.Embedding(self.question_num, 1)
-        self.skill_diff = nn.Embedding(self.skill_num, self.emb_size)
-        self.inter_diff = nn.Embedding(self.skill_num * 2, self.emb_size)
-        
         # Set the device to use for computations
         self.device = args.device
 
         # Store the arguments and logs for later use
         self.args = args
         self.logs = logs
+
+
+    def _init_weights(
+        self,
+    ) -> None:
+        """
+        Initialize the weights of the model.
+        """
+
+        self.skill_embeddings = nn.Embedding(self.skill_num, self.emb_size)
+        self.inter_embeddings = nn.Embedding(self.skill_num * 2, self.emb_size)
+        self.difficult_param = nn.Embedding(self.question_num, 1)
+        self.skill_diff = nn.Embedding(self.skill_num, self.emb_size)
+        self.inter_diff = nn.Embedding(self.skill_num * 2, self.emb_size)
         
         self.blocks_1 = nn.ModuleList([
             TransformerLayer(d_model=self.emb_size, d_feature=self.emb_size // self.num_head, d_ff=self.emb_size,
-                             dropout=self.dropout, n_heads=self.num_head, kq_same=False, gpu=args.gpu)
-            for _ in range(args.num_layer)
+                             dropout=self.dropout, n_heads=self.num_head, kq_same=False, gpu=self.args.gpu)
+            for _ in range(self.args.num_layer)
         ])
         self.blocks_2 = nn.ModuleList([
             TransformerLayer(d_model=self.emb_size, d_feature=self.emb_size // self.num_head, d_ff=self.emb_size,
-                             dropout=self.dropout, n_heads=self.num_head, kq_same=False, gpu=args.gpu)
-            for _ in range(args.num_layer * 2)
+                             dropout=self.dropout, n_heads=self.num_head, kq_same=False, gpu=self.args.gpu)
+            for _ in range(self.args.num_layer * 2)
         ])
 
         self.out = nn.Sequential(
@@ -73,7 +81,7 @@ class AKT(BaseModel):
         )
 
         self.loss_function = nn.BCELoss(reduction='sum')
-
+        
 
     def forward_cl(
         self, 

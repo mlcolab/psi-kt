@@ -180,3 +180,57 @@ class HKT(BaseModel):
     #                 '../data/{}/problem_base.npy'.format(self.dataset))
     #     joblib.dump(self.skill_base.weight.data.cpu().numpy(),
     #                 '../data/{}/skill_base.npy'.format(self.dataset))
+
+
+
+    def predictive_model(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+    ):
+        
+        items = feed_dict['skill_seq']      # [batch_size, seq_len]
+        problems = feed_dict['problem_seq']  # [batch_size, seq_len]
+        times = feed_dict['time_seq']        # [batch_size, seq_len]
+        labels = feed_dict['label_seq']      # [batch_size, seq_len]
+
+        test_time = items.shape[-1]
+        predictions = []
+        for i in range(0, test_time-1):
+            if i == 0:
+                inters = items[:, 0:1] + labels[:, 0:1] * self.skill_num
+                delta_t = times[:, :1].unsqueeze(dim=-1)
+            else:
+                pred_labels = torch.cat([labels[:, 0:1], (torch.cat(predictions,-1)>=0.5)*1], dim=-1)
+                inters = items[:, :i+1] + pred_labels * self.skill_num 
+                
+                cur_time = times[:, :i+1]
+                delta_t = (cur_time[:, :, None] - cur_time[:, None, :]).abs().double() # [bs, seq_len, seq_len]
+                delta_t = torch.log(delta_t + 1e-10) / np.log(self.time_log)
+
+            alpha_src_emb = self.alpha_inter_embeddings(inters)  # [bs, seq_len, emb]
+            alpha_target_emb = self.alpha_skill_embeddings(items[:,i+1:i+2])  # [bs, seq_len, emb]
+            alphas = torch.matmul(alpha_src_emb, alpha_target_emb.transpose(-2, -1))  # [bs, seq_len, seq_len]
+
+            beta_src_emb = self.beta_inter_embeddings(inters)  # [bs, seq_len, emb]
+            beta_target_emb = self.beta_skill_embeddings(items[:, i+1:i+2])
+            betas = torch.matmul(beta_src_emb, beta_target_emb.transpose(-2, -1))  # [bs, seq_len, seq_len]
+            betas = torch.clamp(betas + 1, min=0, max=10)
+
+            cross_effects = alphas * torch.exp(-betas * delta_t) # [bs, seq_len, seq_len]
+            
+            sum_t = cross_effects.sum(-2) # [bs, seq_len]
+
+            problem_bias = self.problem_base(problems[:, i+1:i+2]).squeeze(dim=-1)
+            skill_bias = self.skill_base(items[:, i+1:i+2]).squeeze(dim=-1)
+
+            prediction = (problem_bias + skill_bias + sum_t).sigmoid()[:, -1:]
+            predictions.append(prediction)
+
+        prediction = torch.cat(predictions, dim=-1)
+        # Return predictions and labels from the second position in the sequence
+        out_dict = {
+            'prediction': prediction, 
+            'label': labels[:, 1:].double(),
+        }
+
+        return out_dict

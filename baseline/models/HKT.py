@@ -1,17 +1,25 @@
-# -*- coding: UTF-8 -*-
+# @Date: 2023/07/30
+
+import sys
+sys.path.append('..')
+
 import os
-from typing import List, Dict, Tuple, Optional, Union, Any, Callable
-import time
 import numpy as np
-from tqdm import tqdm
-import torch
-import torch.nn.functional as F
+import pandas as pd
+import argparse
 from collections import defaultdict
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
 from baseline.BaseModel import BaseModel
 from utils import utils
+from utils import logger
+from data.data_loader import DataReader
 
-import ipdb
 
 class HKT(BaseModel):
     extra_log_args = ['time_log']
@@ -27,10 +35,10 @@ class HKT(BaseModel):
 
     def __init__(
         self, 
-        args, 
-        corpus, 
-        logs
-    ):
+        args: argparse.Namespace,
+        corpus: DataReader,
+        logs: logger.Logger,
+    ) -> None:
         self.dataset = args.dataset
         self.problem_num = int(corpus.n_problems)
         self.skill_num = int(corpus.n_skills)
@@ -43,27 +51,46 @@ class HKT(BaseModel):
         # Store the arguments and logs for later use
         self.args = args
         self.logs = logs
+        
         super().__init__(model_path=os.path.join(args.log_path, 'Model/Model_{}_{}.pt'))
 
 
     def _init_weights(
         self
-    ):
-        self.problem_base = torch.nn.Embedding(self.problem_num, 1)
-        self.skill_base = torch.nn.Embedding(self.skill_num, 1)
+    ) -> None:
+        """
+        Initialize the weights of the model components.
 
-        self.alpha_inter_embeddings = torch.nn.Embedding(self.skill_num * 2, self.emb_size)
-        self.alpha_skill_embeddings = torch.nn.Embedding(self.skill_num, self.emb_size)
-        self.beta_inter_embeddings = torch.nn.Embedding(self.skill_num * 2, self.emb_size)
-        self.beta_skill_embeddings = torch.nn.Embedding(self.skill_num, self.emb_size)
+        This method initializes various components such as embeddings and loss function.
+        """
+        
+        # Problem and skill embeddings with size 1 for bias terms
+        self.problem_base = nn.Embedding(self.problem_num, 1)
+        self.skill_base = nn.Embedding(self.skill_num, 1)
 
-        self.loss_function = torch.nn.BCELoss()
+        # Embeddings for alpha and beta for interaction and skill terms
+        self.alpha_inter_embeddings = nn.Embedding(self.skill_num * 2, self.emb_size)
+        self.alpha_skill_embeddings = nn.Embedding(self.skill_num, self.emb_size)
+        self.beta_inter_embeddings = nn.Embedding(self.skill_num * 2, self.emb_size)
+        self.beta_skill_embeddings = nn.Embedding(self.skill_num, self.emb_size)
+
+        # Binary Cross Entropy Loss
+        self.loss_function = nn.BCELoss()
 
 
     def forward(
         self, 
         feed_dict: Dict[str, torch.Tensor],
-    ):
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass for the model given the input feed_dict.
+
+        Args:
+            feed_dict: A dictionary containing the input tensors for the model.
+
+        Returns:
+            A dictionary containing the output tensors for the model.
+        """
         
         items = feed_dict['skill_seq']      # [batch_size, seq_len]
         problems = feed_dict['problem_seq']  # [batch_size, seq_len]
@@ -114,6 +141,15 @@ class HKT(BaseModel):
         out_dict: Dict[str, torch.Tensor], 
         metrics: Optional[List[str]] = None
     ) -> Dict[str, torch.Tensor]:
+        """
+        Make predictions using the model for a given input feed dictionary.
+
+        Args:
+            feed_dict: A dictionary containing the input tensors for the model.
+
+        Returns:
+            A dictionary containing the output tensors for the model.
+        """
         
         losses = defaultdict(lambda: torch.zeros((), device=self.device))
         
@@ -146,12 +182,28 @@ class HKT(BaseModel):
 
     def get_feed_dict(
         self, 
-        corpus, 
-        data, 
-        batch_start, 
-        batch_size, 
-        phase
-    ):
+        corpus: DataReader,
+        data: pd.DataFrame,
+        batch_start: int,
+        batch_size: int,
+        phase: str,
+        device: torch.device = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Get the input feed dictionary for a batch of data.
+
+        Args:
+            corpus: The Corpus object containing the vocabulary and other dataset information.
+            data: A DataFrame containing the input data for the batch.
+            batch_start: The starting index of the batch.
+            batch_size: The size of the batch.
+            phase: The phase of the model (e.g. 'train', 'eval', 'test').
+            device: The device to place the tensors on.
+
+        Returns:
+            A dictionary containing the input tensors for the model.
+        """
+        
         batch_end = min(len(data), batch_start + batch_size)
         real_batch_size = batch_end - batch_start
         skill_seqs = data['skill_seq'][batch_start: batch_start + real_batch_size].values
@@ -167,6 +219,8 @@ class HKT(BaseModel):
         }
         return feed_dict
 
+
+    # This is not used in the current version
     # def actions_after_train(self):
     #     joblib.dump(self.alpha_inter_embeddings.weight.data.cpu().numpy(),
     #                 '../data/{}/alpha_inter_embeddings.npy'.format(self.dataset))
@@ -182,13 +236,21 @@ class HKT(BaseModel):
     #                 '../data/{}/skill_base.npy'.format(self.dataset))
 
 
-
     def predictive_model(
         self,
         feed_dict: Dict[str, torch.Tensor],
-    ):
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Make predictions using the model for a given input feed dictionary.
+
+        Args:
+            feed_dict: A dictionary containing the input tensors for the model.
+
+        Returns:
+            A dictionary containing the output tensors for the model.
+        """
+        
         train_step = int(self.args.max_step * self.args.train_time_ratio)
-        test_step = int(self.args.max_step * self.args.test_time_ratio)
         
         items = feed_dict['skill_seq'][:, train_step-1:]      # [batch_size, seq_len]
         problems = feed_dict['problem_seq'][:, train_step-1:]  # [batch_size, seq_len]

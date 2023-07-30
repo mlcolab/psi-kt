@@ -335,8 +335,8 @@ class DKT(BaseModel):
 
     def get_feed_dict(
         self, 
-        corpus, 
-        data,
+        corpus: DataReader,
+        data: pd.DataFrame,
         batch_start: int,
         batch_size: int,
         phase: str,
@@ -356,6 +356,7 @@ class DKT(BaseModel):
         Returns:
             A dictionary containing the input tensors for the model.
         """
+        
         # Extract the user_ids, user_seqs, and label_seqs from the data
         batch_end = min(len(data), batch_start + batch_size)
         real_batch_size = batch_end - batch_start

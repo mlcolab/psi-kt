@@ -1,7 +1,23 @@
-import math, random, sys, os
+import sys
+sys.path.append('..')
+
+import os
 import numpy as np
+import pandas as pd
+import argparse
 from collections import defaultdict
+
+import torch
+import torch.nn as nn
+
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable
+
+from baseline.BaseModel import BaseModel, BaseLearnerModel
+from utils import utils
+from utils import logger
+from data.data_loader import DataReader
+
+
 
 from tqdm import tqdm
 from enum import Enum
@@ -9,12 +25,8 @@ from enum import Enum
 import networkx as nx 
 
 import ipdb
-import torch
-import torch.nn as nn
 
-from baseline.BaseModel import BaseModel, BaseLearnerModel
 
-torch.autograd.set_detect_anomaly(True) 
 class HLR(BaseLearnerModel):
     def __init__(
         self, 
@@ -61,7 +73,13 @@ class HLR(BaseLearnerModel):
             assert(self.adj.shape[-1] == num_node)
         else: 
             self.adj = None
+            
+        self.mode = args.train_mode
 
+
+    def _init_weights(
+        self
+    ) -> None:
         # Training mode choosing
         class ThetaShape(Enum):
             SIMPLE_SPLIT_TIME = (1, 1, 3)
@@ -70,16 +88,16 @@ class HLR(BaseLearnerModel):
             NS_SPLIT_TIME = (1, self.num_node, 3)
             NS_SPLIT_LEARNER = (1, self.num_node, 3)
             LN_SPLIT_TIME = (self.num_seq, self.num_node, 3)
-        if mode == 'synthetic':
-            self.theta = torch.tensor(theta, device=self.device).float()
+        if self.mode == 'synthetic':
+            self.theta = torch.tensor(self.theta, device=self.device).float()
         else:
             try:
-                shape = ThetaShape[mode.upper()].value
+                shape = ThetaShape[self.mode.upper()].value
             except KeyError:
-                raise ValueError(f"Invalid mode: {mode}")
+                raise ValueError(f"Invalid mode: {self.mode}")
             self.theta = self._initialize_parameter(shape, self.device)
-
-
+            
+        
     @staticmethod
     def hclip(h):
         '''

@@ -298,3 +298,32 @@ class HKT(BaseModel):
         }
 
         return out_dict
+    
+    
+    def forward_cl(
+        self, 
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+    ):
+        """
+        Forward pass for the classification task, given the input feed_dict and the current time index.
+
+        Args:
+            feed_dict: A dictionary containing the input tensors for the model.
+            idx: The current time index. Only items and labels up to this index are used.
+
+        Returns:
+            A dictionary containing the output tensors for the classification task.
+        """
+        
+        # Extract input tensors from feed_dict
+        cur_feed_dict = {
+            'skill_seq': feed_dict['skill_seq'][:, :idx+1],
+            'label_seq': feed_dict['label_seq'][:, :idx+1],
+            'problem_seq': feed_dict['problem_seq'][:, :idx+1],
+            'time_seq': feed_dict['time_seq'][:, :idx+1],
+        }
+        
+        out_dict = self.forward(cur_feed_dict)
+        
+        return out_dict

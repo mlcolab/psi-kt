@@ -17,6 +17,9 @@ from utils import utils
 from utils import logger
 from data.data_loader import DataReader
 
+T_SCALE = 60
+EPS = 1e-6
+
 
 
 from tqdm import tqdm
@@ -30,14 +33,13 @@ import ipdb
 class HLR(BaseLearnerModel):
     def __init__(
         self, 
-        args,
-        corpus,
-        logs=None,
+        args: argparse.Namespace,
+        corpus: DataReader,
+        logs: logger.Logger,
         theta: torch.Tensor = None, 
         base: float = 2.0,
         num_seq: int = 1,
         num_node: int = 1,
-        mode: str = 'ls_split_time',
         nx_graph: np.array = None,
     ):
         '''
@@ -55,31 +57,44 @@ class HLR(BaseLearnerModel):
                 train the parameters theta given observed data.
             device: cpu or cuda to put all variables and train the model
         '''
-        super().__init__(mode=mode, device=args.device, logs=logs)
         if args.multi_node:
             self.num_node = int(corpus.n_skills)
         else:
             self.num_node = 1
-        self.base = base
-        self.args = args
-        
+            
         if 'ls_' in args.train_mode:
             self.num_seq = int(corpus.n_users)
         else:
             self.num_seq = num_seq
+            
+        self.base = base
+        self.args = args
+        self.theta = theta
+        self.mode = args.train_mode
+        self.device = args.device
         
-        if num_node > 1:
+        if num_node > 1 and self.mode == 'synthetic':
             self.adj = torch.tensor(nx_graph, device=self.device) 
             assert(self.adj.shape[-1] == num_node)
         else: 
             self.adj = None
             
-        self.mode = args.train_mode
+        super().__init__(mode=args.train_mode, device=args.device, logs=logs)
+
+
+        
+
+        
+
+            
+
 
 
     def _init_weights(
         self
     ) -> None:
+
+            
         # Training mode choosing
         class ThetaShape(Enum):
             SIMPLE_SPLIT_TIME = (1, 1, 3)
@@ -134,7 +149,7 @@ class HLR(BaseLearnerModel):
         num_seq, time_step = t.shape
 
         dt = torch.diff(t).unsqueeze(1) 
-        dt = torch.tile(dt, (1, self.num_node, 1))/60/60/24 + eps # [bs, num_node, time-1]
+        dt = torch.tile(dt, (1, self.num_node, 1))/T_SCALE + eps # [bs, num_node, time-1]
 
         # ----- compute the stats of history -----
         if items == None or self.num_node == 1:
@@ -166,7 +181,7 @@ class HLR(BaseLearnerModel):
         
         for i in range(1, time_step):
             cur_item = items[:, i] # [num_seq, ] 
-            cur_dt = (t[:, None, i] - whole_last_time[..., i]) /60/60/24 + eps # [bs, num_node]
+            cur_dt = (t[:, None, i] - whole_last_time[..., i]) /T_SCALE + eps # [bs, num_node]
             cur_feat = whole_stats[:, :, i]
             
             feat = torch.mul(cur_feat, batch_theta).sum(-1)
@@ -204,7 +219,28 @@ class HLR(BaseLearnerModel):
         
         return params
         
+
+    def forward_cl(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+    ):
+        # Extract input tensors from feed_dict
+        cur_feed_dict = {
+            'skill_seq': feed_dict['skill_seq'][:, :idx+1],
+            'label_seq': feed_dict['label_seq'][:, :idx+1],
+            'time_seq': feed_dict['time_seq'][:, :idx+1],
+            'num_history': feed_dict['num_history'][:, :idx+1],
+            'num_success': feed_dict['num_success'][:, :idx+1],
+            'num_failure': feed_dict['num_failure'][:, :idx+1],
+            'user_id': feed_dict['user_id'],
+        }
         
+        out_dict = self.forward(cur_feed_dict)
+        
+        return out_dict
+
+
     def loss(self, feed_dict, out_dict, metrics=None):
         losses = {}
         
@@ -228,7 +264,46 @@ class HLR(BaseLearnerModel):
         
         return losses
 
+
+    def predictive_model(
+        self, 
+        feed_dict: Dict[str, torch.Tensor],
+        single_step: bool = True, 
+    ) -> Dict[str, torch.Tensor]:
+        skills = feed_dict['skill_seq']      # [batch_size, seq_len]
+        times = feed_dict['time_seq']        # [batch_size, seq_len]
+        labels = feed_dict['label_seq']      # [batch_size, seq_len]
+
+        bs, _ = labels.shape
+        self.num_seq = bs
         
+        x0 = torch.zeros((bs, self.num_node)).to(labels.device)
+        if self.num_node > 1:
+            x0[torch.arange(bs), skills[:,0]] += labels[:, 0]
+            items = skills
+        else: 
+            x0[:, 0] += labels[:, 0]
+            items = None
+        
+        stats = torch.stack([feed_dict['num_history'], feed_dict['num_success'], feed_dict['num_failure']], dim=-1)
+        stats = stats.unsqueeze(1)
+        
+        out_dict = self.simulate_path(
+            x0=x0, 
+            t=times, 
+            items=items,
+            user_id=feed_dict['user_id'],
+            stats=stats,
+            stats_cal_on_fly=True,
+        )
+        
+        out_dict.update({
+            'prediction': out_dict['x_item_pred'],
+            'label': labels.unsqueeze(1) # [bs, 1, time]
+        })
+        
+        return out_dict
+
     # def iterate_update(self, inputs, n_iter, learning_rate=1e-3): 
         # t_data, x_data, stats = inputs
         # x0 = x_data[:, :1]

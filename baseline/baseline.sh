@@ -10,14 +10,14 @@
 #SBATCH --output=hostname_%j.out  # File to which STDOUT will be written
 #SBATCH --error=hostname_%j.err   # File to which STDERR will be written
 #SBATCH --mail-type=END           # Type of email notification- BEGIN,END,FAIL,ALL
-#SBATCH --array=0-3
+#SBATCH --array=0
 
 A=({DKT,DKTForgetting,AKT,HKT}) 
 
 python exp_baseline.py \
---dataset assistment17/multi_skill --model_name HLR --random_seed 2019 \
+--dataset assistment12/multi_skill --model_name PPE --random_seed 2022 \
 --epoch 500 --vcl 0 --multi_node 1 \
---train_mode ls_split_time --overfit 100 \
+--train_mode ls_split_time --overfit 200 \
 --batch_size 256 --eval_batch_size 256 \
 --test 1 --test_every 1 --save_every 10 --validate 1 \
 --train_time_ratio 0.2 --test_time_ratio 0.2 \

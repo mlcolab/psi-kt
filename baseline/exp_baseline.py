@@ -8,7 +8,6 @@ import pickle
 import argparse
 import numpy as np
 import datetime
-import shutil
 
 import torch
 
@@ -53,6 +52,11 @@ if __name__ == '__main__':
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
+    # ----- random seed -----
+    torch.manual_seed(global_args.random_seed)
+    torch.cuda.manual_seed(global_args.random_seed)
+    np.random.seed(global_args.random_seed)
+    
     # ----- log -----
     logs = logger.Logger(global_args)
     
@@ -62,17 +66,12 @@ if __name__ == '__main__':
     if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
         data.create_corpus()
         data.show_columns() 
-    corpus = data.load_corpus(global_args.train_time_ratio, global_args.test_time_ratio, global_args.val_time_ratio) 
+    corpus = data.load_corpus(global_args) 
     
     # ----- logger information -----
     log_args = [global_args.model_name, global_args.dataset, str(global_args.random_seed)]
     logs.write_to_log_file('-' * 45 + ' BEGIN: ' + utils.get_time() + ' ' + '-' * 45)
     logs.write_to_log_file(utils.format_arg_str(global_args, exclude_lst=[]))
-    
-    # ----- random seed -----
-    torch.manual_seed(global_args.random_seed)
-    torch.cuda.manual_seed(global_args.random_seed)
-    np.random.seed(global_args.random_seed)
     
     # ----- GPU & CUDA -----
     if global_args.device.type != "cpu":

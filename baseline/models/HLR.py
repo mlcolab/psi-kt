@@ -270,19 +270,22 @@ class HLR(BaseLearnerModel):
         feed_dict: Dict[str, torch.Tensor],
         single_step: bool = True, 
     ) -> Dict[str, torch.Tensor]:
-        skills = feed_dict['skill_seq']      # [batch_size, seq_len]
-        times = feed_dict['time_seq']        # [batch_size, seq_len]
-        labels = feed_dict['label_seq']      # [batch_size, seq_len]
-
-        bs, _ = labels.shape
+        
+        train_step = int(self.args.max_step * self.args.train_time_ratio)
+        
+        skills_test = feed_dict['skill_seq'][:, train_step-1:]      
+        labels_test = feed_dict['label_seq'][:, train_step-1:]      
+        times_test = feed_dict['time_seq'][:, train_step-1:]       
+    
+        bs, _ = labels_test.shape
         self.num_seq = bs
         
-        x0 = torch.zeros((bs, self.num_node)).to(labels.device)
+        x0 = torch.zeros((bs, self.num_node)).to(labels_test.device)
         if self.num_node > 1:
-            x0[torch.arange(bs), skills[:,0]] += labels[:, 0]
-            items = skills
+            x0[torch.arange(bs), skills_test[:,0]] += labels_test[:, 0]
+            items = skills_test
         else: 
-            x0[:, 0] += labels[:, 0]
+            x0[:, 0] += labels_test[:, 0]
             items = None
         
         stats = torch.stack([feed_dict['num_history'], feed_dict['num_success'], feed_dict['num_failure']], dim=-1)
@@ -290,7 +293,7 @@ class HLR(BaseLearnerModel):
         
         out_dict = self.simulate_path(
             x0=x0, 
-            t=times, 
+            t=times_test, 
             items=items,
             user_id=feed_dict['user_id'],
             stats=stats,
@@ -298,8 +301,8 @@ class HLR(BaseLearnerModel):
         )
         
         out_dict.update({
-            'prediction': out_dict['x_item_pred'],
-            'label': labels.unsqueeze(1) # [bs, 1, time]
+            'prediction': out_dict['x_item_pred'][..., 1:],
+            'label': labels_test.unsqueeze(1)[..., 1:] # [bs, 1, time]
         })
         
         return out_dict

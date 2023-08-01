@@ -47,6 +47,7 @@ class PPE(BaseLearnerModel):
             lr:
         '''
         super().__init__(mode=args.train_mode, device=args.device, logs=logs)
+        self.args = args
         if args.multi_node:
             self.num_node = int(corpus.n_skills)
         else:
@@ -94,7 +95,11 @@ class PPE(BaseLearnerModel):
             self.variable_tau = nn.Parameter(tau, requires_grad=False)
             self.variable_s = nn.Parameter(s, requires_grad=False)
 
-        
+
+    def _init_weights(self):
+        pass
+    
+    
     def simulate_path(self, x0, t, items=None, stats=None, user_id=None, stats_cal_on_fly=False): 
         '''
         Args:
@@ -222,9 +227,12 @@ class PPE(BaseLearnerModel):
         feed_dict: Dict[str, torch.Tensor],
         single_step: bool = True, 
     ) -> Dict[str, torch.Tensor]:
-        skills = feed_dict['skill_seq']      # [batch_size, seq_len]
-        times = feed_dict['time_seq']        # [batch_size, seq_len]
-        labels = feed_dict['label_seq']      # [batch_size, seq_len]
+        
+        train_step = int(self.args.max_step * self.args.train_time_ratio)
+        
+        skills = feed_dict['skill_seq'][:, train_step-1:]      # [batch_size, seq_len]
+        times = feed_dict['time_seq'][:, train_step-1:]        # [batch_size, seq_len]
+        labels = feed_dict['label_seq'][:, train_step-1:]      # [batch_size, seq_len]
 
         bs, _ = labels.shape
         self.num_seq = bs
@@ -250,8 +258,8 @@ class PPE(BaseLearnerModel):
         )
         
         out_dict.update({
-            'prediction': out_dict['x_item_pred'],
-            'label': labels.unsqueeze(1) # [bs, 1, time]
+            'prediction': out_dict['x_item_pred'][..., 1:],
+            'label': labels.unsqueeze(1)[..., 1:] # [bs, 1, time]
         })
         
         return out_dict

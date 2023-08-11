@@ -1,4 +1,46 @@
-
+def test_one_step_and_multi_step_log_probability(
+    q_dist,
+    transition_h,
+    transition_b,
+    transition_r,
+    p0_mean,
+    p0_log_var,
+):
+    import torch
+    from torch import nn, distributions
+    from torch.nn import functional as F
+    future_tensor = q_dist.rsample((100,))[:,:,:,1:] # [n, bs, 1, time-1, dim_s]
+    
+    ps_mean = q_dist.mean[:,:,:-1] @ transition_h + transition_b # [bs, 1, time-1, dim_s]
+    cov_mat = torch.diag_embed(torch.exp(transition_r)) + EPS
+    ps_var = transition_h @ q_dist.covariance_matrix[:,:,:-1] @ transition_h.transpose(-1, -2) + cov_mat # [bs, 1, time-1, dim_s, dim_s]
+    dist_one_step = distributions.multivariate_normal.MultivariateNormal(
+            loc=ps_mean, 
+            covariance_matrix=ps_var
+            )
+    
+    logprob_one_step = dist_one_step.log_prob(future_tensor) # [n, bs, 1, time-1]
+    
+    p0_var = torch.diag_embed(torch.exp(p0_log_var)) + EPS
+    time_step = future_tensor.shape[-2]
+    prev_var = p0_var
+    prev_mean = p0_mean
+    logprob_multi_step = []
+    for i in range(time_step):
+        pnext_mean = prev_mean @ transition_h + transition_b # [bs, 1, dim_s]
+        pnext_var = transition_h @ prev_var @ transition_h.transpose(-1, -2) + cov_mat # [bs, 1, dim_s, dim_s]
+        dist_multi_step = distributions.multivariate_normal.MultivariateNormal(
+            loc=pnext_mean,
+            covariance_matrix=pnext_var,
+            )
+        logprob = dist_multi_step.log_prob(future_tensor[:, :, :, i]) # [n, bs, 1]
+        logprob_multi_step.append(logprob)
+    logprob_multi_step = torch.stack(logprob_multi_step, dim=-1) # [n, bs, 1, time-1]
+    
+    logprob_one_step = logprob_one_step.mean(dim=0) # [bs, 1, time-1]
+    logprob_multi_step = logprob_multi_step.mean(dim=0) # [bs, 1, time-1]
+    
+    
 def test_pred_evaluate_method():
     import numpy as np
     from sklearn.metrics import mean_squared_error, mean_absolute_error, roc_auc_score, f1_score, accuracy_score, precision_score, recall_score

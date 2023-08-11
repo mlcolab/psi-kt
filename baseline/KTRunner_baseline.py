@@ -1,7 +1,7 @@
-import gc, copy, os
 import sys
 sys.path.append('..')
 
+import gc, copy, os, argparse
 from time import time
 from tqdm import tqdm
 import numpy as np
@@ -11,11 +11,10 @@ import torch
 import torch.optim as optim
 from torch.optim import lr_scheduler
 
+from utils import logger
 from utils import utils
 from data.data_loader import DataReader
 from KTRunner import KTRunner
-
-import ipdb
         
 OPTIMIZER_MAP = {
     'gd': optim.SGD,
@@ -31,22 +30,28 @@ class BaselineKTRunner(KTRunner):
 
     def __init__(
         self,
-        args, 
-        logs
+        args: argparse.Namespace,
+        logs: logger.Logger,
     ):
-        '''
+        """
+        Initialize the BaselineKTRunner instance.
+
         Args:
-            args: the global arguments
-            logs: the Logger instance for logging information
-        '''
+            args (argparse.Namespace): Global arguments provided as a namespace.
+            logs (logger.Logger): The Logger instance for logging information.
+        """
+        
         self.time = None
         
-        self.overfit = args.overfit # TODO debug args
+        # number of data to train
+        self.overfit = args.overfit
         
+        # training options
         self.epoch = args.epoch
         self.batch_size = args.batch_size_multiGPU 
         self.eval_batch_size = args.eval_batch_size
         
+        # list of evaluation metrics to use during training
         self.metrics = args.metric.strip().lower().split(',')
         for i in range(len(self.metrics)):
             self.metrics[i] = self.metrics[i].strip()
@@ -62,7 +67,7 @@ class BaselineKTRunner(KTRunner):
         model: torch.nn.Module,
         metrics_list: list = None,
         metrics_log: dict = None,
-    ):
+    ) -> bool:
         """
         Determine whether the training should be terminated based on the validation results.
 
@@ -81,74 +86,6 @@ class BaselineKTRunner(KTRunner):
                 return False
             
         return True
-    
-    
-    def _check_time(
-        self, 
-        start=False
-    ):
-        """
-        Check the time to compute the training/test/val time.
-
-        Returns:
-        The elapsed time since the last call to this method or the start time.
-        """
-        if self.time is None or start:
-            self.time = [time()] * 2
-            return self.time[0]
-        else:
-            tmp_time = self.time[1]
-            self.time[1] = time()
-            return self.time[1] - tmp_time
-
-
-    def _build_optimizer(
-        self, 
-        model
-    ):
-        '''
-        Choose the optimizer based on the optimizer name in the global arguments.
-        The optimizer has the setting of weight decay, and learning rate decay which can be modified in global arguments.
-
-        Args:
-            model: the training KT model
-        '''
-        optimizer_name = self.args.optimizer.lower()
-        lr = self.args.lr
-        weight_decay = self.args.l2
-        lr_decay = self.args.lr_decay
-        lr_decay_gamma = self.args.gamma
-
-        if optimizer_name not in OPTIMIZER_MAP:
-            raise ValueError("Unknown optimizer: " + optimizer_name)
-
-        optimizer_class = OPTIMIZER_MAP[optimizer_name]
-        self.logs.write_to_log_file(f"Optimizer: {optimizer_name}")
-        
-        optimizer = optimizer_class(model.module.customize_parameters(), lr=lr, weight_decay=weight_decay)
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay, gamma=lr_decay_gamma)
-        
-        return optimizer, scheduler
-        
-
-    def _print_res(
-        self, 
-        model: torch.nn.Module,
-        corpus: DataReader,
-    ): 
-        '''
-        # TODO: this is not used in current version
-        Print the model prediction on test data set.
-        This is used in main function to compare the performance of model before and after training.
-        Args:
-            model: KT model instance
-            corpus: data containing test dataset
-        '''
-        set_name = 'test'
-        result = self.evaluate(model, corpus, set_name)
-        res_str = utils.format_metric(result)
-        return res_str
-
         
 
     def train(
@@ -164,7 +101,7 @@ class BaselineKTRunner(KTRunner):
             corpus: data
         '''
         assert(corpus.data_df['train'] is not None)
-        self._check_time(start=True)
+        self.start_time = self._check_time(start=True)
         
         # Prepare training data (if needs quick test then specify overfit arguments in the args);
         set_name = ['train', 'val', 'test', 'whole']
@@ -202,7 +139,7 @@ class BaselineKTRunner(KTRunner):
                     model.module.save_model(epoch=epoch)
                     
                 if self.early_stop:
-                    if _eva_termination(model, self.metrics, self.logs.val_results): 
+                    if self._eva_termination(model, self.metrics, self.logs.val_results): 
                         self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch))
                         break
                 self.logs.draw_loss_curves()

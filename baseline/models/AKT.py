@@ -1,16 +1,24 @@
-# -*- coding: UTF-8 -*-
+# @Date: 2023/07/29
+
+import sys
+sys.path.append('..')
+
 import os
 import numpy as np
-from typing import List, Dict, Tuple, Optional, Union, Any, Callable
+import pandas as pd
+import argparse
 from collections import defaultdict
+
 import torch
-from torch import nn
+import torch.nn as nn
 import torch.nn.functional as F
+
+from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
 from baseline.BaseModel import BaseModel
 from utils import utils
-
-import ipdb
+from utils import logger
+from data.data_loader import DataReader
 
 
 class AKT(BaseModel):
@@ -29,16 +37,40 @@ class AKT(BaseModel):
 
     def __init__(
         self, 
-        args, 
-        corpus, 
-        logs
-    ):
-        super().__init__(model_path=os.path.join(args.log_path, 'Model/Model_{}_{}.pt'))
+        args: argparse.Namespace,
+        corpus: DataReader,
+        logs: logger.Logger,
+    ) -> None:
+        """
+        Initialize the instance of your class.
+
+        Parameters:
+            args (argparse.Namespace): Namespace containing parsed command-line arguments.
+            corpus (DataReader): An instance of the DataReader class containing corpus data.
+            logs (Logger): An instance of the Logger class for logging purposes.
+        """
+        
         self.skill_num = int(corpus.n_skills)
         self.question_num = int(corpus.n_problems)
         self.emb_size = args.emb_size
         self.num_head = args.num_head
         self.dropout = args.dropout
+
+        # Set the device to use for computations
+        self.device = args.device
+
+        # Store the arguments and logs for later use
+        self.args = args
+        self.logs = logs
+        super().__init__(model_path=os.path.join(args.log_path, 'Model/Model_{}_{}.pt'))
+
+
+    def _init_weights(
+        self,
+    ) -> None:
+        """
+        Initialize the weights of the model.
+        """
 
         self.skill_embeddings = nn.Embedding(self.skill_num, self.emb_size)
         self.inter_embeddings = nn.Embedding(self.skill_num * 2, self.emb_size)
@@ -46,22 +78,15 @@ class AKT(BaseModel):
         self.skill_diff = nn.Embedding(self.skill_num, self.emb_size)
         self.inter_diff = nn.Embedding(self.skill_num * 2, self.emb_size)
         
-        # Set the device to use for computations
-        self.device = args.device
-
-        # Store the arguments and logs for later use
-        self.args = args
-        self.logs = logs
-        
         self.blocks_1 = nn.ModuleList([
             TransformerLayer(d_model=self.emb_size, d_feature=self.emb_size // self.num_head, d_ff=self.emb_size,
-                             dropout=self.dropout, n_heads=self.num_head, kq_same=False, gpu=args.gpu)
-            for _ in range(args.num_layer)
+                             dropout=self.dropout, n_heads=self.num_head, kq_same=False, gpu=self.args.gpu)
+            for _ in range(self.args.num_layer)
         ])
         self.blocks_2 = nn.ModuleList([
             TransformerLayer(d_model=self.emb_size, d_feature=self.emb_size // self.num_head, d_ff=self.emb_size,
-                             dropout=self.dropout, n_heads=self.num_head, kq_same=False, gpu=args.gpu)
-            for _ in range(args.num_layer * 2)
+                             dropout=self.dropout, n_heads=self.num_head, kq_same=False, gpu=self.args.gpu)
+            for _ in range(self.args.num_layer * 2)
         ])
 
         self.out = nn.Sequential(
@@ -71,12 +96,60 @@ class AKT(BaseModel):
         )
 
         self.loss_function = nn.BCELoss(reduction='sum')
+        
 
+    def forward_cl(
+        self, 
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass for the classification task, given the input feed_dict and the current time index.
 
-    def forward(self, feed_dict):
-        skills = feed_dict['skill_seq']        # [batch_size, real_max_step]
-        questions = feed_dict['quest_seq']     # [batch_size, real_max_step]
-        labels = feed_dict['label_seq']        # [batch_size, real_max_step]
+        Args:
+            feed_dict: A dictionary containing the input tensors for the model.
+            idx: The current time index. Only items and labels up to this index are used.
+
+        Returns:
+            A dictionary containing the output tensors for the classification task.
+        """
+        
+        # Extract input tensors from feed_dict
+        cur_feed_dict = {
+            'skill_seq': feed_dict['skill_seq'][:, :idx+1],
+            'label_seq': feed_dict['label_seq'][:, :idx+1],
+            'quest_seq': feed_dict['quest_seq'][:, :idx+1],
+        }
+        
+        out_dict = self.forward(cur_feed_dict)
+        
+        return out_dict
+    
+    
+    def forward(
+        self, 
+        feed_dict: Dict[str, torch.Tensor],
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass of the model.
+
+        Parameters:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input tensors.
+                - 'skill_seq' (torch.Tensor): Skill sequence tensor of shape [batch_size, real_max_step].
+                - 'quest_seq' (torch.Tensor): Question sequence tensor of shape [batch_size, real_max_step].
+                - 'label_seq' (torch.Tensor): Label sequence tensor of shape [batch_size, real_max_step].
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing the model's output tensors.
+                - 'prediction' (torch.Tensor): Predicted probabilities of shape [batch_size, time_step-1].
+                - 'label' (torch.Tensor): Ground truth labels of shape [batch_size, time_step-1].
+                - 'emb' (torch.Tensor): Encoded skill representations of shape [batch_size, emb_size].
+        """
+        
+        skills = feed_dict['skill_seq']
+        questions = feed_dict['quest_seq']
+        labels = feed_dict['label_seq']
+        time_step = labels.shape[-1]
 
         mask_labels = labels * (labels > -1).long()
         inters = skills + mask_labels * self.skill_num
@@ -104,7 +177,92 @@ class AKT(BaseModel):
         concat_q = torch.cat([x, skill_data], dim=-1)
         prediction = self.out(concat_q).squeeze(-1).sigmoid()
 
-        out_dict = {'prediction': prediction[:, 1:], 'label': labels[:, 1:].float()}
+        # Remove the first time step if it's a padding step
+        prediction = prediction[:, 1:] if time_step > 1 else prediction
+        label = labels[:, 1:] if time_step > 1 else labels
+
+        out_dict = {
+            'prediction': prediction,
+            'label': label.float(),
+            'emb': x,
+        }
+
+        return out_dict
+
+
+    def predictive_model(
+        self, 
+        feed_dict: Dict[str, torch.Tensor],
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Perform prediction using the trained model.
+
+        Parameters:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input tensors.
+                - 'skill_seq' (torch.Tensor): Skill sequence tensor of shape [batch_size, real_max_step].
+                - 'quest_seq' (torch.Tensor): Question sequence tensor of shape [batch_size, real_max_step].
+                - 'label_seq' (torch.Tensor): Label sequence tensor of shape [batch_size, real_max_step].
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing the model's output tensors.
+                - 'predictions' (List[torch.Tensor]): List of predicted probabilities for each time step.
+        """
+        
+        skills = feed_dict['skill_seq']        # [batch_size, real_max_step]
+        questions = feed_dict['quest_seq']     # [batch_size, real_max_step]
+        labels = feed_dict['label_seq']        # [batch_size, real_max_step]
+
+        all_step = skills.shape[-1]
+        train_step = int(self.args.max_step * self.args.train_time_ratio)
+        test_time = int(self.args.max_step * self.args.test_time_ratio)
+        
+        predictions = []
+        
+        for i in range(0, test_time):
+            if i == 0:
+                inters = skills[:, train_step-1:train_step+1] + labels[:, train_step-1:train_step+1] * self.skill_num
+
+            else:
+                pred_labels = torch.cat([
+                    labels[:, train_step-1:train_step], (torch.cat(predictions,-1)>=0.5)*1, 
+                    labels[:, train_step+i:train_step+i+1]
+                    ], dim=-1)
+                
+                inters = skills[:, train_step-1:train_step+i+1] + pred_labels * self.skill_num
+
+            skill_data = self.skill_embeddings(skills[:, train_step-1:train_step+i+1])
+            inter_data = self.inter_embeddings(inters)
+
+            skill_diff_data = self.skill_diff(skills[:, train_step-1:train_step+i+1])
+            inter_diff_data = self.inter_diff(inters)
+
+            q_diff = self.difficult_param(questions[:, train_step-1:train_step+i+1])
+            skill_data = skill_data + q_diff * skill_diff_data
+            inter_data = inter_data + q_diff * inter_diff_data
+
+            x, y = skill_data, inter_data
+            for block in self.blocks_1:  # encode
+                y = block(mask=1, query=y, key=y, values=y)
+            flag_first = True
+            for block in self.blocks_2:
+                if flag_first:  # peek current question
+                    x = block(mask=1, query=x, key=x, values=x, apply_pos=False)
+                    flag_first = False
+                else:  # don't peek current response
+                    x = block(mask=0, query=x, key=x, values=y, apply_pos=True)
+                    flag_first = True
+
+            concat_q = torch.cat([x, skill_data], dim=-1)
+            prediction = self.out(concat_q).squeeze(-1).sigmoid()[:, -1:]
+
+            predictions.append(prediction)
+
+        prediction = torch.cat(predictions, dim=-1)
+        out_dict = {
+            'prediction': prediction, 
+            'label': labels[:, train_step:].float() if all_step > 1 else labels.float()
+        }
+        
         return out_dict
 
 
@@ -134,7 +292,31 @@ class AKT(BaseModel):
         return losses
 
 
-    def get_feed_dict(self, corpus, data, batch_start, batch_size, phase):
+    def get_feed_dict(
+        self, 
+        corpus: DataReader,
+        data: pd.DataFrame,
+        batch_start: int,
+        batch_size: int,
+        phase: str,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Create a feed dictionary containing input tensors for the model's forward pass.
+
+        Parameters:
+            corpus (DataReader): An instance of the DataReader class containing corpus data.
+            data (pd.DataFrame): The DataFrame containing the batch data.
+            batch_start (int): The starting index of the batch.
+            batch_size (int): The size of the batch.
+            phase (str): The phase of the data, e.g., 'train', 'valid', or 'test'.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing input tensors for the model.
+                - 'skill_seq' (torch.Tensor): Padded skill sequence tensor of shape [batch_size, real_max_step].
+                - 'quest_seq' (torch.Tensor): Padded question sequence tensor of shape [batch_size, real_max_step].
+                - 'label_seq' (torch.Tensor): Padded label sequence tensor of shape [batch_size, real_max_step].
+        """
+        
         batch_end = min(len(data), batch_start + batch_size)
         real_batch_size = batch_end - batch_start
         skill_seqs = data['skill_seq'][batch_start: batch_start + real_batch_size].values
@@ -146,6 +328,7 @@ class AKT(BaseModel):
             'quest_seq': torch.from_numpy(utils.pad_lst(quest_seqs)),            # [batch_size, real_max_step]
             'label_seq': torch.from_numpy(utils.pad_lst(label_seqs, value=-1)),  # [batch_size, real_max_step]
         }
+        
         return feed_dict
 
 

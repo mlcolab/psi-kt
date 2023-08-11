@@ -3,12 +3,12 @@ sys.path.append('..')
 
 import math, os, argparse
 import numpy
-from enum import Enum
 from collections import defaultdict
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
 import torch
 from torch import nn, distributions
+from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.nn import functional as F
 
 from models.modules import build_rnn_cell, build_dense_network
@@ -17,7 +17,7 @@ from models.hssm_graph_representation import VarTransformation, VarAttention
 from models.gmvae import *
 from utils.logger import Logger
 
-from baseline.BaseModel import BaseModel, BaseLearnerModel
+from baseline.BaseModel import BaseModel
 
 EPS = 1e-6
 T_SCALE = 60
@@ -227,58 +227,6 @@ class HSSM(BaseModel):
         return reconstructed_obs
     
     
-    def get_s_prior(
-        self, 
-        sampled_s: torch.Tensor,
-        inputs: torch.Tensor = None
-    ):
-        """
-        p(s[t] | s[t-1]) transition.
-        """ 
-        
-        prior_distributions = self.st_transition_gen(sampled_s, inputs) # [bs, dim_s]
-        
-        # sampled_s0 = sampled_s[:, :, 0] # [bsn, 1, s_dim]
-        # log_prob_s0 = self.s0_dist.log_prob(sampled_s0) # [bsn, 1]
-        
-        future_tensor = sampled_s # [bsn, 1,1,dim_s]
-        if prior_distributions.mean.shape[0] != future_tensor.shape[0]:
-            bs = prior_distributions.mean.shape[0]
-            # future_tensor = future_tensor.reshape(bs, self.num_sample, -1, self.dim_s).transpose(0,1).contiguous()
-            future_tensor = future_tensor.reshape(bs, self.num_sample, -1, self.dim_s).permute(1,2,0,3).contiguous()
-            log_prob_st = prior_distributions.log_prob(future_tensor)
-            # log_prob_st = log_prob_st.transpose(0,1).contiguous().reshape(bs*self.num_sample, -1)
-            log_prob_st = log_prob_st.permute(2,0,1).contiguous().reshape(bs*self.num_sample, -1)
-        else:
-            log_prob_st = prior_distributions.log_prob(future_tensor)
-
-        log_prob_s0 = torch.zeros((bs*self.num_sample,1)).to(log_prob_st.device)
-        log_prob_st = torch.cat([log_prob_s0, log_prob_st], dim=-1) / self.dim_s
-
-        self.register_buffer('output_s_prior_distributions_mean', prior_distributions.mean.clone().detach())
-        self.register_buffer('output_s_prior_distributions_var', prior_distributions.variance.clone().detach())
-          
-        return log_prob_st
-    
-    
-    def get_z_prior(
-        self, 
-        sampled_s: torch.Tensor,
-        inputs: Dict[str, torch.Tensor],
-    ):
-        """
-        p(z[t] | z[t-1], s[t]) transition.
-        z_sampled_scalar = z_sampled @ self.value_u.transpose(-1,-2)
-        """
-        
-        prior_distributions = self.zt_transition_gen(sampled_s, inputs)
-        
-        self.register_buffer('output_z_prior_distributions_mean', prior_distributions.mean.clone().detach())
-        self.register_buffer('output_z_prior_distributions_var', prior_distributions.variance.clone().detach())
-        
-        return prior_distributions
-    
-    
     def loss(
         self, 
         feed_dict: Dict[str, torch.Tensor],
@@ -464,141 +412,32 @@ class AmortizedHSSM(HSSM):
     
     def st_transition_gen(
         self, 
-        sampled_s: torch.Tensor,
-        feed_dict: Dict[str, torch.Tensor],
+        qs_dist: MultivariateNormal,
         eval: bool = False,
-        sampled_mean: torch.Tensor = None,
-        sampled_log_var: torch.Tensor = None,
-        s_latent=None, categ=None,
-    ):
-        '''
-        Compute the transition function of the latent skills `s_t` in the model.
-
-        Args:
-            sampled_s (torch.Tensor): [batch_size * num_sample, num_node (1), 1, dim_s], Sampled latent skills `s_t` of shape.
-            feed_dict (dict): Dictionary of input tensors containing the following keys:
-                - label_seq (torch.Tensor): Sequence of label embeddings of shape [batch_size, time].
-                - skill_seq (torch.Tensor): Sequence of skill IDs of shape [batch_size, time].
-                - time_seq (torch.Tensor): Sequence of time intervals of shape [batch_size, time].
-
-        Returns:
-            s_prior_dist (torch.distributions.MultivariateNormal): Multivariate normal distribution of `s_t`
-                with mean and covariance matrix computed using a neural network.
-        '''
+    ) -> MultivariateNormal:
         
-        input_y = feed_dict['label_seq'] # [bs, times]
-        items = feed_dict['skill_seq']
-        bs = items.shape[0]
-        bsn = bs * self.num_sample
+        qs_mean = qs_dist.mean # [bs, 1, time, dim_s]
+        qs_cov_mat = qs_dist.covariance_matrix # [bs, 1, time, dim_s, dim_s]
+        device = qs_mean.device
+        bs = qs_mean.shape[0]
         
-        time_emb = self.get_time_embedding(feed_dict['time_seq'], type='dt')
-        value_u = self.node_dist._get_node_embedding().to(sampled_s.device)# .clone().detach()
-
-        s_category = self.s_category
-
-        if eval:
-            s_last = sampled_s[:, 0, :1]
-            item_last = items[:, :-1] # TODO
-            y_last = input_y[:, :-1] # TODO
-            # h0 = torch.cat([sampled_mean[:,-1], sampled_log_var[:,-1]], dim=-1).unsqueeze(0) 
-        else:
-            s_last = sampled_s[:, 0, :1] # [bsn, times-1, dim]
-            item_last = items[:, :-1]
-            y_last = input_y[:, :-1]
-            h0 = torch.cat([self.gen_s0_mean, self.gen_s0_log_var], dim=-1).unsqueeze(1).repeat(1,bs,1)
-            
-
-        out_gen = self.gen_network_transition_s(s_category) 
-        mean = out_gen['y_mean'] # [bs, dim_s]
-        var = out_gen['y_var'] # [bs, dim_s]
+        # -- 1. the prior from generative model of GMVAE --
         
-        cov_mat = torch.diag_embed(var) + EPS
+        # -- 2. prior of single step of H, R -- 
         
-        s_prior_dist = distributions.multivariate_normal.MultivariateNormal(
-                loc=mean, 
-                scale_tril=torch.tril(cov_mat)
-                )
-            
-        if not eval:
-            self.register_buffer('output_prior_s_mean', mean.clone().detach())
-            self.register_buffer('output_prior_s_var', cov_mat.clone().detach( ))
-        
-        return s_prior_dist
-    
+        # # -- 3. multi-step transition --
+        # # -- prior of multiple steps of H, R --
     
     def zt_transition_gen(
         self, 
-        sampled_s: torch.Tensor,
+        qs_sampled: torch.Tensor,
         feed_dict: Dict[str, torch.Tensor],
+        idx: int = 0,
         sampled_z: torch.Tensor = None,
         eval: bool = False,
     ):
-        '''
-        Compute the transition function of the scalar outcomes `z_t` in the model.
-
-        Args:
-            sampled_z_set (tuple): Tuple containing:
-                - sampled_z (torch.Tensor): Sampled scalar outcomes `z_t` of shape [bsn, 1, time, dim_z]
-                - sampled_scalar_z (torch.Tensor): Sampled scalar outcomes `z_t` of shape [bsn, num_node, time, dim_z (1)]
-            sampled_s (torch.Tensor): Sampled latent skills `s_t` of shape [bsn, 1, 1, dim_s]
-            feed_dict (dict): Dictionary of input tensors containing the following keys:
-                - time_seq (torch.Tensor): Sequence of time intervals of shape [batch_size, times].
-
-        Returns:
-            z_prior_dist (torch.distributions.MultivariateNormal): Multivariate normal distribution of `z_t`
-                with mean and covariance matrix computed using the sampled latent skills `s_t`.
-        '''
-        
-        input_t = feed_dict['time_seq']
-        bs, num_steps = input_t.shape
-        bsn = bs * self.num_sample
-        
-        # ----- calculate time difference -----
-        dt = torch.diff(input_t.unsqueeze(1), dim=-1) /T_SCALE + EPS  # [bs, 1, num_steps-1] 
-        dt = dt.unsqueeze(1).repeat(1, self.num_sample, 1, 1).reshape(bsn, 1, num_steps-1) # [bsn, 1, num_steps-1]
-        
-        z0 = self.z0_dist.rsample((self.num_sample,)).repeat(bs, self.num_node, 1).to(sampled_s.device) # [bsn, num_node, 1]
-        z0_var = (torch.exp(self.gen_z0_log_var.to(dt.device)) + EPS).reshape(1, 1, 1, 1).repeat(bsn,1,1,1)
-        sampled_st = sampled_s
-
-        sampled_alpha = torch.relu(sampled_st[..., 0]) + EPS # *self.args.alpha_minimum # TODO # [bsn, 1, 1]
-        decay = torch.exp(-sampled_alpha * dt)
-        sampled_mean = sampled_st[..., 1]
-        sampled_gamma = torch.sigmoid(sampled_st[..., 3])
-        sampled_log_var = torch.minimum(sampled_st[..., 2], self.var_log_max.to(sampled_st.device)) # torch.exp(sampled_log_var) * decay + EPS # TODO not constrained
-        sampled_var = torch.exp(sampled_log_var) * decay + EPS 
-        
-        # adj = self.node_dist.sample_A(self.num_sample)[-1][:,0].mean(0).to(sampled_s.device) # [n, num_node, num_node] # adj_ij means i has influence on j
-        adj =  torch.exp(self.node_dist.edge_log_probs()[0]).to(sampled_s.device) # adj_ij means i has influence on j
-        
-        # ----- Simulate the path of `z_t` -----
-        z_preds = [z0]
-        for i in range(0, dt.shape[-1]):
-            empower =  torch.einsum('bin,ij->bjn', z_preds[-1], adj) / self.num_node * sampled_gamma 
-            
-            stable = sampled_mean 
-            tmp_mean_level = (empower + stable) / 2
-            
-            z_mean = z_preds[-1] * decay[..., i:i+1]  + tmp_mean_level * (1 - decay[..., i:i+1])
-            z_preds.append(z_mean)
-
-        z_var = torch.cat([z0_var, sampled_var.reshape(bsn, 1, num_steps-1, 1)], dim=-2)
-        z_mean = torch.stack(z_preds, -2)
-        
-        z_prior_dist = distributions.multivariate_normal.MultivariateNormal(
-            loc=z_mean, 
-            scale_tril=torch.tril(torch.diag_embed(z_var))
-        )
-        
-        self.register_buffer('output_prior_z_decay', decay.clone().detach())
-        self.register_buffer('output_prior_z_empower', empower.clone().detach())
-        self.register_buffer('output_prior_z_tmp_mean_level', ((sampled_mean + empower)/2).clone().detach())
-        
-        self.register_buffer(name="output_prior_mean_z", tensor=z_mean.clone().detach())
-        self.register_buffer(name="output_prior_var_z", tensor=z_var.clone().detach())
-            
-        
-        return z_prior_dist 
+        pass
+        # return pz_dist 
         
         
     def yt_emission_func(self, ):
@@ -607,128 +446,63 @@ class AmortizedHSSM(HSSM):
     
     def st_transition_infer(
         self, 
-        feed_dict: Dict[str, torch.Tensor],
-        num_sample: int = 1,
-        emb_inputs: Optional[torch.Tensor] = None,
+        emb_inputs: torch.Tensor,
+        num_sample: int = 0,
+        eval: bool = False,
     ):
-
-        """
-        Recursively sample z[t] ~ q(z[t]|h[t]=f_RNN(h[t-1], z[t-1], h[t]^b)).
-
-        Args:
-        inputs:     a float `Tensor` of size [batch_size, num_steps, obs_dim], where each observation 
-                    should be flattened.
-        num_sample: an `int` scalar for number of samples per time-step, for posterior inference networks, 
-                    `z[i] ~ q(z[1:T] | x[1:T])`.
-        emb_inputs: [batch_size, num_steps, emb_dim], where `emb_dim` is the dimension of the embeddings
-
-        Returns:
-        s_sampled: [batch_size * num_sample, num_node (1), time_steps, dim_s]
-        s_entropy: [batch_size, time_steps]
-        s_log_prob_q: [batch_size, time_steps]
-        s_posterior_states: [batch_size, time_steps, dim_emb]
-        s_mus: [batch_size, time_steps, dim_s]
-        s_log_vars: [batch_size, time_steps, dim_s]
         
-        """
-        bs, time_step, _ = emb_inputs.shape # train: [bs, time (10), dim_emb]
-        bsn = bs * self.num_sample
+        num_sample = self.num_sample if num_sample == 0 else num_sample
         
-        temperature = 1.0
-        hard = 1
+        qs_out_inf = self.infer_network_posterior_s(
+            emb_inputs, 
+            self.qs_temperature, 
+            self.qs_hard, 
+            self.time_dependent_s,
+        ) 
 
-        out_inf = self.infer_network_posterior_s(emb_inputs, temperature, hard) 
+        s_category = qs_out_inf['categorical'] # [bs, 1, num_cat]
+        s_mean = qs_out_inf['s_mu_infer'] # [bs, time, dim_s]
+        s_var = qs_out_inf['s_var_infer'] # [bs, time, dim_s]
 
-        _, s_category = out_inf['gaussian'], out_inf['categorical'] # s_latent not time-dependent?
-        self.s_catoegory = s_category # [bs, num_cat]
-        self.logits = out_inf['logits'] # [bs, num_cat]
-        self.prob_cat = out_inf['prob_cat'] # [bs, num_cat]
-        
-        self.register_buffer('s_category', s_category.clone().detach())
-
-        mean = out_inf['mean'] # [bs, dim_s]
-        var = out_inf['var'] # [bs, dim_s]
-        cov_mat = torch.diag_embed(var + EPS) 
-
-        dist_s = distributions.multivariate_normal.MultivariateNormal(
-            loc=mean, 
-            scale_tril=torch.tril(cov_mat)
-            )
-        
-        samples = dist_s.rsample((num_sample,)) # [n, bs, 1, dim_s] 
-        s_sampled = samples.transpose(1,0).reshape(bsn, 1, 1, self.dim_s) 
-        s_entropy = dist_s.entropy() # [bs, times]
-        s_log_prob_q = dist_s.log_prob(samples).mean(0)
-        
-        s_posterior_states = None  
-        s_mus = mean
-        s_log_var = torch.log(var)
-
-        return s_sampled, s_entropy, s_log_prob_q, s_posterior_states, s_mus, s_log_var
- 
-
-    def zt_transition_infer(
-        self, 
-        inputs: Tuple[torch.Tensor, torch.Tensor],
-        num_sample: int,
-        emb_inputs: Optional[torch.Tensor] = None,
-    ):
-        '''
-        Compute the posterior distribution of the latent variable `z_t` given the input and output sequences.
-
-        Args:
-            inputs (tuple): A tuple containing the feed dictionary and the sampled skills `s_t`.
-                feed_dict: A dictionary containing the input and output sequences.
-                sampled_s: [batch_size * num_sample, num_node (1), time_step, dim_s]
-            num_sample (int): Number of samples for Monte Carlo estimation of the posterior distribution.
-            emb_inputs (torch.Tensor): [batch_size, time_step, dim_emb] Optional embedded input sequence of shape.
-
-        Returns:
-            z_sampled (torch.Tensor): [batch_size * num_sample, num_node (1), time_steps, dim_z], Sampled latent variable `z_t` of shape.
-            z_entropy (torch.Tensor): [batch_size, time_steps], Entropy of the posterior distribution of `z_t`.
-            z_log_prob_q (torch.Tensor): [batch_size, time_steps], Log probability of the posterior distribution of `z_t`.
-            z_posterior_states (torch.Tensor): [batch_size, time_steps, dim_emb], Output states of the posterior network.
-            z_mean (torch.Tensor): [batch_size, time_steps, dim_z], Mean of the posterior distribution of `z_t`.
-            z_log_var (torch.Tensor): [batch_size, time_steps, dim_z], Log variance of the posterior distribution of `z_t`.
-        '''
-        
-        feed_dict, _ = inputs
-        bs, time_step, _ = emb_inputs.shape
-        
-        # Compute the output of the posterior network
-        self.infer_network_posterior_z.flatten_parameters()
-        output, _ = self.infer_network_posterior_z(emb_inputs, None)
-        
-        # Compute the mean and covariance matrix of the posterior distribution of `z_t`
-        mean, log_var = self.infer_network_posterior_mean_var_z(output) # [bs, times, out_dim]
-
-        # ipdb.set_trace()
-        log_var = torch.minimum(log_var, self.var_log_max.to(log_var.device))
-        cov_mat = torch.diag_embed(torch.exp(log_var) + EPS) 
-        dist_z = distributions.multivariate_normal.MultivariateNormal(
-            loc=mean, 
-            scale_tril=torch.tril(cov_mat)
+        s_var_mat = torch.diag_embed(s_var + EPS)   # [bs, time, dim_s, dim_s]
+        qs_dist = MultivariateNormal(
+            loc=s_mean, 
+            scale_tril=torch.tril(s_var_mat)
         )
+
+        # NOTE: For debug use
+        if not eval:
+            self.register_buffer('qs_category_logits', qs_out_inf['logits'].clone().detach())
+            self.register_buffer(name="qs_mean", tensor=s_mean.clone().detach())
+            self.register_buffer(name="qs_var", tensor=s_var.clone().detach())
+            self.logits = qs_out_inf['logits']
+            self.probs = qs_out_inf['prob_cat']
+            self.s_category = s_category
+        self.register_buffer('qs_category', s_category.clone().detach())
         
-        # Sample the latent variable `z_t` using Monte Carlo estimation
-        samples = dist_z.rsample((self.num_sample,))  # [num_sample, batch_size, time_step, out_dim]
-        z_sampled = samples.transpose(1, 0).reshape(self.num_sample * bs, 1, time_step, -1).contiguous() 
+        return qs_dist
+
+
         
-        # Compute the entropy and log probability of the posterior distribution of `z_t`
-        z_entropy = dist_z.entropy()  # [batch_size, time_step]
-        z_log_prob_q = dist_z.log_prob(samples).mean(0)
+    
+    def generative_process(
+        self,
+        qs_dist: distributions.MultivariateNormal,
+        qz_dist: distributions.MultivariateNormal,
+        feed_dict: Dict[str, torch.Tensor] = None,
+        eval: bool = False,
+    ):
+        # generative model for s (Karman filter)
+        ps_dist = self.st_transition_gen(qs_dist, eval=eval) 
         
-        # Store the posterior mean, log variance, and output states
-        z_posterior_states = None # output.reshape(bs, time_step, output.shape[-1])
-        z_mean = mean
-        z_log_var = cov_mat
-        
-        return z_sampled, z_entropy, z_log_prob_q, z_posterior_states, z_mean, z_log_var 
+        # generative model for z (OU process)
+        pz_dist = self.zt_transition_gen(qs_dist, feed_dict, eval=eval)
+
+        return ps_dist, pz_dist 
     
     
-    def forward(
-        self, 
-        feed_dict: Dict[str, torch.Tensor], 
+    def predictive_model(
+        self,
     ):
         t_train = feed_dict['time_seq']
         y_train = feed_dict['label_seq']
@@ -850,8 +624,160 @@ class AmortizedHSSM(HSSM):
             
         return losses
     
-    
-    
 
+    def embedding_process(
+        self,
+        time: torch.Tensor, 
+        label: torch.Tensor,
+        item: torch.Tensor,
+    ):
+        """
+        Process the input features to create the embedding history.
+
+        Args:
+            time (torch.Tensor): Time information tensor of shape [batch_size, times].
+            label (torch.Tensor): Label information tensor of shape [batch_size, times].
+            item (torch.Tensor): Item information tensor of shape [batch_size].
+
+        Returns:
+            torch.Tensor: The embedding history tensor of shape [batch_size, trian_t, dim].
+        """
+        
+        # Concatenate three kinds of input features: KC embedding + time info + label info
+        # TODO: the simplest way is to concatenate them and input into an NN, 
+        #       in Transformer architecture, the time info is added to the input embedding,
+        #       not sure which one is better
+        
+        if isinstance(self.infer_network_emb, nn.LSTM):
+            t_pe = self.get_time_embedding(time, 'absolute') # [bs, times, dim] 
+            y_pe = torch.tile(label.unsqueeze(-1), (1,1, self.node_dim)) # + t_pe 
+            node_pe = self.node_dist._get_node_embedding()[item] # [bs, times, dim]      
+            emb_input = torch.cat([node_pe, y_pe], dim=-1) # [bs, times, dim*2]
+            self.infer_network_emb.flatten_parameters()
+            emb_history, _ = self.infer_network_emb(emb_input) # [bs, trian_t, dim]
+            emb_history = emb_history + t_pe
+            
+        else:
+            t_emb = self.get_time_embedding(time, 'absolute') # [bs, times, dim] 
+            y_emb = torch.tile(label.unsqueeze(-1), (1,1, self.node_dim)) + t_emb 
+            node_emb = self.node_dist._get_node_embedding()[item] # [bs, times, dim]      
+            emb_input = torch.cat([node_emb, y_emb], dim=-1) # [bs, times, dim*2]
+            emb_history = self.infer_network_emb(emb_input)
+        
+        return emb_history
     
     
+    def inference_process(
+        self,
+        emb_history: torch.Tensor,
+        feed_dict: Dict[str, torch.Tensor] = None,
+        eval: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Perform the inference process to sample continuous hidden variables.
+
+        Args:
+            emb_history (torch.Tensor): The embedding history tensor of shape [batch_size, trian_t, dim].
+            feed_dict (Optional[Dict[str, torch.Tensor]], optional): A dictionary containing additional input tensors.
+                Defaults to None.
+            eval (bool, optional): A boolean flag indicating whether to run in evaluation mode. 
+                Evaluation mode may change the behavior of certain operations like dropout. 
+                Defaults to False.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: A tuple containing the sampled continuous hidden variables
+            `qs_dist` (shape [batch_size, trian_t, dim]) and `qz_dist` (shape [batch_size, trian_t, dim]).
+        """
+        
+        # sample continuous hidden variable from `q(s[1:T] | y[1:T])' 
+        qs_dist = self.st_transition_infer(emb_inputs=emb_history, eval=eval)
+        
+        # sample continuous hidden variable from `q(z[1:T] | y[1:T])'
+        qz_dist  = self.zt_transition_infer(
+            feed_dict=feed_dict, emb_inputs=emb_history, eval=eval
+        ) 
+        
+        return qs_dist, qz_dist
+
+        
+    def zt_transition_infer(
+        self, 
+        inputs: Tuple[torch.Tensor, torch.Tensor],
+        num_sample: int,
+        emb_inputs: Optional[torch.Tensor] = None,
+    ):
+        """
+        Compute the posterior distribution of `z_t` using an inference network.
+
+        Args:
+            feed_dict (Tuple[torch.Tensor, torch.Tensor]): A tuple of tensors containing the input data.
+                The first tensor is of shape [batch_size, times], and the second tensor is of shape [batch_size, times].
+            emb_inputs (Optional[torch.Tensor], optional): An optional tensor representing additional embeddings.
+                Defaults to None.
+            eval (bool, optional): A boolean flag indicating whether to run in evaluation mode. 
+                Evaluation mode may change the behavior of certain operations like dropout. 
+                Defaults to False.
+
+        Returns:
+            torch.distributions.MultivariateNormal: The posterior distribution of `z_t` with mean and covariance matrix.
+                The mean has shape [batch_size, times, num_node], and the covariance matrix has shape [batch_size, times, num_node, num_node].
+        """
+        
+        # Compute the output of the posterior network
+        self.infer_network_posterior_z.flatten_parameters() # useful when using DistributedDataParallel (DDP)
+        qz_emb_out, _ = self.infer_network_posterior_z(emb_inputs, None) # [bs, times, dim*2]
+        
+        # Compute the mean and covariance matrix of the posterior distribution of `z_t`
+        qz_mean, qz_log_var = self.infer_network_posterior_mean_var_z(qz_emb_out)
+
+        qz_log_var = torch.minimum(qz_log_var, self.var_log_max.to(qz_log_var.device))
+        qz_cov_mat = torch.diag_embed(torch.exp(qz_log_var) + EPS)  # [bs, times, num_node, num_node]
+        qz_dist = MultivariateNormal(
+            loc=qz_mean, 
+            scale_tril=torch.tril(qz_cov_mat)
+        ) # [bs, times, num_node]; [bs, times, num_node, num_node]
+        
+        if not eval:
+            self.register_buffer(name="qz_mean", tensor=qz_mean.clone().detach())
+            self.register_buffer(name="qz_var", tensor=torch.exp(qz_log_var).clone().detach())
+            
+        return qz_dist
+    
+    
+    def forward(
+        self, 
+        feed_dict: Dict[str, torch.Tensor], 
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass through the model.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input tensors, 
+                including 'time_seq' (shape [batch_size, times]), 'label_seq' (shape [batch_size, times]), 
+                and 'skill_seq' (shape [batch_size]).
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing the computed objective values.
+        """
+        
+        # Embed the input sequence
+        t_train = feed_dict['time_seq']
+        y_train = feed_dict['label_seq']
+        item_train = feed_dict['skill_seq']
+        emb_history = self.embedding_process(time=t_train, label=y_train, item=item_train)
+        
+        # Compute the posterior distribution of `s_t` and `z_t`
+        qs_dist, qz_dist = self.inference_process(emb_history, feed_dict)
+        
+        # Compute the prior distribution of `s_t` and `z_t`
+        ps_dist, pz_dist = self.generative_process(qs_dist, qz_dist, feed_dict)
+
+        return_dict = self.get_objective_values(
+            [qs_dist, qz_dist],
+            [ps_dist, pz_dist], 
+            feed_dict,
+        )
+
+        self.register_buffer(name="output_emb_input", tensor=emb_history.clone().detach())
+
+        return return_dict

@@ -1,4 +1,4 @@
-# -*- coding: UTF-8 -*-
+# @Date: 2023/07/25
 
 import torch
 from tqdm import tqdm
@@ -21,18 +21,36 @@ class BaseModel(torch.nn.Module):
     runner = 'KTRunner'
     extra_log_args = []
 
+    def __init__(
+        self, 
+        model_path: str = '../model/Model/Model_{}_{}.pt',
+    ):
+        """
+        Initialize the base model.
+
+        Args:
+            model_path (str, optional): The path to save/load the model. Defaults to '../model/Model/Model_{}_{}.pt'.
+        """
+        
+        super(BaseModel, self).__init__()
+        self.model_path = model_path
+        self._init_weights()
+        self.optimizer = None
+        
+        
     @staticmethod
     def parse_model_args(parser, model_name='BaseModel'):
         parser.add_argument('--model_path', type=str, default='',
                             help='Model save path.')
         return parser
 
+
     @staticmethod
     def pred_evaluate_method(
         y_pred: np.ndarray, 
         y_true: np.ndarray, 
         metrics: List[str],
-    ): # -> unit test
+    ) -> dict: 
         """
         Compute evaluation metrics for a set of predictions.
 
@@ -73,7 +91,20 @@ class BaseModel(torch.nn.Module):
 
 
     @staticmethod
-    def init_weights(m): # TODO: add more initialization methods
+    def init_weights(
+        m: torch.nn.Module
+    ) -> None:
+        """
+        Initialize weights and biases of the neural network module.
+
+        Args:
+            m (torch.nn.Module): The neural network module to initialize.
+
+        Returns:
+            None: The method modifies the weights and biases of the input module in-place.
+        """
+        
+        # TODO: add more initialization methods
         if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Embedding):
             torch.nn.init.normal_(m.weight, mean=0.0, std=0.01)
             if m.bias is not None:
@@ -95,32 +126,47 @@ class BaseModel(torch.nn.Module):
                 elif 'bias' in name:
                     param.data.fill_(0)
                     
+                    
     @staticmethod
-    def batch_to_gpu(batch, device):
+    def batch_to_gpu(
+        batch: Dict[str, torch.Tensor],
+        device: torch.device,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Move the tensors in a batch to the specified GPU device.
+
+        Args:
+            batch (Dict[str, torch.Tensor]): A dictionary containing tensors as values.
+            device (torch.device): The target GPU device to move the tensors to.
+
+        Returns:
+            Dict[str, torch.Tensor]: The batch with tensors moved to the specified device.
+        """
+        
         if torch.cuda.device_count() > 0:
             for key in batch:
                 batch[key] = batch[key].to(device)
         return batch
 
 
-    def __init__(self, model_path='../model/Model/Model_{}_{}.pt'):
-        super(BaseModel, self).__init__()
-        self.model_path = model_path
-        self._init_weights()
-        self.optimizer = None
-
-
-    def _init_weights(
-        self
-    ):
-        pass
+    def _init_weights(self):
+        """
+        Initialize the model's weights. Subclasses should override this method.
+        """
+        raise NotImplementedError("Subclasses of BaseModel must implement _init_weights() method.")
 
 
     def forward(
         self, 
-        feed_dict
-    ):
-        pass
+        feed_dict: Dict[str, torch.Tensor],
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Perform the forward pass of the model.
+
+        Args:
+            feed_dict (dict): A dictionary containing input tensors.
+        """
+        raise NotImplementedError("Subclasses of BaseModel must implement forward() method.")
 
 
     def get_feed_dict(
@@ -174,6 +220,7 @@ class BaseModel(torch.nn.Module):
         Returns:
             A list of batches of the input data
         """
+        
         num_examples = len(data)
         total_batches = (num_examples + batch_size - 1) // batch_size
         assert num_examples > 0
@@ -187,8 +234,8 @@ class BaseModel(torch.nn.Module):
 
 
     def count_variables(
-        self
-    ):
+        self,
+    ) -> int:
         """
         Counts the number of trainable parameters in a PyTorch model.
 
@@ -198,7 +245,9 @@ class BaseModel(torch.nn.Module):
         Returns:
             The total number of trainable parameters in the model.
         """
+        
         total_parameters = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        
         return total_parameters
     
 
@@ -222,17 +271,19 @@ class BaseModel(torch.nn.Module):
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
         torch.save(self.state_dict(), model_path)
         self.logs.write_to_log_file('Save model to ' + model_path)
+        
 
-        # self.model_path = model_path
-
-
-    def load_model(self, model_path: str = None) -> None:
+    def load_model(
+        self, 
+        model_path: str = None,
+    ) -> None:
         """
         Load the model from a file.
 
         Args:
             model_path: the path to load the model from
         """
+        
         if model_path is None:
             model_path = self.model_path
 
@@ -241,13 +292,16 @@ class BaseModel(torch.nn.Module):
         self.logs.write_to_log_file('Load model from ' + model_path)
 
 
-    def customize_parameters(self) -> List[Dict]:
+    def customize_parameters(
+        self,
+    ) -> List[Dict]:
         """
         Customize the optimizer settings for different parameters.
 
         Returns:
             A list of dictionaries specifying the optimization settings for each parameter group
         """
+        
         weight_p, bias_p = [], []
         # Find parameters that require gradient
         for name, p in filter(lambda x: x[1].requires_grad, self.named_parameters()): 
@@ -257,44 +311,92 @@ class BaseModel(torch.nn.Module):
                 weight_p.append(p)
 
         optimize_dict = [{'params': weight_p}, {'params': bias_p, 'weight_decay': 0}]
+        
         return optimize_dict
 
 
     def actions_before_train(
         self
-    ):
+    ) -> None:
+        """
+        Perform actions before starting the training process.
+
+        1. Compute the total number of trainable parameters in the model.
+        2. Write the total number of parameters to a log file.
+
+        Returns:
+            None
+        """
+        # Step 1: Compute the total number of trainable parameters
         total_parameters = self.count_variables()
+
+        # Step 2: Write the total number of parameters to a log file
         self.logs.write_to_log_file('#params: %d' % total_parameters)
 
 
     def actions_after_train(
         self
-    ): # TODO: add more actions
+    ) -> None:
+        """
+        Perform actions after completing the training process.
+
+        1. Compute the total training time.
+        2. Get the final training loss.
+        3. Write the training time and final training loss to a log file.
+
+        Returns:
+            None
+        """
+        # Step 1: Compute the total training time
         end_time = time.time()
         train_time = end_time - self.start_time
+
+        # Step 2: Get the final training loss
         final_loss = self.logs.get_last_loss()
+
+        # Step 3: Write the training time and final training loss to a log file
         self.logs.write_to_log_file('Training time: {:.2f} seconds'.format(train_time))
         self.logs.write_to_log_file('Final training loss: {:.4f}'.format(final_loss))
 
+        # TODO: Add more actions if needed
 
 
 ##########################################################################################
 # Learner Model
+# It is previously used to simulate learning trajectories based on PPE/HLR/OU process.
 ##########################################################################################
 
 
 class BaseLearnerModel(BaseModel):
-    def __init__(self, 
-                 mode, 
-                 device='cpu', 
-                 logs=None):
+    def __init__(
+        self, 
+        mode, 
+        device='cpu', 
+        logs=None
+    ) -> None:
+        """
+        Initialize the BaseLearnerModel.
+
+        Args:
+            mode (str): The mode of the learner model (e.g., 'train', 'val', 'test').
+            device (str, optional): The device to run the model on (e.g., 'cpu', 'cuda:0'). Defaults to 'cpu'.
+            logs (LogWriter, optional): An instance of LogWriter class for logging. Defaults to None.
+        """
+        
         super(BaseLearnerModel, self).__init__()
+        # Store the mode, device, and logs
         self.mode = mode
         self.device = device
         self.logs = logs
+
+        # Initialize optimizer (set to None by default)
         self.optimizer = None
         
-        self.model_path = os.path.join(logs.args.log_path, 'Model/Model_{}_{}.pt')
+        # Set the model_path for saving the trained model
+        if logs is not None:
+            self.model_path = os.path.join(logs.args.log_path, 'Model/Model_{}_{}.pt')
+        else:
+            self.model_path = None
         
         
     @staticmethod
@@ -303,12 +405,22 @@ class BaseLearnerModel(BaseModel):
         t: torch.Tensor,
         items: torch.Tensor,
         num_node: int,
-    ):
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         '''
+        Compute learning history statistics for the given input. Including
+        - Number of total interactions for specific KC, number of success, and number of failure.
+        - The time stampes of last interactions. 
+
         Args:
-            all_feature: [bs, 1, num_step, 3]
-            items/t: [bs, num_step]
+            all_feature (torch.Tensor): Tensor of shape [bs, 1, num_step, 3].
+            t (torch.Tensor): Tensor of shape [bs, num_step].
+            items (torch.Tensor): Tensor of shape [bs, num_step].
+            num_node (int): Number of nodes (items).
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: A tuple containing the computed whole_stats and whole_last_time tensors.
         '''
+        
         all_feature = all_feature.long()
         device = all_feature.device
         num_seq, num_step = t.shape
@@ -347,7 +459,23 @@ class BaseLearnerModel(BaseModel):
         stats_cal_on_fly: bool = False,
         items: torch.Tensor = None,
         stats: torch.Tensor = None,
-    ):
+    ) -> torch.Tensor:
+        """
+        Compute the tensor 'all_feature' based on the provided input arguments.
+
+        Args:
+            num_seq (int): The number of sequences (batch size).
+            num_node (int): Number of nodes (items).
+            time_step (int): The number of time steps.
+            device (torch.device): The device to run the computation on (e.g., 'cpu', 'cuda:0').
+            stats_cal_on_fly (bool, optional): Whether to compute 'all_feature' on the fly. Defaults to False.
+            items (torch.Tensor, optional): Tensor of shape [num_seq, num_time_step] containing item indices. Defaults to None.
+            stats (torch.Tensor, optional): Tensor of shape [num_seq, num_node, num_time_step, 3] containing precomputed stats. Defaults to None.
+
+        Returns:
+            torch.Tensor: The computed tensor 'all_feature'.
+        """
+        
         if stats_cal_on_fly or items is None:
             item_start = items[:, 0]
             all_feature = torch.zeros((num_seq, num_node, 3), device=device)
@@ -356,6 +484,7 @@ class BaseLearnerModel(BaseModel):
             all_feature = all_feature.unsqueeze(-2).tile((1, 1, time_step, 1))
         else:
             all_feature = stats.float()  # [num_seq/bs, num_node, num_time_step, 3]
+            
         return all_feature
 
 
@@ -363,7 +492,7 @@ class BaseLearnerModel(BaseModel):
     def _initialize_parameter(
         shape: Tuple,
         device: torch.device,
-    ):
+    ) -> torch.nn.Parameter:
         """
         A static method to initialize a PyTorch parameter tensor with Xavier initialization.
 
@@ -375,33 +504,52 @@ class BaseLearnerModel(BaseModel):
             param (nn.Parameter): A PyTorch parameter tensor with the specified shape, initialized using Xavier initialization.
 
         """
-        param = torch.nn.Parameter(torch.empty(shape, device=device))  # create a parameter tensor with the specified shape on the specified device
-        torch.nn.init.xavier_uniform_(param)  # apply Xavier initialization to the parameter tensor
-        return param  # return the initialized parameter tensor
+        
+        # create a parameter tensor with the specified shape on the specified device
+        param = torch.nn.Parameter(torch.empty(shape, device=device))  
+        
+        # apply Xavier initialization to the parameter tensor
+        torch.nn.init.xavier_uniform_(param)  
+        
+        return param 
 
     
     def forward(
         self,
         feed_dict: Dict[str, torch.Tensor],
-    ):
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass of the model.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data as tensors.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing output tensors, including predictions and labels.
+        """
+        
+        # Extract input data from the feed_dict
         skills = feed_dict['skill_seq']      # [batch_size, seq_len]
         times = feed_dict['time_seq']        # [batch_size, seq_len]
         labels = feed_dict['label_seq']      # [batch_size, seq_len]
 
         bs, _ = labels.shape
         self.num_seq = bs
-        
-        x0 = torch.zeros((bs, self.num_node)).to(labels.device)
+
+        # Set initial state x0 for simulation
+        x0 = torch.zeros((bs, self.num_node), requires_grad=True).to(labels.device)
         if self.num_node > 1:
-            x0[torch.arange(bs), skills[:,0]] += labels[:, 0]
+            x0[torch.arange(bs), skills[:, 0]] += labels[:, 0]
             items = skills
-        else: 
+        else:
             x0[:, 0] += labels[:, 0]
             items = None
-        
+
+        # Prepare stats for simulation
         stats = torch.stack([feed_dict['num_history'], feed_dict['num_success'], feed_dict['num_failure']], dim=-1)
         stats = stats.unsqueeze(1)
         
+        # Perform simulation using the 'simulate_path' method
         out_dict = self.simulate_path(
             x0=x0, 
             t=times, 
@@ -409,11 +557,11 @@ class BaseLearnerModel(BaseModel):
             user_id=feed_dict['user_id'],
             stats=stats,
         )
-        
+
+        # Update the output dictionary with predictions and labels
         out_dict.update({
-            'prediction': out_dict['x_item_pred'],
-            'label': labels.unsqueeze(1) # [bs, 1, time]
+            'prediction': out_dict['x_item_pred'],  # Add the prediction tensor
+            'label': labels.unsqueeze(1)  # Add the label tensor [bs, 1, time]
         })
-        
+
         return out_dict
-    

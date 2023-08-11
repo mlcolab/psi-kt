@@ -26,7 +26,7 @@ OPTIMIZER_MAP = {
 }
 
 
-class VCLRunner(KTRunner):
+class BaselineVCLRunner(KTRunner):
     """ 
     Class implementing GVCL approach
     """

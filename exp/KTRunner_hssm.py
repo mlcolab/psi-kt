@@ -1,3 +1,6 @@
+import sys
+sys.path.append('..')
+
 import gc, pickle, copy, os
 
 from time import time
@@ -11,8 +14,9 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 
 from utils import utils
+from KTRunner import KTRunner
 from data.data_loader import DataReader
-from models.HSSM import HSSM, GraphHSSM
+from models.HSSM import * # HSSM, AmortizedHSSM
 
 import ipdb
         
@@ -23,51 +27,13 @@ OPTIMIZER_MAP = {
     'adam': optim.Adam
 }
 
-class KTRunner(object):
+class HssmKTRunner(KTRunner):
     '''
     This implements the training loop, testing & validation, optimization etc. 
     '''
 
     def __init__(self, args, logs):
-        '''
-        Args:
-            args: the global arguments
-            logs: the Logger instance for logging information
-        '''
-        self.overfit = args.overfit # TODO debug args
-        self.time = None
-
-        self.args = args
-        self.epoch = args.epoch
-        self.batch_size = args.batch_size_multiGPU 
-        self.eval_batch_size = args.eval_batch_size
-        
-        self.metrics = args.metric.strip().lower().split(',')
-        for i in range(len(self.metrics)):
-            self.metrics[i] = self.metrics[i].strip()
-
-        self.early_stop = args.early_stop
-        self.logs = logs
-        self.device = args.device
-
-
-    def _check_time(
-        self, 
-        start=False
-    ):
-        """
-        Check the time to compute the training/test/val time.
-
-        Returns:
-        The elapsed time since the last call to this method or the start time.
-        """
-        if self.time is None or start:
-            self.time = [time()] * 2
-            return self.time[0]
-        else:
-            tmp_time = self.time[1]
-            self.time[1] = time()
-            return self.time[1] - tmp_time
+        super().__init__(args, logs)
 
 
     def _build_optimizer(
@@ -126,54 +92,6 @@ class KTRunner(object):
             return [optimizer_infer, optimizer_gen, optimizer_graph], [scheduler_infer, scheduler_gen, scheduler_graph]
     
 
-    def _print_res(
-        self, 
-        model: torch.nn.Module,
-        corpus: DataReader,
-    ): # TODO
-        '''
-        Print the model prediction on test data set.
-        This is used in main function to compare the performance of model before and after training.
-        Args:
-            model: KT model instance
-            corpus: data containing test dataset
-        '''
-        set_name = 'test'
-        result = self.evaluate(model, corpus, set_name)
-        res_str = utils.format_metric(result)
-        return res_str
-
-
-    def _eva_termination(
-        self, 
-        model: torch.nn.Module,
-    ):
-        """
-        A private method that determines whether the training should be terminated based on the validation results.
-
-        Args:
-        - self: the object itself
-        - model: the trained model
-
-        Returns:
-        - True if the training should be terminated, False otherwise
-        """
-
-        # Extract the validation results from the logs
-        valid = list(self.logs.valid_results[self.metrics[0]])
-
-        # Check if the last 10 validation results have not improved
-        if len(valid) > 20 and utils.non_increasing(valid[-10:]):
-            return True
-
-        # Check if the maximum validation result has not improved for the past 20 epochs
-        elif len(valid) - valid.index(max(valid)) > 20:
-            return True
-
-        # Otherwise, return False to continue the training
-        return False
-    
-
     def train(
         self, 
         model: torch.nn.Module,
@@ -189,30 +107,21 @@ class KTRunner(object):
         assert(corpus.data_df['train'] is not None)
         self._check_time(start=True)
         
-        ##### prepare training data (if needs quick test then specify overfit arguments in the args);
-        ##### prepare the batches of training data; this is specific to different KT models (different models may require different features)
+        # prepare the batches of training data; this is specific to different KT models (different models may require different features)
         set_name = ['train', 'val', 'test', 'whole']
-        if self.overfit > 0:
-            epoch_train_data, epoch_val_data, epoch_test_data, epoch_whole_data = [
-                copy.deepcopy(corpus.data_df[key][:self.overfit]) for key in set_name
-            ]
-        else:
-            epoch_train_data, epoch_val_data, epoch_test_data, epoch_whole_data = [
-                copy.deepcopy(corpus.data_df[key]) for key in set_name
-            ]
+        epoch_train_data, epoch_val_data, epoch_test_data, epoch_whole_data = [
+            copy.deepcopy(corpus.data_df[key]) for key in set_name
+        ]
 
         # Return a random sample of items from an axis of object.
-        epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True) 
-        self.train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
-        self.val_batches = None
-        self.test_batches = None
-        self.whole_batches = None
+        train_batches = model.module.prepare_batches(corpus, epoch_train_data, self.batch_size, phase='train')
+        val_batches, test_batches, whole_batches = None, None, None
         
         if self.args.test:
-            self.test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
-            self.whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
+            test_batches = model.module.prepare_batches(corpus, epoch_test_data, self.eval_batch_size, phase='test')
+            whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
         if self.args.validate:
-            self.val_batches = model.module.prepare_batches(corpus, epoch_val_data, self.eval_batch_size, phase='val')
+            val_batches = model.module.prepare_batches(corpus, epoch_val_data, self.eval_batch_size, phase='val')
 
         try:
             for epoch in range(self.epoch):
@@ -221,11 +130,18 @@ class KTRunner(object):
                 
                 self._check_time()
                 
-                if not self.args.em_train:
-                    loss = self.fit(model, epoch=epoch+1)
-                    self.test(model, corpus, epoch, loss)
-                else:
-                    loss = self.fit_em_phases(model, corpus, epoch=epoch+1)
+                if not self.args.em_train: 
+                    loss = self.fit(model=model, batches=train_batches, epoch=epoch)
+                    self.test(
+                        model=model, 
+                        corpus=corpus, 
+                        epoch=epoch, 
+                        train_loss=loss,
+                        test_batches=test_batches,
+                        val_batches=val_batches,
+                    )
+                else: # TODO: this is not used currently
+                    loss = self.fit_em_phases(model, corpus, epoch=epoch)
 
                 if epoch % self.args.save_every == 0:
                     model.module.save_model(epoch=epoch)
@@ -235,6 +151,7 @@ class KTRunner(object):
                         self.logs.write_to_log_file("Early stop at %d based on validation result." % (epoch + 1))
                         break
                 self.logs.draw_loss_curves()
+
 
         except KeyboardInterrupt:
             self.logs.write_to_log_file("Early stop manually")
@@ -281,16 +198,25 @@ class KTRunner(object):
         corpus: DataReader,
         epoch: int = 0, 
         train_loss: float = 0.,
+        test_batches: list = None,
+        val_batches: list = None,
     ):
+        # ipdb.set_trace()
         training_time = self._check_time()
 
         model.module.eval()
         if (self.args.test) & (epoch % self.args.test_every == 0):
             with torch.no_grad():
-                test_result = self.evaluate(model, corpus, 'test', self.test_batches, epoch=epoch+1)
-                
+                test_result = self.evaluate(
+                    model=model, 
+                    corpus=corpus, 
+                    set_name='test', 
+                    data_batches=test_batches, 
+                    epoch=epoch
+                )
+
                 if self.args.validate:
-                    valid_result = self.evaluate(model, corpus, 'val', self.val_batches, epoch=epoch+1)
+                    valid_result = self.evaluate(model, corpus, 'val', val_batches, epoch=epoch)
                     self.logs.append_epoch_losses(valid_result, 'val')
 
                     if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
@@ -310,7 +236,6 @@ class KTRunner(object):
         self, 
         model: torch.nn.Module,
         batches = None,
-        epoch_train_data = None, 
         epoch=-1,
     ): 
         """
@@ -319,7 +244,6 @@ class KTRunner(object):
         Args:
             model: The model to train.
             batches: A list of data, where each element is a batch to train.
-            epoch_train_data: A pandas DataFrame containing the training data.
             epoch: The current epoch number.
 
         Returns:
@@ -334,8 +258,8 @@ class KTRunner(object):
         train_losses = defaultdict(list)
         
         # Iterate through each batch.
-        for batch in tqdm(self.train_batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
-            
+        for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
+            # Move batches to GPU if necessary.
             batch = model.module.batch_to_gpu(batch, self.device)
             
             # Reset gradients.
@@ -383,6 +307,77 @@ class KTRunner(object):
         return self.logs.train_results['loss_total'][-1]
 
 
+    def predict(
+        self, 
+        model, 
+        data_batches=None, 
+        epoch=None
+    ):
+        '''
+        Args:
+            model: 
+        '''
+        model.module.eval()
+        
+        predictions, labels = [], []
+                
+        for batch in tqdm(data_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
+            batch = model.module.batch_to_gpu(batch, self.device)
+            
+            out_dict = model.module.predictive_model(batch)
+            prediction, label = out_dict['prediction'], out_dict['label']
+            
+            predictions.extend(prediction.detach().cpu().data.numpy())
+            labels.extend(label.detach().cpu().data.numpy())
+        
+                
+        return np.array(predictions), np.array(labels)
+
+
+    def evaluate(
+        self, 
+        model, 
+        corpus, 
+        set_name, 
+        data_batches=None, 
+        epoch=None
+    ):
+        '''
+        Evaluate the results for an input set.
+
+        Args:
+            model: The trained model to evaluate.
+            corpus: The Corpus object that holds the input data.
+            set_name: The name of the dataset to evaluate (e.g. 'train', 'valid', 'test').
+            data_batches: The list of batches containing the input data (optional).
+            whole_batches: The list of whole batches containing the input data (optional).
+            epoch: The epoch number (optional).
+
+        Returns:
+            The evaluation results as a dictionary.
+        '''
+
+        # Get the predictions and labels from the predict() method.
+        predictions, labels = self.predict(model, data_batches, epoch=epoch)
+
+        # Get the lengths of the sequences in the input dataset.
+        lengths = np.array(list(map(lambda lst: len(lst) - 1, corpus.data_df[set_name]['skill_seq'])))
+
+        # # Concatenate the predictions and labels into arrays.
+        # concat_pred, concat_label = [], []
+        # for pred, label, length in zip(predictions, labels, lengths):
+        #     concat_pred.append(pred)
+        #     concat_label.append(label)
+        # concat_pred = np.concatenate(concat_pred)
+        # concat_label = np.concatenate(concat_label)
+        # ipdb.set_trace()
+        concat_pred = predictions
+        concat_label = labels
+        
+        # Evaluate the predictions and labels using the pred_evaluate_method of the model.
+        return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics)
+
+
     def fit_em_phases(self, model, corpus, epoch=-1):
 
         if model.module.optimizer is None:
@@ -391,7 +386,7 @@ class KTRunner(object):
             model.module.scheduler_infer, model.module.scheduler_gen, model.module.scheduler_graph = sch
             model.module.optimizer = model.module.optimizer_infer
 
-        for phase in ['infer_graph', 'gen_graph']: # 'model', 'graph', 'infer', 'gen'
+        for phase in ['infer', 'gen_graph']: # 'model', 'graph', 'infer', 'gen'
 
             model.module.train()
             
@@ -457,7 +452,7 @@ class KTRunner(object):
 
         train_losses = defaultdict(list)
                 
-        for batch in tqdm(self.train_batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
+        for batch in tqdm(self.whole_batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch): # TODO
 
             model.module.optimizer_infer.zero_grad(set_to_none=True)
             model.module.optimizer_graph.zero_grad(set_to_none=True)
@@ -481,82 +476,3 @@ class KTRunner(object):
         self.logs.append_epoch_losses(train_losses, 'train')
         
         return self.logs.train_results['loss_total'][-1]
-
-
-    def predict(
-        self, 
-        model, 
-        corpus, 
-        set_name, 
-        data_batches=None, 
-        epoch=None
-    ):
-        '''
-        Args:
-            model: 
-        '''
-        model.module.eval()
-        
-        predictions, labels = [], []
-                
-        if isinstance(model.module, GraphHSSM) or isinstance(model.module, HSSM):
-            for batch in tqdm(self.whole_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
-                batch = model.module.batch_to_gpu(batch, self.device)
-                
-                out_dict = model.module.predictive_model(batch)
-                prediction, label = out_dict['prediction'], out_dict['label']
-                
-                predictions.extend(prediction.detach().cpu().data.numpy())
-                labels.extend(label.detach().cpu().data.numpy())
-        
-        else:
-            for batch in tqdm(data_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
-                batch = model.module.batch_to_gpu(batch, self.device)
-                out_dict = model(batch)
-                
-                prediction, label = out_dict['prediction'], out_dict['label']
-                predictions.extend(prediction.detach().cpu().data.numpy())
-                labels.extend(label.detach().cpu().data.numpy())
-                
-        return np.array(predictions), np.array(labels)
-
-
-    def evaluate(
-        self, 
-        model, 
-        corpus, 
-        set_name, 
-        data_batches=None, 
-        epoch=None
-    ):
-        '''
-        Evaluate the results for an input set.
-
-        Args:
-            model: The trained model to evaluate.
-            corpus: The Corpus object that holds the input data.
-            set_name: The name of the dataset to evaluate (e.g. 'train', 'valid', 'test').
-            data_batches: The list of batches containing the input data (optional).
-            whole_batches: The list of whole batches containing the input data (optional).
-            epoch: The epoch number (optional).
-
-        Returns:
-            The evaluation results as a dictionary.
-        '''
-
-        # Get the predictions and labels from the predict() method.
-        predictions, labels = self.predict(model, corpus, set_name, data_batches, epoch=epoch)
-
-        # Get the lengths of the sequences in the input dataset.
-        lengths = np.array(list(map(lambda lst: len(lst) - 1, corpus.data_df[set_name]['skill_seq'])))
-
-        # Concatenate the predictions and labels into arrays.
-        concat_pred, concat_label = [], []
-        for pred, label, length in zip(predictions, labels, lengths):
-            concat_pred.append(pred)
-            concat_label.append(label)
-        concat_pred = np.concatenate(concat_pred)
-        concat_label = np.concatenate(concat_label)
-
-        # Evaluate the predictions and labels using the pred_evaluate_method of the model.
-        return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics)

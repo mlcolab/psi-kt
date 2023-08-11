@@ -1,14 +1,22 @@
-# -*- coding: UTF-8 -*-
+# @Date: 2023/07/25
+
+import sys
+sys.path.append('..')
+
 import os
 import numpy as np
-import torch
-import torch.nn.functional as F
+import pandas as pd
+import argparse
 from collections import defaultdict
+
+import torch
+
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
 from baseline.BaseModel import BaseModel
 from utils import utils
-import ipdb
+from utils import logger
+from data.data_loader import DataReader
 
 
 class DKT(BaseModel):
@@ -24,12 +32,11 @@ class DKT(BaseModel):
                             help='Number of GRU layers.')
         return BaseModel.parse_model_args(parser, model_name)
 
-
     def __init__(
         self, 
-        args, 
-        corpus, 
-        logs
+        args: argparse.Namespace,
+        corpus: DataReader,
+        logs: logger.Logger,
     ):
         """
         Initialize the model.
@@ -44,6 +51,7 @@ class DKT(BaseModel):
         Returns:
             None
         """
+        
         # Set the size of the skill embedding, the hidden size of the LSTM layer, the number of LSTM layers, and the dropout rate
         self.skill_num = int(corpus.n_skills)
         self.emb_size = args.emb_size
@@ -62,7 +70,7 @@ class DKT(BaseModel):
 
     def _init_weights(
         self
-    ):
+    ) -> None:
         """
         Initialize the weights of the model.
 
@@ -71,6 +79,7 @@ class DKT(BaseModel):
         Returns:
             None
         """
+        
         # Define the skill embeddings layer
         self.skill_embeddings = torch.nn.Embedding(
             self.skill_num * 2, 
@@ -90,6 +99,133 @@ class DKT(BaseModel):
         self.loss_function = torch.nn.BCELoss()
 
 
+    def forward_cl(
+        self, 
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass for the classification task, given the input feed_dict and the current time index.
+
+        Args:
+            feed_dict: A dictionary containing the input tensors for the model.
+            idx: The current time index. Only items and labels up to this index are used.
+
+        Returns:
+            A dictionary containing the output tensors for the classification task.
+        """
+        
+        # Extract input tensors from feed_dict
+        cur_feed_dict = {
+            'skill_seq': feed_dict['skill_seq'][:, :idx+1],
+            'label_seq': feed_dict['label_seq'][:, :idx+1],
+            'inverse_indice': feed_dict['inverse_indice'],
+            'length': feed_dict['length'],
+        }
+        
+        out_dict = self.forward(cur_feed_dict)
+        # items = feed_dict['skill_seq'][:, :idx+1]     # [bs, time]
+        # labels = feed_dict['label_seq'][:, :idx+1]  # [bs, time]
+        # indices = feed_dict['inverse_indice']
+        
+        # # Embed the input items and labels
+        # embed_history_i = self.skill_embeddings(items + labels * self.skill_num) # [bs, time, emb_size]
+        
+        # # Pass the embeddings through the RNN and the output layer
+        # output, _ = self.rnn(embed_history_i, None) # [bs, time, emb_size]
+        # pred_vector = self.out(output) # [bs, time, skill_num] 
+        
+        # # Extract the prediction for the next item
+        # target_item = feed_dict['skill_seq'][:, 1:idx+2] 
+        # prediction_sorted = torch.gather(pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)).squeeze(dim=-1)
+        # prediction_sorted = torch.sigmoid(prediction_sorted)
+        # prediction = prediction_sorted[indices]
+        
+        # # Split the predictions into training and evaluation predictions
+        # train_pred = prediction[:, :-1]
+        # eval_pred = prediction[:, -1:]
+        
+        # # Extract the labels for the training and evaluation predictions
+        # train_label = feed_dict['label_seq'][:, 1:idx+1]
+        # train_label = train_label[indices].double()
+        # eval_label = feed_dict['label_seq'][:, idx+1:idx+2]
+        # eval_label = eval_label[indices].double()
+        
+        # out_dict = {
+        #     'prediction': train_pred, 
+        #     'label': train_label,
+        #     'cl_prediction': eval_pred,
+        #     'cl_label': eval_label,
+        # }
+        return out_dict
+    
+
+    def evaluate_cl(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+    ) -> Dict[str, torch.Tensor]:
+
+        raise NotImplementedError
+        
+        
+    def forward(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass for the model given the input feed_dict.
+
+        Args:
+            feed_dict: A dictionary containing the input tensors for the model.
+
+        Returns:
+            A dictionary containing the output tensors for the model.
+        """
+        
+        # Extract input tensors from feed_dict
+        items = feed_dict['skill_seq']     # [batch_size, history_max]
+        labels = feed_dict['label_seq']  # [batch_size, history_max]
+        lengths = feed_dict['length']           # [batch_size]
+        indices = feed_dict['inverse_indice']
+
+        time_step = items.shape[-1]
+        
+        if items.is_cuda: 
+            lengths = lengths.cpu().int()
+
+        # Embed the history of items and labels
+        embed_history_i = self.skill_embeddings(items + labels * self.skill_num) # [bs, time, emb_size] 
+
+        # Pack the embedded history and run through the RNN
+        # pack: https://stackoverflow.com/questions/51030782/why-do-we-pack-the-sequences-in-pytorch
+        # issues with 'lengths must be on cpu': https://github.com/pytorch/pytorch/issues/43227
+        embed_history_i_packed = embed_history_i # torch.nn.utils.rnn.pack_padded_sequence(embed_history_i, lengths - 1, batch_first=True) # embed_history_i_packed.data [(time-1)*bs, emb_size]
+        output, _ = self.rnn(embed_history_i_packed, None) # [bs, time, emb_size]
+        
+        # Unpack the output of the RNN and run it through the output layer
+        # output, _ = torch.nn.utils.rnn.pad_packed_sequence(output, batch_first=True) # output.data [bs, time-1, emb_size]
+        pred_vector = self.out(output) # [bs, time, skill_num] 
+        
+        # Extract the prediction for the next item and the corresponding label
+        target_item = items[:, 1:] if time_step > 1 else items
+        prediction_sorted = torch.gather(pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)).squeeze(dim=-1)
+        prediction_sorted = torch.sigmoid(prediction_sorted)
+        prediction = prediction_sorted[indices]
+        
+        # Label
+        label = labels[:, 1:] if time_step > 1 else labels
+        label = label[indices].double()
+
+        out_dict = {
+            'prediction': prediction, 
+            'label': label, 
+            'emb': output,
+            'learner_id': feed_dict['user_id'],}
+        
+        return out_dict
+
+
     def predictive_model(
         self, 
         feed_dict: Dict[str, torch.Tensor],
@@ -104,121 +240,46 @@ class DKT(BaseModel):
         Returns:
             A dictionary containing the output tensors for the model.
         """
-        
-        
-        
-        return self.forward(feed_dict)
 
-    
-    def forward_cl(
-        self, 
-        feed_dict: Dict[str, torch.Tensor],
-        idx: int = None,
-    ):
-        """
-        Forward pass for the classification task, given the input feed_dict and the current time index.
-
-        Args:
-            feed_dict: A dictionary containing the input tensors for the model.
-            idx: The current time index. Only items and labels up to this index are used.
-
-        Returns:
-            A dictionary containing the output tensors for the classification task.
-        """
-        # Extract input tensors from feed_dict
-        items = feed_dict['skill_seq'][:, :idx+1]     # [bs, time]
-        labels = feed_dict['label_seq'][:, :idx+1]  # [bs, time]
-        indices = feed_dict['inverse_indice']
-        
-        # Embed the input items and labels
-        embed_history_i = self.skill_embeddings(items + labels * self.skill_num) # [bs, time, emb_size]
-        
-        # Pass the embeddings through the RNN and the output layer
-        output, _ = self.rnn(embed_history_i, None) # [bs, time, emb_size]
-        pred_vector = self.out(output) # [bs, time, skill_num] 
-        
-        # Extract the prediction for the next item
-        target_item = feed_dict['skill_seq'][:, 1:idx+2] 
-        prediction_sorted = torch.gather(pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)).squeeze(dim=-1)
-        prediction_sorted = torch.sigmoid(prediction_sorted)
-        prediction = prediction_sorted[indices]
-        
-        # Split the predictions into training and evaluation predictions
-        train_pred = prediction[:, :-1]
-        eval_pred = prediction[:, -1:]
-        
-        # Extract the labels for the training and evaluation predictions
-        train_label = feed_dict['label_seq'][:, 1:idx+1]
-        train_label = train_label[indices].double()
-        eval_label = feed_dict['label_seq'][:, idx+1:idx+2]
-        eval_label = eval_label[indices].double()
-        
-        out_dict = {
-            'prediction': train_pred, 
-            'label': train_label,
-            'cl_prediction': eval_pred,
-            'cl_label': eval_label,
-        }
-        return out_dict
-
-
-    def evaluate_cl(
-        self,
-        feed_dict: Dict[str, torch.Tensor],
-        idx: int = None,
-    ):
-        raise NotImplementedError
-        
-        
-    def forward(
-        self,
-        feed_dict: Dict[str, torch.Tensor],
-    ):
-        """
-        Forward pass for the model given the input feed_dict.
-
-        Args:
-            feed_dict: A dictionary containing the input tensors for the model.
-
-        Returns:
-            A dictionary containing the output tensors for the model.
-        """
         # Extract input tensors from feed_dict
         items = feed_dict['skill_seq']     # [batch_size, history_max]
         labels = feed_dict['label_seq']  # [batch_size, history_max]
         lengths = feed_dict['length']           # [batch_size]
         indices = feed_dict['inverse_indice']
         
+        all_step = items.shape[-1]
+        train_step = int(self.args.max_step * self.args.train_time_ratio)
+        test_step = int(self.args.max_step * self.args.test_time_ratio)
+        test_item = items[:, train_step:] 
+        
         if items.is_cuda: 
             lengths = lengths.cpu().int()
 
-        # Embed the history of items and labels
-        embed_history_i = self.skill_embeddings(items + labels * self.skill_num) # [bs, time, emb_size] # TODO this is not fair...
-        
-        # Pack the embedded history and run through the RNN
-        # pack: https://stackoverflow.com/questions/51030782/why-do-we-pack-the-sequences-in-pytorch
-        # issues with 'lengths must be on cpu': https://github.com/pytorch/pytorch/issues/43227
-        embed_history_i_packed = torch.nn.utils.rnn.pack_padded_sequence(embed_history_i, lengths - 1, batch_first=True) # embed_history_i_packed.data [(time-1)*bs, emb_size]
-        output, _ = self.rnn(embed_history_i_packed, None) # [bs, time-1, emb_size]
-        
-        # Unpack the output of the RNN and run it through the output layer
-        output, _ = torch.nn.utils.rnn.pad_packed_sequence(output, batch_first=True) # output.data [bs, time-1, emb_size]
-        pred_vector = self.out(output) # [bs, time-1, skill_num] 
-        
-        # Extract the prediction for the next item and the corresponding label
-        target_item = items[:, 1:]
-        prediction_sorted = torch.gather(pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)).squeeze(dim=-1)
-        prediction_sorted = torch.sigmoid(prediction_sorted)
-        prediction = prediction_sorted[indices]
-        
+        predictions = []
+        last_emb = self.skill_embeddings(items[:, train_step-1:train_step] + labels[:, train_step-1:train_step] * self.skill_num) # [bs, 1, emb_size]
+        for i in range(test_step):
+            if i == 0:
+                rnn_input, latent_states = self.rnn(last_emb, None)
+            else:
+                rnn_input, latent_states = self.rnn(last_emb, latent_states)
+            pred_vector = self.out(rnn_input) # [bs, 1, skill_num] 
+            target_item = test_item[:, i:i+1]
+            prediction_sorted = torch.gather(pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)).squeeze(dim=-1) # [bs, 1]
+            prediction_sorted = torch.sigmoid(prediction_sorted)
+            prediction = prediction_sorted[indices]
+            last_emb = self.skill_embeddings(test_item[:, i:i+1] + (prediction>=0.5)*1 * self.skill_num) # [bs, 1, emb_size]
+            predictions.append(prediction)
+
         # Label
-        label = labels[:, 1:]
+        label = labels[:, train_step:] if all_step > 1 else labels
         label = label[indices].double()
+        prediction = torch.cat(predictions, -1)
 
         out_dict = {'prediction': prediction, 'label': label}
+        
         return out_dict
-
-
+    
+    
     def loss(
         self, 
         feed_dict: Dict[str, torch.Tensor], 
@@ -274,8 +335,8 @@ class DKT(BaseModel):
 
     def get_feed_dict(
         self, 
-        corpus, 
-        data,
+        corpus: DataReader,
+        data: pd.DataFrame,
         batch_start: int,
         batch_size: int,
         phase: str,
@@ -295,6 +356,7 @@ class DKT(BaseModel):
         Returns:
             A dictionary containing the input tensors for the model.
         """
+        
         # Extract the user_ids, user_seqs, and label_seqs from the data
         batch_end = min(len(data), batch_start + batch_size)
         real_batch_size = batch_end - batch_start

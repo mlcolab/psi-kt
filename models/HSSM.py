@@ -265,7 +265,7 @@ class HSSM(BaseModel):
         return losses
 
 
-class GraphHSSM(HSSM):
+class AmortizedHSSM(HSSM):
     def __init__(
         self,
         mode: str = 'ls_split_time',
@@ -504,8 +504,40 @@ class GraphHSSM(HSSM):
     def predictive_model(
         self,
     ):
-        pass
+        t_train = feed_dict['time_seq']
+        y_train = feed_dict['label_seq']
+        item_train = feed_dict['skill_seq']
+        bs, time_step = t_train.shape
+        
+        emb_history = self.embedding_process(time=t_train, label=y_train, item=item_train)
+        
+        s_sampled, z_sampled_scalar, s_entropy = self.inference_process(feed_dict, emb_history)
+        
+        [log_prob_st, log_prob_zt, log_prob_yt], recon_inputs_items = self.generative_process(
+            feed_dict, s_sampled, z_sampled_scalar)
+
+        return return_dict
     
+
+    def embedding_process(self):
+        pass
+
+
+    def inference_process(self):
+        pass
+
+
+    def generative_process(self):
+        pass
+
+
+
+
+
+
+
+
+
     
     def loss(
         self, 

@@ -260,7 +260,8 @@ class AKT(BaseModel):
         prediction = torch.cat(predictions, dim=-1)
         out_dict = {
             'prediction': prediction, 
-            'label': labels[:, train_step:].float() if all_step > 1 else labels.float()
+            'label': labels[:, train_step:].float() if all_step > 1 else labels.float(),
+            'emb': x,
         }
         
         return out_dict

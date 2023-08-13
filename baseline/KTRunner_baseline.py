@@ -254,6 +254,7 @@ class BaselineKTRunner(KTRunner):
         model.module.train()
         train_losses = defaultdict(list)
         
+        outputs = []
         # Iterate through each batch.
         for batch in tqdm(self.train_batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch):
             
@@ -264,6 +265,7 @@ class BaselineKTRunner(KTRunner):
             
             # Forward pass.
             output_dict = model(batch)
+            outputs.append(output_dict)
             
             # Calculate loss and perform backward pass.
             loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
@@ -276,30 +278,18 @@ class BaselineKTRunner(KTRunner):
             # Append the losses to the train_losses dictionary.
             train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
             
+        import pickle
+        import ipdb
+        filehandler = open("/mnt/qb/work/mlcolab/hzhou52/0iclr_exp3_mi_learner_and_emb/10-20/akt_junyi15_1000_2023_260.obj","wb")
+        pickle.dump(outputs,filehandler)
+        filehandler.close()
+        
         string = self.logs.result_string("train", epoch, train_losses, t=epoch) 
         self.logs.write_to_log_file(string)
         self.logs.append_epoch_losses(train_losses, 'train')
 
         model.module.scheduler.step()
         model.module.eval()
-            
-        # # TODO DEBUG: to visualize the difference of synthetic data adj
-        # if 'synthetic' in self.args.dataset:
-        #     import matplotlib.patches as mpatches
-        #     gt_adj = batch['gt_adj']
-        #     _, probs, pred_adj = model.module.var_dist_A.sample_A(num_graph=100)
-        #     print(torch.mean(probs, 0))
-        #     # ipdb.set_trace()
-        #     mat_diff = gt_adj-pred_adj[0,0] 
-        #     mat_diff = mat_diff.int().cpu().detach().numpy()
-        #     im = plt.imshow(mat_diff, interpolation='none', cmap='Blues',aspect='auto',alpha=0.5)
-
-        #     values = np.unique(mat_diff.ravel())
-        #     colors = [im.cmap(im.norm(value)) for value in values]
-        #     patches = [mpatches.Patch(color=colors[i], label="Level {l}".format(l=values[i]) ) for i in range(len(values))]
-
-        #     plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
-        #     plt.savefig(os.path.join(self.args.plotdir, 'adj_diff_epoch{}.png'.format(epoch)))
             
         return self.logs.train_results['loss_total'][-1]
 
@@ -318,16 +308,24 @@ class BaselineKTRunner(KTRunner):
         '''
         model.module.eval()
         
-        predictions, labels = [], []
+        predictions, labels, outputs = [], [], []
         
         for batch in tqdm(data_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
             batch = model.module.batch_to_gpu(batch, self.device)
             out_dict = model.module.predictive_model(batch)
+            outputs.append(out_dict)
             
             prediction, label = out_dict['prediction'], out_dict['label']
             predictions.extend(prediction.detach().cpu().data.numpy())
             labels.extend(label.detach().cpu().data.numpy())
-                
+            
+        import pickle
+        import ipdb
+        filehandler = open("/mnt/qb/work/mlcolab/hzhou52/0iclr_exp3_mi_learner_and_emb/10-20/akt_junyi15_1000_2023_260_test.obj","wb")
+        pickle.dump(outputs,filehandler)
+        filehandler.close()
+        
+           
         return np.array(predictions), np.array(labels)
 
 
@@ -368,5 +366,7 @@ class BaselineKTRunner(KTRunner):
         concat_pred = np.concatenate(concat_pred)
         concat_label = np.concatenate(concat_label)
 
+        import ipdb
+        ipdb.set_trace()
         # Evaluate the predictions and labels using the pred_evaluate_method of the model.
         return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics)

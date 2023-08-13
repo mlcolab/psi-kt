@@ -10,18 +10,19 @@
 #SBATCH --output=hostname_%j.out  # File to which STDOUT will be written
 #SBATCH --error=hostname_%j.err   # File to which STDERR will be written
 #SBATCH --mail-type=END           # Type of email notification- BEGIN,END,FAIL,ALL
-#SBATCH --array=0-5
+#SBATCH --array=0
 
 A=({DKT,DKTForgetting,AKT,HKT,HLR,PPE}) 
 
 python exp_baseline.py \
---dataset assistment12/multi_skill --model_name ${A[$SLURM_ARRAY_TASK_ID]} --random_seed 2023 \
+--dataset junyi15/multi_skill --model_name AKT --random_seed 2023 \
 --epoch 500 --vcl 0 --multi_node 1 \
---train_mode ls_split_time --overfit 100 \
+--train_mode ls_split_time --overfit 1000 \
 --batch_size 32 --eval_batch_size 256 \
---test 1 --test_every 1 --save_every 10 --validate 1 \
---train_time_ratio 0.4 --test_time_ratio 0.4 \
+--test 1 --test_every 1 --save_every 10 --validate 0 \
+--train_time_ratio 0.2 --test_time_ratio 0.4 \
 --early_stop 1 \
---lr 5e-3 --lr_decay 150 --expername random_2023_20_20 \
---save_folder /mnt/qb/work/mlcolab/hzhou52/0729_new_exp2_logs
-# ${A[$SLURM_ARRAY_TASK_ID]}
+--lr 5e-3 --lr_decay 150 --expername reload \
+--save_folder /mnt/qb/work/mlcolab/hzhou52/0729_new_exp2_logs \
+--load 1 \
+--load_folder /mnt/qb/work/mlcolab/hzhou52/0iclr_exp1_prediction/1000-10-10/junyi15/multi_skill/akt-2023-8929-8146/Model/Model_260_0.pt

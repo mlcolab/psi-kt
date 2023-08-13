@@ -264,10 +264,10 @@ class DKTForgetting(BaseModel):
         output, _ = self.rnn(embed_history_i_packed, None)
 
         # Unpack padded sequence and apply output feature transformation
-        output, _ = torch.nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
+        rnn_output, _ = torch.nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
         fout = self.fout(torch.cat((repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq), dim=-1))
         output = torch.cat((
-            output.mul(fout[:, 1:, :]), repeated_time_gap_seq[:, 1:, :],
+            rnn_output.mul(fout[:, 1:, :]), repeated_time_gap_seq[:, 1:, :],
             sequence_time_gap_seq[:, 1:, :], past_trial_counts_seq[:, 1:, :]
         ), dim=-1) # [bs, time-1, emb_size+3]
         
@@ -283,7 +283,8 @@ class DKTForgetting(BaseModel):
 
         out_dict = {
             'prediction': prediction, 
-            'label': label
+            'label': label,
+            'emb': rnn_output,
         }
 
         return out_dict
@@ -439,18 +440,20 @@ class DKTForgetting(BaseModel):
              past_trial_counts_seq[:, 0:1]), dim=-1
         )
         
+        embs = []
         for i in range(time_step - 1):
             if i == 0: 
-                output, latent_states = self.rnn(last_emb, None) # [bs, 1, emb_size]
+                output_rnn, latent_states = self.rnn(last_emb, None) # [bs, 1, emb_size]
             else:
-                output, latent_states = self.rnn(last_emb, latent_states)
+                output_rnn, latent_states = self.rnn(last_emb, latent_states)
 
             fout = self.fout(torch.cat((repeated_time_gap_seq[:, i:i+1], 
                                         sequence_time_gap_seq[:, i:i+1], 
                                         past_trial_counts_seq[:, i:i+1]), dim=-1)) # [bs, 1, emb_size]
+            embs.append(output_rnn)
             
             output = torch.cat((
-                output.mul(fout), repeated_time_gap_seq[:, i+1:i+2],
+                output_rnn.mul(fout), repeated_time_gap_seq[:, i+1:i+2],
                 sequence_time_gap_seq[:, i+1:i+2], past_trial_counts_seq[:, i+1:i+2]
             ), dim=-1) # [bs, time-1, emb_size+3]
         
@@ -480,7 +483,9 @@ class DKTForgetting(BaseModel):
 
         out_dict = {
             'prediction': prediction, 
-            'label': label
+            'label': label,
+            'emb': torch.cat(embs, 1),
+            
         }
 
         return out_dict

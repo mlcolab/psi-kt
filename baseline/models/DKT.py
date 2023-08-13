@@ -255,7 +255,7 @@ class DKT(BaseModel):
         if items.is_cuda: 
             lengths = lengths.cpu().int()
 
-        predictions = []
+        predictions, hiddens = [], []
         last_emb = self.skill_embeddings(items[:, train_step-1:train_step] + labels[:, train_step-1:train_step] * self.skill_num) # [bs, 1, emb_size]
         for i in range(test_step):
             if i == 0:
@@ -269,13 +269,21 @@ class DKT(BaseModel):
             prediction = prediction_sorted[indices]
             last_emb = self.skill_embeddings(test_item[:, i:i+1] + (prediction>=0.5)*1 * self.skill_num) # [bs, 1, emb_size]
             predictions.append(prediction)
+            hiddens.append(rnn_input)
 
         # Label
         label = labels[:, train_step:] if all_step > 1 else labels
         label = label[indices].double()
         prediction = torch.cat(predictions, -1)
+        hiddens = torch.cat(hiddens, 1)
 
-        out_dict = {'prediction': prediction, 'label': label}
+        out_dict = {
+            'prediction': prediction, 
+            'label': label, 
+            'emb': hiddens, 
+            'item': items,
+            'time': feed_dict['time_seq'],
+        } # TODO
         
         return out_dict
     
@@ -363,6 +371,7 @@ class DKT(BaseModel):
         user_ids = data['user_id'][batch_start: batch_start + real_batch_size].values
         user_seqs = data['skill_seq'][batch_start: batch_start + real_batch_size].values
         label_seqs = data['correct_seq'][batch_start: batch_start + real_batch_size].values
+        time_seqs = data['time_seq'][batch_start: batch_start + real_batch_size].values
 
         # Compute the lengths, indice, and inverse_indice arrays for sorting the batch by length
         lengths = np.array(list(map(lambda lst: len(lst), user_seqs)))
@@ -379,6 +388,7 @@ class DKT(BaseModel):
             'user_id': torch.from_numpy(user_ids[indice]).to(device),
             'skill_seq': torch.from_numpy(utils.pad_lst(user_seqs[indice])).to(device),    # [batch_size, num of items to predict]
             'label_seq': torch.from_numpy(utils.pad_lst(label_seqs[indice])).to(device),   # [batch_size, num of items to predict]
+            'time_seq': torch.from_numpy(utils.pad_lst(time_seqs[indice])).to(device),     # [batch_size, num of items to predict]
             'length': torch.from_numpy(lengths[indice]).to(device),                        # [batch_size]
             'inverse_indice': torch.from_numpy(inverse_indice).to(device),
             'indice': torch.from_numpy(indice).to(device),

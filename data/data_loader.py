@@ -187,7 +187,14 @@ class DataReader(object):
             self.data_df[key]['user_id'] = self.user_seq_df['user_id']
 
         
-    def gen_time_split_data_improve(self, train_time_ratio, test_time_ratio, val_time_ratio):
+    def gen_time_split_data_improve(
+        self, 
+        train_time_ratio, 
+        test_time_ratio, 
+        val_time_ratio,
+        random_seed=2022,
+        overfit=0,
+        ):
         '''
         '''
         self.data_df = {
@@ -199,14 +206,15 @@ class DataReader(object):
         
         n_learners = len(self.user_seq_df)
         
-        if self.overfit:
-            assert self.overfit*(1+val_time_ratio) <= n_learners
-            n_val_learners = int(self.overfit * val_time_ratio)
+        if overfit:
+            assert overfit*(1+val_time_ratio) <= n_learners
+            n_val_learners = int(overfit * val_time_ratio)
             train_val_user_list = self.user_seq_df.sample(
-                n=n_val_learners + self.overfit, random_state=self.args.random_seed)
+                n=n_val_learners + overfit, random_state=random_seed)
             val_user_list = train_val_user_list.sample(
-                n=n_val_learners, random_state=self.args.random_seed)
+                n=n_val_learners, random_state=random_seed)
             test_user_list = train_val_user_list.loc[~train_val_user_list.index.isin(val_user_list.index)]
+
         else:
             train_val_user_list = self.user_seq_df
             val_user_list = self.user_seq_df.sample(
@@ -247,7 +255,7 @@ class DataReader(object):
         self.logs.write_to_log_file(self.user_seq_df.iloc[np.random.randint(0, len(self.user_seq_df))])
 
 
-    def load_corpus(self, train_time_ratio, test_time_ratio, val_time_ratio):
+    def load_corpus(self, args):
         '''
         Load corpus from the corpus path, and split the data into k folds. 
 
@@ -271,7 +279,13 @@ class DataReader(object):
 
         elif 'split_time' in self.train_mode:
             # corpus.gen_time_split_data(args.train_time_ratio, args.test_time_ratio, args.val_time_ratio*args.validate)
-            corpus.gen_time_split_data_improve(train_time_ratio, test_time_ratio, val_time_ratio)
+            corpus.gen_time_split_data_improve(
+                args.train_time_ratio, 
+                args.test_time_ratio, 
+                args.val_time_ratio,
+                args.random_seed,
+                args.overfit,
+            )
             self.logs.write_to_log_file('# Training mode splits TIME')
             
         self.logs.write_to_log_file('# Train: {}, # val: {}, # Test: {}'.format(

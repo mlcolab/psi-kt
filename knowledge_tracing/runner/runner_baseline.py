@@ -11,10 +11,9 @@ import torch
 import torch.optim as optim
 from torch.optim import lr_scheduler
 
-from utils import logger
-from utils import utils
-from data.data_loader import DataReader
-from KTRunner import KTRunner
+from knowledge_tracing.utils import utils, logger
+from knowledge_tracing.data.data_loader import DataReader
+from knowledge_tracing.runner.KTRunner import KTRunner
         
 OPTIMIZER_MAP = {
     'gd': optim.SGD,
@@ -366,7 +365,5 @@ class BaselineKTRunner(KTRunner):
         concat_pred = np.concatenate(concat_pred)
         concat_label = np.concatenate(concat_label)
 
-        import ipdb
-        ipdb.set_trace()
         # Evaluate the predictions and labels using the pred_evaluate_method of the model.
         return model.module.pred_evaluate_method(concat_pred, concat_label, self.metrics)

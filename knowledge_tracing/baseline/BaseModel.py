@@ -1,17 +1,18 @@
 # @Date: 2023/07/25
 
-import torch
+import os
+import time
+import numpy as np
 from tqdm import tqdm
 from sklearn.metrics import *
-import numpy as np
-import torch.nn.functional as F
-import os
-import ipdb
-from utils.utils import get_feed_general
-from utils.utils import *
-import time
 
 from typing import List, Tuple, Dict
+
+import torch
+import torch.nn.functional as F
+
+
+from knowledge_tracing.utils import utils 
 
 ##########################################################################################
 # Base Model for all KT
@@ -191,7 +192,7 @@ class BaseModel(torch.nn.Module):
             'user_id': 'user_id'
             }
         
-        feed_dict = get_feed_general(
+        feed_dict = utils.get_feed_general(
             keys=feed_dict_keys, 
             data=data, 
             start=batch_start, 

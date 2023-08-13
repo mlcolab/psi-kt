@@ -269,6 +269,7 @@ class DataReader(object):
         
         # Load the corpus object from the pickle file at the specified path.
         self.logs.write_to_log_file(f"Load corpus from {self.corpus_path}")
+
         with open(self.corpus_path, 'rb') as f:
             corpus = pickle.load(f)
         

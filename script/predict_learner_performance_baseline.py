@@ -11,12 +11,12 @@ import datetime
 
 import torch
 
-from data import data_loader
-from KTRunner_baseline import BaselineKTRunner
-from VCLRunner_baseline import BaselineVCLRunner
+from knowledge_tracing.data import data_loader
+from knowledge_tracing.runner import runner_baseline
+# from VCLRunner_baseline import BaselineVCLRunner
 # from FTRunner_baseline import FTRunner
-from utils import utils, arg_parser, logger
-from models import DKT, DKTForgetting, HKT, AKT, HLR, PPE
+from knowledge_tracing.utils import utils, arg_parser, logger
+from knowledge_tracing.baseline import DKT# , DKTForgetting, HKT, AKT, HLR, PPE
 
 # TODO: this is duplicate with the one in exp
 
@@ -67,7 +67,7 @@ if __name__ == '__main__':
         data.create_corpus()
         data.show_columns() 
     corpus = data.load_corpus(global_args) 
-    
+
     # ----- logger information -----
     log_args = [global_args.model_name, global_args.dataset, str(global_args.random_seed)]
     logs.write_to_log_file('-' * 45 + ' BEGIN: ' + utils.get_time() + ' ' + '-' * 45)
@@ -110,7 +110,7 @@ if __name__ == '__main__':
     elif global_args.finetune:
         runner = FTRunner(global_args, logs)
     else:
-        runner = BaselineKTRunner(global_args, logs)
+        runner = runner_baseline.BaselineKTRunner(global_args, logs)
 
 runner.train(model, corpus)
 model.module.actions_after_train()

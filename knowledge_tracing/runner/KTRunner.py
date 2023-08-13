@@ -10,9 +10,8 @@ import torch
 import torch.optim as optim
 from torch.optim import lr_scheduler
 
-from utils import utils
-from utils import logger
-from data.data_loader import DataReader
+from knowledge_tracing.utils import utils, logger
+from knowledge_tracing.data.data_loader import DataReader
         
 OPTIMIZER_MAP = {
     'gd': optim.SGD,

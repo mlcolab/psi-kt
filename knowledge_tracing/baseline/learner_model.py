@@ -23,13 +23,10 @@ from enum import Enum
 
 T_SCALE = 60 # 60 * 60 * 24
 
-
-    
-    
-        
         
 ##########################################################################################
 # OU Process
+# This is not used in current experiments. Only for simulation purpose.
 ##########################################################################################
 
 class VanillaOU(BaseLearnerModel):

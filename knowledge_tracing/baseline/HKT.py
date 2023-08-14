@@ -15,10 +15,9 @@ import torch.nn.functional as F
 
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
-from baseline.BaseModel import BaseModel
-from utils import utils
-from utils import logger
-from data.data_loader import DataReader
+from knowledge_tracing.baseline.BaseModel import BaseModel
+from knowledge_tracing.utils import utils, logger
+from knowledge_tracing.data.data_loader import DataReader
 
 
 class HKT(BaseModel):

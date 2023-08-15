@@ -1,7 +1,8 @@
 # @Date: 2023/07/29
 
 import sys
-sys.path.append('..')
+
+sys.path.append("..")
 
 import os
 import numpy as np
@@ -21,21 +22,23 @@ from knowledge_tracing.data.data_loader import DataReader
 
 
 class AKT(BaseModel):
-    extra_log_args = ['num_layer', 'num_head']
+    extra_log_args = ["num_layer", "num_head"]
 
     @staticmethod
-    def parse_model_args(parser, model_name='AKT'):
-        parser.add_argument('--emb_size', type=int, default=16,
-                            help='Size of embedding vectors.')
-        parser.add_argument('--num_layer', type=int, default=1,
-                            help='Self-attention layers.')
-        parser.add_argument('--num_head', type=int, default=4,
-                            help='Self-attention heads.')
+    def parse_model_args(parser, model_name="AKT"):
+        parser.add_argument(
+            "--emb_size", type=int, default=16, help="Size of embedding vectors."
+        )
+        parser.add_argument(
+            "--num_layer", type=int, default=1, help="Self-attention layers."
+        )
+        parser.add_argument(
+            "--num_head", type=int, default=4, help="Self-attention heads."
+        )
         return BaseModel.parse_model_args(parser, model_name)
 
-
     def __init__(
-        self, 
+        self,
         args: argparse.Namespace,
         corpus: DataReader,
         logs: logger.Logger,
@@ -48,7 +51,7 @@ class AKT(BaseModel):
             corpus (DataReader): An instance of the DataReader class containing corpus data.
             logs (Logger): An instance of the Logger class for logging purposes.
         """
-        
+
         self.skill_num = int(corpus.n_skills)
         self.question_num = int(corpus.n_problems)
         self.emb_size = args.emb_size
@@ -61,8 +64,7 @@ class AKT(BaseModel):
         # Store the arguments and logs for later use
         self.args = args
         self.logs = logs
-        super().__init__(model_path=os.path.join(args.log_path, 'Model/Model_{}_{}.pt'))
-
+        super().__init__(model_path=os.path.join(args.log_path, "Model/Model_{}_{}.pt"))
 
     def _init_weights(
         self,
@@ -76,29 +78,50 @@ class AKT(BaseModel):
         self.difficult_param = nn.Embedding(self.question_num, 1)
         self.skill_diff = nn.Embedding(self.skill_num, self.emb_size)
         self.inter_diff = nn.Embedding(self.skill_num * 2, self.emb_size)
-        
-        self.blocks_1 = nn.ModuleList([
-            TransformerLayer(d_model=self.emb_size, d_feature=self.emb_size // self.num_head, d_ff=self.emb_size,
-                             dropout=self.dropout, n_heads=self.num_head, kq_same=False, gpu=self.args.gpu)
-            for _ in range(self.args.num_layer)
-        ])
-        self.blocks_2 = nn.ModuleList([
-            TransformerLayer(d_model=self.emb_size, d_feature=self.emb_size // self.num_head, d_ff=self.emb_size,
-                             dropout=self.dropout, n_heads=self.num_head, kq_same=False, gpu=self.args.gpu)
-            for _ in range(self.args.num_layer * 2)
-        ])
 
-        self.out = nn.Sequential(
-            nn.Linear(self.emb_size * 2, 64), nn.ReLU(), nn.Dropout(self.dropout),
-            nn.Linear(64, 32), nn.ReLU(), nn.Dropout(self.dropout),
-            nn.Linear(32, 1)
+        self.blocks_1 = nn.ModuleList(
+            [
+                TransformerLayer(
+                    d_model=self.emb_size,
+                    d_feature=self.emb_size // self.num_head,
+                    d_ff=self.emb_size,
+                    dropout=self.dropout,
+                    n_heads=self.num_head,
+                    kq_same=False,
+                    gpu=self.args.gpu,
+                )
+                for _ in range(self.args.num_layer)
+            ]
+        )
+        self.blocks_2 = nn.ModuleList(
+            [
+                TransformerLayer(
+                    d_model=self.emb_size,
+                    d_feature=self.emb_size // self.num_head,
+                    d_ff=self.emb_size,
+                    dropout=self.dropout,
+                    n_heads=self.num_head,
+                    kq_same=False,
+                    gpu=self.args.gpu,
+                )
+                for _ in range(self.args.num_layer * 2)
+            ]
         )
 
-        self.loss_function = nn.BCELoss(reduction='sum')
-        
+        self.out = nn.Sequential(
+            nn.Linear(self.emb_size * 2, 64),
+            nn.ReLU(),
+            nn.Dropout(self.dropout),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Dropout(self.dropout),
+            nn.Linear(32, 1),
+        )
+
+        self.loss_function = nn.BCELoss(reduction="sum")
 
     def forward_cl(
-        self, 
+        self,
         feed_dict: Dict[str, torch.Tensor],
         idx: int = None,
     ) -> Dict[str, torch.Tensor]:
@@ -112,21 +135,20 @@ class AKT(BaseModel):
         Returns:
             A dictionary containing the output tensors for the classification task.
         """
-        
+
         # Extract input tensors from feed_dict
         cur_feed_dict = {
-            'skill_seq': feed_dict['skill_seq'][:, :idx+1],
-            'label_seq': feed_dict['label_seq'][:, :idx+1],
-            'quest_seq': feed_dict['quest_seq'][:, :idx+1],
+            "skill_seq": feed_dict["skill_seq"][:, : idx + 1],
+            "label_seq": feed_dict["label_seq"][:, : idx + 1],
+            "quest_seq": feed_dict["quest_seq"][:, : idx + 1],
         }
-        
+
         out_dict = self.forward(cur_feed_dict)
-        
+
         return out_dict
-    
-    
+
     def forward(
-        self, 
+        self,
         feed_dict: Dict[str, torch.Tensor],
     ) -> Dict[str, torch.Tensor]:
         """
@@ -144,10 +166,10 @@ class AKT(BaseModel):
                 - 'label' (torch.Tensor): Ground truth labels of shape [batch_size, time_step-1].
                 - 'emb' (torch.Tensor): Encoded skill representations of shape [batch_size, emb_size].
         """
-        
-        skills = feed_dict['skill_seq']
-        questions = feed_dict['quest_seq']
-        labels = feed_dict['label_seq']
+
+        skills = feed_dict["skill_seq"]
+        questions = feed_dict["quest_seq"]
+        labels = feed_dict["label_seq"]
         time_step = labels.shape[-1]
 
         mask_labels = labels * (labels > -1).long()
@@ -181,16 +203,15 @@ class AKT(BaseModel):
         label = labels[:, 1:] if time_step > 1 else labels
 
         out_dict = {
-            'prediction': prediction,
-            'label': label.float(),
-            'emb': x,
+            "prediction": prediction,
+            "label": label.float(),
+            "emb": x,
         }
 
         return out_dict
 
-
     def predictive_model(
-        self, 
+        self,
         feed_dict: Dict[str, torch.Tensor],
     ) -> Dict[str, torch.Tensor]:
         """
@@ -206,36 +227,52 @@ class AKT(BaseModel):
             Dict[str, torch.Tensor]: A dictionary containing the model's output tensors.
                 - 'predictions' (List[torch.Tensor]): List of predicted probabilities for each time step.
         """
-        
-        skills = feed_dict['skill_seq']        # [batch_size, real_max_step]
-        questions = feed_dict['quest_seq']     # [batch_size, real_max_step]
-        labels = feed_dict['label_seq']        # [batch_size, real_max_step]
+
+        skills = feed_dict["skill_seq"]  # [batch_size, real_max_step]
+        questions = feed_dict["quest_seq"]  # [batch_size, real_max_step]
+        labels = feed_dict["label_seq"]  # [batch_size, real_max_step]
 
         all_step = skills.shape[-1]
         train_step = int(self.args.max_step * self.args.train_time_ratio)
         test_time = int(self.args.max_step * self.args.test_time_ratio)
-        
+
         predictions = []
-        
+
         for i in range(0, test_time):
             if i == 0:
-                inters = skills[:, train_step-1:train_step+1] + labels[:, train_step-1:train_step+1] * self.skill_num
+                inters = (
+                    skills[:, train_step - 1 : train_step + 1]
+                    + labels[:, train_step - 1 : train_step + 1] * self.skill_num
+                )
 
             else:
-                pred_labels = torch.cat([
-                    labels[:, train_step-1:train_step], (torch.cat(predictions,-1)>=0.5)*1, 
-                    labels[:, train_step+i:train_step+i+1]
-                    ], dim=-1)
-                
-                inters = skills[:, train_step-1:train_step+i+1] + pred_labels * self.skill_num
+                pred_labels = torch.cat(
+                    [
+                        labels[:, train_step - 1 : train_step],
+                        (torch.cat(predictions, -1) >= 0.5) * 1,
+                        labels[:, train_step + i : train_step + i + 1],
+                    ],
+                    dim=-1,
+                )
 
-            skill_data = self.skill_embeddings(skills[:, train_step-1:train_step+i+1])
+                inters = (
+                    skills[:, train_step - 1 : train_step + i + 1]
+                    + pred_labels * self.skill_num
+                )
+
+            skill_data = self.skill_embeddings(
+                skills[:, train_step - 1 : train_step + i + 1]
+            )
             inter_data = self.inter_embeddings(inters)
 
-            skill_diff_data = self.skill_diff(skills[:, train_step-1:train_step+i+1])
+            skill_diff_data = self.skill_diff(
+                skills[:, train_step - 1 : train_step + i + 1]
+            )
             inter_diff_data = self.inter_diff(inters)
 
-            q_diff = self.difficult_param(questions[:, train_step-1:train_step+i+1])
+            q_diff = self.difficult_param(
+                questions[:, train_step - 1 : train_step + i + 1]
+            )
             skill_data = skill_data + q_diff * skill_diff_data
             inter_data = inter_data + q_diff * inter_diff_data
 
@@ -258,29 +295,27 @@ class AKT(BaseModel):
 
         prediction = torch.cat(predictions, dim=-1)
         out_dict = {
-            'prediction': prediction, 
-            'label': labels[:, train_step:].float() if all_step > 1 else labels.float(),
-            'emb': x,
+            "prediction": prediction,
+            "label": labels[:, train_step:].float() if all_step > 1 else labels.float(),
+            "emb": x,
         }
-        
+
         return out_dict
 
-
     def loss(
-        self, 
-        feed_dict: Dict[str, torch.Tensor], 
-        out_dict: Dict[str, torch.Tensor], 
-        metrics: Optional[List[str]] = None
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        out_dict: Dict[str, torch.Tensor],
+        metrics: Optional[List[str]] = None,
     ) -> Dict[str, torch.Tensor]:
-        
         losses = defaultdict(lambda: torch.zeros((), device=self.device))
-        
-        predictions = out_dict['prediction'].flatten()
-        labels = out_dict['label'].flatten()
+
+        predictions = out_dict["prediction"].flatten()
+        labels = out_dict["label"].flatten()
         mask = labels > -1
         loss = self.loss_function(predictions[mask], labels[mask])
-        losses['loss_total'] = loss
-        
+        losses["loss_total"] = loss
+
         # Compute the evaluation metrics for the main prediction task
         if metrics is not None:
             pred = predictions.detach().cpu().data.numpy()
@@ -288,12 +323,11 @@ class AKT(BaseModel):
             evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
             for key in evaluations.keys():
                 losses[key] = evaluations[key]
-        
+
         return losses
 
-
     def get_feed_dict(
-        self, 
+        self,
         corpus: DataReader,
         data: pd.DataFrame,
         batch_start: int,
@@ -316,24 +350,36 @@ class AKT(BaseModel):
                 - 'quest_seq' (torch.Tensor): Padded question sequence tensor of shape [batch_size, real_max_step].
                 - 'label_seq' (torch.Tensor): Padded label sequence tensor of shape [batch_size, real_max_step].
         """
-        
+
         batch_end = min(len(data), batch_start + batch_size)
         real_batch_size = batch_end - batch_start
-        skill_seqs = data['skill_seq'][batch_start: batch_start + real_batch_size].values
-        quest_seqs = data['problem_seq'][batch_start: batch_start + real_batch_size].values
-        label_seqs = data['correct_seq'][batch_start: batch_start + real_batch_size].values
+        skill_seqs = data["skill_seq"][
+            batch_start : batch_start + real_batch_size
+        ].values
+        quest_seqs = data["problem_seq"][
+            batch_start : batch_start + real_batch_size
+        ].values
+        label_seqs = data["correct_seq"][
+            batch_start : batch_start + real_batch_size
+        ].values
 
         feed_dict = {
-            'skill_seq': torch.from_numpy(utils.pad_lst(skill_seqs)),            # [batch_size, real_max_step]
-            'quest_seq': torch.from_numpy(utils.pad_lst(quest_seqs)),            # [batch_size, real_max_step]
-            'label_seq': torch.from_numpy(utils.pad_lst(label_seqs, value=-1)),  # [batch_size, real_max_step]
+            "skill_seq": torch.from_numpy(
+                utils.pad_lst(skill_seqs)
+            ),  # [batch_size, real_max_step]
+            "quest_seq": torch.from_numpy(
+                utils.pad_lst(quest_seqs)
+            ),  # [batch_size, real_max_step]
+            "label_seq": torch.from_numpy(
+                utils.pad_lst(label_seqs, value=-1)
+            ),  # [batch_size, real_max_step]
         }
-        
+
         return feed_dict
 
 
 class TransformerLayer(nn.Module):
-    def __init__(self, d_model, d_feature, d_ff, n_heads, dropout, kq_same, gpu=''):
+    def __init__(self, d_model, d_feature, d_ff, n_heads, dropout, kq_same, gpu=""):
         super().__init__()
         """
             This is a Basic Block of Transformer paper. It containts one Multi-head attention object. 
@@ -342,7 +388,8 @@ class TransformerLayer(nn.Module):
         self.gpu = gpu
         # Multi-Head Attention Block
         self.masked_attn_head = MultiHeadAttention(
-            d_model, d_feature, n_heads, dropout, kq_same=kq_same, gpu=gpu)
+            d_model, d_feature, n_heads, dropout, kq_same=kq_same, gpu=gpu
+        )
 
         # Two layer norm layer and two droput layer
         self.layer_norm1 = nn.LayerNorm(d_model)
@@ -358,31 +405,33 @@ class TransformerLayer(nn.Module):
 
     def forward(self, mask, query, key, values, apply_pos=True):
         seqlen, batch_size = query.size(1), query.size(0)
-        nopeek_mask = np.triu(
-            np.ones((1, 1, seqlen, seqlen)), k=mask).astype('uint8')
-        src_mask = (torch.from_numpy(nopeek_mask) == 0)
-        src_mask = src_mask.cuda() if self.gpu != '' else src_mask
+        nopeek_mask = np.triu(np.ones((1, 1, seqlen, seqlen)), k=mask).astype("uint8")
+        src_mask = torch.from_numpy(nopeek_mask) == 0
+        src_mask = src_mask.cuda() if self.gpu != "" else src_mask
         if mask == 0:  # If 0, zero-padding is needed.
             # Calls block.masked_attn_head.forward() method
             query2 = self.masked_attn_head(
-                query, key, values, mask=src_mask, zero_pad=True)
+                query, key, values, mask=src_mask, zero_pad=True
+            )
         else:
             # Calls block.masked_attn_head.forward() method
             query2 = self.masked_attn_head(
-                query, key, values, mask=src_mask, zero_pad=False)
+                query, key, values, mask=src_mask, zero_pad=False
+            )
 
         query = query + self.dropout1(query2)
         query = self.layer_norm1(query)
         if apply_pos:
-            query2 = self.linear2(self.dropout(
-                self.activation(self.linear1(query))))
+            query2 = self.linear2(self.dropout(self.activation(self.linear1(query))))
             query = query + self.dropout2(query2)
             query = self.layer_norm2(query)
         return query
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, d_feature, n_heads, dropout, kq_same, bias=True, gpu=''):
+    def __init__(
+        self, d_model, d_feature, n_heads, dropout, kq_same, bias=True, gpu=""
+    ):
         super().__init__()
         """
         It has projection layer for getting keys, queries and values. Followed by attention and a connected layer.
@@ -419,7 +468,9 @@ class MultiHeadAttention(nn.Module):
         q = q.transpose(1, 2)
         v = v.transpose(1, 2)
         # calculate attention using function we will define next
-        scores = self.attention(q, k, v, self.d_k, mask, self.dropout, zero_pad, self.gammas)
+        scores = self.attention(
+            q, k, v, self.d_k, mask, self.dropout, zero_pad, self.gammas
+        )
 
         # concatenate heads and put through final linear layer
         concat = scores.transpose(1, 2).reshape(bs, -1, self.d_model)
@@ -431,40 +482,46 @@ class MultiHeadAttention(nn.Module):
         """
         This is called by Multi-head attention object to find the values.
         """
-        scores = torch.matmul(q, k.transpose(-2, -1)) / d_k ** 0.5  # BS, head, seqlen, seqlen
+        scores = (
+            torch.matmul(q, k.transpose(-2, -1)) / d_k**0.5
+        )  # BS, head, seqlen, seqlen
         bs, head, seqlen = scores.size(0), scores.size(1), scores.size(2)
 
         x1 = torch.arange(seqlen).expand(seqlen, -1)
-        x1 = x1.cuda() if self.gpu != '' else x1
+        x1 = x1.cuda() if self.gpu != "" else x1
         x2 = x1.transpose(0, 1).contiguous()
 
         with torch.no_grad():
             scores_ = F.softmax(scores, dim=-1)  # BS,8,seqlen,seqlen
             scores_ = scores_ * mask.float()
-            scores_ = scores_.cuda() if self.gpu != '' else scores_
+            scores_ = scores_.cuda() if self.gpu != "" else scores_
             distcum_scores = torch.cumsum(scores_, dim=-1)  # bs, 8, sl, sl
-            disttotal_scores = torch.sum(
-                scores_, dim=-1, keepdim=True)  # bs, 8, sl, 1
-            position_effect = torch.abs(
-                x1 - x2)[None, None, :, :].float()  # 1, 1, seqlen, seqlen
-            position_effect = position_effect.cuda() if self.gpu != '' else position_effect
+            disttotal_scores = torch.sum(scores_, dim=-1, keepdim=True)  # bs, 8, sl, 1
+            position_effect = torch.abs(x1 - x2)[
+                None, None, :, :
+            ].float()  # 1, 1, seqlen, seqlen
+            position_effect = (
+                position_effect.cuda() if self.gpu != "" else position_effect
+            )
             # bs, 8, sl, sl positive distance
             dist_scores = torch.clamp(
-                (disttotal_scores - distcum_scores) * position_effect, min=0.)
+                (disttotal_scores - distcum_scores) * position_effect, min=0.0
+            )
             dist_scores = dist_scores.sqrt().detach()
         m = nn.Softplus()
-        gamma = -1. * m(gamma).unsqueeze(0)  # 1,8,1,1
+        gamma = -1.0 * m(gamma).unsqueeze(0)  # 1,8,1,1
         # Now after do exp(gamma*distance) and then clamp to 1e-5 to 1e5
-        total_effect = torch.clamp(torch.clamp(
-            (dist_scores * gamma).exp(), min=1e-5), max=1e5)
+        total_effect = torch.clamp(
+            torch.clamp((dist_scores * gamma).exp(), min=1e-5), max=1e5
+        )
         scores = scores * total_effect
 
         maxim = torch.tensor(-1e20).to(scores.device)
-        scores = scores.masked_fill(mask == 0, maxim)# float('-inf'))
+        scores = scores.masked_fill(mask == 0, maxim)  # float('-inf'))
         scores = F.softmax(scores, dim=-1)  # BS, head, seqlen, seqlen
         if zero_pad:
             pad_zero = torch.zeros(bs, head, 1, seqlen).float()
-            pad_zero = pad_zero.cuda() if self.gpu != '' else pad_zero
+            pad_zero = pad_zero.cuda() if self.gpu != "" else pad_zero
             scores = torch.cat([pad_zero, scores[:, :, 1:, :]], dim=2)
         scores = dropout(scores)
 

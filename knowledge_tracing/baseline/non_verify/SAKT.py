@@ -10,16 +10,19 @@ from utils import utils
 
 
 class SAKT(BaseModel):
-    extra_log_args = ['num_layer', 'num_head']
+    extra_log_args = ["num_layer", "num_head"]
 
     @staticmethod
-    def parse_model_args(parser, model_name='SAKT'):
-        parser.add_argument('--emb_size', type=int, default=16,
-                            help='Size of embedding vectors.')
-        parser.add_argument('--num_layer', type=int, default=1,
-                            help='Self-attention layers.')
-        parser.add_argument('--num_head', type=int, default=4,
-                            help='Self-attention heads.')
+    def parse_model_args(parser, model_name="SAKT"):
+        parser.add_argument(
+            "--emb_size", type=int, default=16, help="Size of embedding vectors."
+        )
+        parser.add_argument(
+            "--num_layer", type=int, default=1, help="Self-attention layers."
+        )
+        parser.add_argument(
+            "--num_head", type=int, default=4, help="Self-attention heads."
+        )
         return BaseModel.parse_model_args(parser, model_name)
 
     def __init__(self, args, corpus):
@@ -33,19 +36,28 @@ class SAKT(BaseModel):
         self.inter_embeddings = nn.Embedding(self.skill_num * 2, self.emb_size)
         self.question_embeddings = nn.Embedding(self.question_num, self.emb_size)
 
-        self.attn_blocks = nn.ModuleList([
-            TransformerLayer(d_model=self.emb_size, d_feature=self.emb_size//self.num_head, d_ff=self.emb_size,
-                             dropout=self.dropout, n_heads=self.num_head, kq_same=False, gpu=args.gpu)
-            for _ in range(args.num_layer)
-        ])
+        self.attn_blocks = nn.ModuleList(
+            [
+                TransformerLayer(
+                    d_model=self.emb_size,
+                    d_feature=self.emb_size // self.num_head,
+                    d_ff=self.emb_size,
+                    dropout=self.dropout,
+                    n_heads=self.num_head,
+                    kq_same=False,
+                    gpu=args.gpu,
+                )
+                for _ in range(args.num_layer)
+            ]
+        )
 
         self.out = nn.Linear(self.emb_size, 1)
-        self.loss_function = nn.BCELoss(reduction='sum')
+        self.loss_function = nn.BCELoss(reduction="sum")
 
     def forward(self, feed_dict):
-        seqs = feed_dict['inter_seq']          # [batch_size, real_max_step]
-        questions = feed_dict['quest_seq']     # [batch_size, real_max_step]
-        labels = feed_dict['label_seq']        # [batch_size, real_max_step]
+        seqs = feed_dict["inter_seq"]  # [batch_size, real_max_step]
+        questions = feed_dict["quest_seq"]  # [batch_size, real_max_step]
+        labels = feed_dict["label_seq"]  # [batch_size, real_max_step]
 
         mask_labels = labels * (labels > -1).long()
         seq_data = self.inter_embeddings(seqs + mask_labels * self.skill_num)
@@ -56,12 +68,12 @@ class SAKT(BaseModel):
             y = block(mask=1, query=q_data, key=y, values=y)
         prediction = self.out(y).squeeze(-1).sigmoid()
 
-        out_dict = {'prediction': prediction[:, :-1], 'label': labels[:, 1:].double()}
+        out_dict = {"prediction": prediction[:, :-1], "label": labels[:, 1:].double()}
         return out_dict
 
     def loss(self, feed_dict, outdict):
-        prediction = outdict['prediction'].flatten()
-        label = outdict['label'].flatten()
+        prediction = outdict["prediction"].flatten()
+        label = outdict["label"].flatten()
         mask = label > -1
         loss = self.loss_function(prediction[mask], label[mask])
         return loss
@@ -69,20 +81,32 @@ class SAKT(BaseModel):
     def get_feed_dict(self, corpus, data, batch_start, batch_size, phase):
         batch_end = min(len(data), batch_start + batch_size)
         real_batch_size = batch_end - batch_start
-        inter_seqs = data['skill_seq'][batch_start: batch_start + real_batch_size].values
-        quest_seqs = data['problem_seq'][batch_start: batch_start + real_batch_size].values
-        label_seqs = data['correct_seq'][batch_start: batch_start + real_batch_size].values
+        inter_seqs = data["skill_seq"][
+            batch_start : batch_start + real_batch_size
+        ].values
+        quest_seqs = data["problem_seq"][
+            batch_start : batch_start + real_batch_size
+        ].values
+        label_seqs = data["correct_seq"][
+            batch_start : batch_start + real_batch_size
+        ].values
 
         feed_dict = {
-            'inter_seq': torch.from_numpy(utils.pad_lst(inter_seqs)),            # [batch_size, real_max_step]
-            'quest_seq': torch.from_numpy(utils.pad_lst(quest_seqs)),            # [batch_size, real_max_step]
-            'label_seq': torch.from_numpy(utils.pad_lst(label_seqs, value=-1)),  # [batch_size, real_max_step]
+            "inter_seq": torch.from_numpy(
+                utils.pad_lst(inter_seqs)
+            ),  # [batch_size, real_max_step]
+            "quest_seq": torch.from_numpy(
+                utils.pad_lst(quest_seqs)
+            ),  # [batch_size, real_max_step]
+            "label_seq": torch.from_numpy(
+                utils.pad_lst(label_seqs, value=-1)
+            ),  # [batch_size, real_max_step]
         }
         return feed_dict
 
 
 class TransformerLayer(nn.Module):
-    def __init__(self, d_model, d_feature, d_ff, n_heads, dropout, kq_same, gpu=''):
+    def __init__(self, d_model, d_feature, d_ff, n_heads, dropout, kq_same, gpu=""):
         super().__init__()
         """
             This is a Basic Block of Transformer paper. It containts one Multi-head attention object. 
@@ -91,7 +115,8 @@ class TransformerLayer(nn.Module):
         self.gpu = gpu
         # Multi-Head Attention Block
         self.masked_attn_head = MultiHeadAttention(
-            d_model, d_feature, n_heads, dropout, kq_same=kq_same, gpu=gpu)
+            d_model, d_feature, n_heads, dropout, kq_same=kq_same, gpu=gpu
+        )
 
         # Two layer norm layer and two droput layer
         self.layer_norm1 = nn.LayerNorm(d_model)
@@ -107,30 +132,32 @@ class TransformerLayer(nn.Module):
 
     def forward(self, mask, query, key, values):
         seqlen, batch_size = query.size(1), query.size(0)
-        nopeek_mask = np.triu(
-            np.ones((1, 1, seqlen, seqlen)), k=mask).astype('uint8')
-        src_mask = (torch.from_numpy(nopeek_mask) == 0)
-        src_mask = src_mask.cuda() if self.gpu != '' else src_mask
+        nopeek_mask = np.triu(np.ones((1, 1, seqlen, seqlen)), k=mask).astype("uint8")
+        src_mask = torch.from_numpy(nopeek_mask) == 0
+        src_mask = src_mask.cuda() if self.gpu != "" else src_mask
         if mask == 0:  # If 0, zero-padding is needed.
             # Calls block.masked_attn_head.forward() method
             query2 = self.masked_attn_head(
-                query, key, values, mask=src_mask, zero_pad=True)
+                query, key, values, mask=src_mask, zero_pad=True
+            )
         else:
             # Calls block.masked_attn_head.forward() method
             query2 = self.masked_attn_head(
-                query, key, values, mask=src_mask, zero_pad=False)
+                query, key, values, mask=src_mask, zero_pad=False
+            )
 
         query = query + self.dropout1((query2))
         query = self.layer_norm1(query)
-        query2 = self.linear2(self.dropout(
-            self.activation(self.linear1(query))))
+        query2 = self.linear2(self.dropout(self.activation(self.linear1(query))))
         query = query + self.dropout2((query2))
         query = self.layer_norm2(query)
         return query
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, d_feature, n_heads, dropout, kq_same, bias=True, gpu=''):
+    def __init__(
+        self, d_model, d_feature, n_heads, dropout, kq_same, bias=True, gpu=""
+    ):
         super().__init__()
         """
         It has projection layer for getting keys, queries and values. Followed by attention and a connected layer.
@@ -177,13 +204,15 @@ class MultiHeadAttention(nn.Module):
         """
         This is called by Multi-head attention object to find the values.
         """
-        scores = torch.matmul(q, k.transpose(-2, -1)) / d_k ** 0.5  # BS, head, seqlen, seqlen
+        scores = (
+            torch.matmul(q, k.transpose(-2, -1)) / d_k**0.5
+        )  # BS, head, seqlen, seqlen
         bs, head, seqlen = scores.size(0), scores.size(1), scores.size(2)
         scores.masked_fill_(mask == 0, -np.inf)
         scores = F.softmax(scores, dim=-1)  # BS,head,seqlen,seqlen
         if zero_pad:
             pad_zero = torch.zeros(bs, head, 1, seqlen).double()
-            pad_zero = pad_zero.cuda() if self.gpu != '' else pad_zero
+            pad_zero = pad_zero.cuda() if self.gpu != "" else pad_zero
             scores = torch.cat([pad_zero, scores[:, :, 1:, :]], dim=2)
         scores = dropout(scores)
         output = torch.matmul(scores, v)

@@ -29,9 +29,6 @@ if __name__ == "__main__":
     parser.add_argument("--finetune", type=int, default=0)
     parser.add_argument("--vcl_predict_step", type=int, default=10)
     parser.add_argument("--start_epoch", type=int, default=0)
-    parser.add_argument("--multi_node", type=int, default=1)
-
-    parser.add_argument("--id", type=int, default=0)
 
     # Define an argument parser for the model name.
     init_parser = argparse.ArgumentParser(description="Model")

@@ -9,14 +9,15 @@ import pickle
 import argparse
 import numpy as np
 import datetime
+import copy
+import tqdm
+import ipdb
 
 import torch
 
 from knowledge_tracing.data import data_loader
 from knowledge_tracing.runner import runner_baseline
 
-# from VCLRunner_baseline import BaselineVCLRunner
-# from FTRunner_baseline import FTRunner
 from knowledge_tracing.utils import utils, arg_parser, logger
 from knowledge_tracing.baseline import DKT, DKTForgetting, HKT, AKT, HLR, PPE
 
@@ -32,14 +33,9 @@ if __name__ == "__main__":
     )
     init_args, init_extras = init_parser.parse_known_args()
 
-    # Get the model name from the command-line arguments.
-    # Evaluate the model name string as a Python expression to get the corresponding model class.
     model_name = init_args.model_name
     model = eval("{0}.{0}".format(model_name))
 
-    # ----- args -----
-    # reference:
-    # # https://docs.python.org/3/library/argparse.html?highlight=parse_known_args#argparse.ArgumentParser.parse_known_args
     parser = arg_parser.parse_args(parser)
     parser = model.parse_model_args(parser)
     global_args, extras = parser.parse_known_args()
@@ -62,9 +58,6 @@ if __name__ == "__main__":
         "Corpus_{}.pkl".format(global_args.max_step),
     )
     data = data_loader.DataReader(global_args, logs)
-    if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
-        data.create_corpus()
-        data.show_columns()
     corpus = data.load_corpus(global_args)
 
     # ----- logger information -----
@@ -87,19 +80,9 @@ if __name__ == "__main__":
         global_args.batch_size_multiGPU = global_args.batch_size
     logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
 
-    # ----- Model initialization -----
-    if "ls_" or "ln_" in global_args.train_mode:
-        num_seq = corpus.n_users
-    else:
-        num_seq = 1
-
+    runner = runner_baseline.BaselineKTRunner(global_args, logs)
     model = model(global_args, corpus, logs)
-
-    if global_args.load > 0:
-        model.load_state_dict(torch.load(global_args.load_folder), strict=False)
-    logs.write_to_log_file(model)
-    model.actions_before_train()
-
+    model.eval()
     # Move to current device
     if torch.cuda.is_available():
         if global_args.distributed:
@@ -109,55 +92,44 @@ if __name__ == "__main__":
         else:
             model = model.to(global_args.device)
 
-    # Running
-    # TODO: modify the runner
-    if global_args.vcl:
-        runner = VCLRunner(global_args, logs)
-    elif global_args.finetune:
-        runner = FTRunner(global_args, logs)
-    else:
-        runner = runner_baseline.BaselineKTRunner(global_args, logs)
+    # Folder containing the model parameter files
+    folder = "/mnt/qb/work/mlcolab/hzhou52/0729_new_exp2_logs/DKTForgetting/junyi15/multi_skill/2023-08-15T23:44:11.193583_mi_exp_overfit_1000"
+    model_folder = os.path.join(folder, "Model")
 
-runner.train(model, corpus)
-model.module.actions_after_train()
-logs.write_to_log_file(
-    os.linesep + "-" * 45 + " END: " + utils.get_time() + " " + "-" * 45
-)
+    for epoch_file in os.listdir(model_folder):
+        if epoch_file.endswith(".pt"):
+            # Load model parameters
+            model_path = os.path.join(model_folder, epoch_file)
+            checkpoint = torch.load(model_path)
+            model.load_state_dict(
+                checkpoint, strict=False
+            )  # Assuming 'model_state_dict' is the key used during saving
 
+            # Perform inference on your input data
+            with torch.no_grad():
+                outputs = []
+                epoch_train_data = copy.deepcopy(
+                    corpus.data_df["train"][: global_args.overfit]
+                )
+                # Return a random sample of items from an axis of object.
+                epoch_train_data = epoch_train_data.sample(frac=1).reset_index(
+                    drop=True
+                )
+                train_batches = model.module.prepare_batches(
+                    corpus, epoch_train_data, global_args.batch_size, phase="train"
+                )
 
-# Folder containing the model parameter files
-model_folder = "path/to/your/model/folder"
+                for (
+                    batch
+                ) in (
+                    train_batches
+                ):  # tqdm(train_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
+                    batch = model.module.batch_to_gpu(batch, global_args.device)
+                    out_dict = model.module.forward(batch)
+                    outputs.append(out_dict)
 
-# Create an instance of your model
-model = YourModel()
-model.eval()  # Set the model to evaluation mode
-
-# Assuming you have a list of input data (replace this with your actual data loading code)
-input_data = [...]  # Your input data goes here
-
-# Define a data transformation if needed
-transform = ToTensor()  # Example transformation, replace with your own
-
-# Iterate through the model parameter files
-for epoch_file in os.listdir(model_folder):
-    if epoch_file.endswith(".pth"):
-        # Load model parameters
-        model_path = os.path.join(model_folder, epoch_file)
-        checkpoint = torch.load(model_path)
-        model.load_state_dict(
-            checkpoint["model_state_dict"]
-        )  # Assuming 'model_state_dict' is the key used during saving
-
-        # Perform inference on your input data
-        with torch.no_grad():
-            # Process your input data if needed
-            processed_data = [transform(sample) for sample in input_data]
-
-            # Run inference
-            predictions = model(processed_data)
-
-            # Save the predictions or outcomes to a file (or process them as needed)
-            save_path = f"predictions_{epoch_file[:-4]}.pt"  # Create a unique name for each prediction file
-            torch.save(predictions, save_path)
-
-print("Inference and saving completed for all models.")
+                save_path = f"predictions_{epoch_file[:-3]}.obj"
+                save_path = os.path.join(folder, "Obj", save_path)
+                filehandler = open(save_path, "wb")
+                pickle.dump(outputs, filehandler)
+                filehandler.close()

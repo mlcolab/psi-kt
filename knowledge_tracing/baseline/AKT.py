@@ -206,7 +206,7 @@ class AKT(BaseModel):
             "prediction": prediction,
             "label": label.float(),
             "emb": x,
-            'user': feed_dict['user_seq'],
+            "user": feed_dict["user_seq"],
         }
 
         return out_dict
@@ -363,9 +363,7 @@ class AKT(BaseModel):
         label_seqs = data["correct_seq"][
             batch_start : batch_start + real_batch_size
         ].values
-        user_seqs = data["user_id"][
-            batch_start : batch_start + real_batch_size
-        ].values
+        user_seqs = data["user_id"][batch_start : batch_start + real_batch_size].values
 
         feed_dict = {
             "skill_seq": torch.from_numpy(
@@ -377,9 +375,7 @@ class AKT(BaseModel):
             "label_seq": torch.from_numpy(
                 utils.pad_lst(label_seqs, value=-1)
             ),  # [batch_size, real_max_step]
-            "user_seq": torch.from_numpy(
-                user_seqs
-            ),  # [batch_size, real_max_step]
+            "user_seq": torch.from_numpy(user_seqs),  # [batch_size, real_max_step]
         }
 
         return feed_dict

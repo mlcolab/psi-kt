@@ -18,7 +18,7 @@ import ipdb
 from models.HSSM import HSSM
         
 import ipdb
-from KTRunner import KTRunner
+from knowledge_tracing.knowledge_tracing.runner.ktrunner import KTRunner
 
 OPTIMIZER_MAP = {
     'gd': optim.SGD,

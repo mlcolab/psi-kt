@@ -14,7 +14,7 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 
 from utils import utils
-from KTRunner import KTRunner
+from knowledge_tracing.knowledge_tracing.runner.ktrunner import KTRunner
 from data.data_loader import DataReader
 from models.HSSM import * # HSSM, AmortizedHSSM
 

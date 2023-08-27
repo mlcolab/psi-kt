@@ -16,7 +16,7 @@ from utils import utils
 import ipdb
         
 import ipdb
-from KTRunner import KTRunner
+from knowledge_tracing.knowledge_tracing.runner.ktrunner import KTRunner
 
 OPTIMIZER_MAP = {
     'gd': optim.SGD,

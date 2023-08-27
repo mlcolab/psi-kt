@@ -211,9 +211,9 @@ class DataReader(object):
             n_val_learners = int(overfit * val_time_ratio)
             train_val_user_list = self.user_seq_df.sample(
                 n=n_val_learners + overfit, random_state=random_seed)
-            val_user_list = train_val_user_list.sample(
-                n=n_val_learners, random_state=random_seed)
-            test_user_list = train_val_user_list.loc[~train_val_user_list.index.isin(val_user_list.index)]
+            val_user_list = train_val_user_list # train_val_user_list.sample(
+                # n=n_val_learners, random_state=random_seed)
+            test_user_list = train_val_user_list# train_val_user_list.loc[~train_val_user_list.index.isin(val_user_list.index)]
 
         else:
             train_val_user_list = self.user_seq_df

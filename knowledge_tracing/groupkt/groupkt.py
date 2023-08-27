@@ -13,7 +13,7 @@ from torch.nn import functional as F
 
 from models.modules import build_rnn_cell, build_dense_network
 from models.modules import CausalTransformerModel, VAEEncoder
-from models.hssm_graph_representation import VarTransformation, VarAttention
+from models.groupkt_graph_representation import VarTransformation, VarAttention
 from models.gmvae import *
 from utils.logger import Logger
 
@@ -23,7 +23,7 @@ EPS = 1e-6
 T_SCALE = 60
 
 
-class HSSM(BaseModel):
+class GroupKT(BaseModel):
     
     def __init__(
         self,
@@ -265,7 +265,7 @@ class HSSM(BaseModel):
         return losses
 
 
-class AmortizedHSSM(HSSM):
+class AmortizedGroupKT(GroupKT):
     def __init__(
         self,
         mode: str = 'ls_split_time',

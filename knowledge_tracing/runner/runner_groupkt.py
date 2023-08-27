@@ -16,7 +16,7 @@ from torch.optim import lr_scheduler
 from utils import utils
 from knowledge_tracing.knowledge_tracing.runner.runner import KTRunner
 from data.data_loader import DataReader
-from models.HSSM import * 
+from models.groupkt import * 
 
 import ipdb
         

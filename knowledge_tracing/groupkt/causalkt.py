@@ -12,10 +12,9 @@ from utils import utils
 
 from models.modules import *
 from models.variational_distributions import *
-from models.graph_message_passing import * #GraphTargetMessage, GraphWholeMessage, GraphRecurrent, GraphPerformanceTrace, GraphOUProcess, GraphOUProcessDebug
+from models.graph_message_passing import * 
 
 from collections import defaultdict
-import ipdb
 
 # TODO: only whole_graph change the data shape to [bs, num_graph, ...]
 

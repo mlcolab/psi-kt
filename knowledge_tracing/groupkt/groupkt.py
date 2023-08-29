@@ -166,7 +166,8 @@ class GroupKT(BaseModel):
     def _positional_encoding1d(
         d_model: int,
         length: int,
-        actual_time=None):
+        actual_time=None
+    ):
         """
         Modified based on https://github.com/wzlxjtu/PositionalEncoding2D
         Args:
@@ -223,7 +224,41 @@ class GroupKT(BaseModel):
             t_pe = self._positional_encoding1d(self.node_dim, time.shape[1], norm_t) # [bs, times, dim]
         return t_pe
     
-    
+    def get_reconstruction(
+        self,
+        hidden_state_sequence: torch.Tensor,
+        observation_shape: torch.Size = None,
+        sample_for_reconstruction: bool = True,
+        sample_hard: bool = False,
+    ):
+        """
+        Generate reconstructed observations based on hidden state sequence.
+
+        Args:
+            hidden_state_sequence (torch.Tensor): Hidden state sequence used for reconstruction.
+            observation_shape (torch.Size, optional): Desired shape of the reconstructed observation tensor.
+            sample_for_reconstruction (bool, optional): Whether to sample for reconstruction.
+            sample_hard (bool, optional): Whether to apply hard Gumbel softmax during sampling.
+
+        Returns:
+            torch.Tensor: Reconstructed observations.
+        """
+        emission_dist = self.y_emit(hidden_state_sequence)
+        mean = emission_dist
+
+        if sample_for_reconstruction:
+            probs = torch.cat([1 - mean, mean], dim=-1)
+            reconstructed_obs = F.gumbel_softmax(
+                torch.log(probs + EPS), tau=1, hard=sample_hard, eps=1e-10, dim=-1
+            )
+            reconstructed_obs = reconstructed_obs[..., 1:]
+        else:
+            reconstructed_obs = mean
+
+        if observation_shape is not None:
+            reconstructed_obs = torch.reshape(reconstructed_obs, observation_shape)
+
+        return reconstructed_obs
 
 
     def get_objective_values(
@@ -262,29 +297,7 @@ class GroupKT(BaseModel):
             zt_entropy=t4_mean)
 
 
-    def get_reconstruction(
-        self,
-        hidden_state_sequence: torch.Tensor,
-        observation_shape: torch.Size = None,
-        sample_for_reconstruction: bool = True,
-        sample_hard: bool = False,
-    ): 
-        
-        emission_dist = self.y_emit(hidden_state_sequence)
-        mean = emission_dist
 
-        if sample_for_reconstruction:
-            # reconstructed_obs = emission_dist.sample() # NOTE: no gradient!
-            probs = torch.cat([1-mean, mean], dim=-1)
-            reconstructed_obs = F.gumbel_softmax(torch.log(probs + EPS), tau=1, hard=sample_hard, eps=1e-10, dim=-1)
-            reconstructed_obs = reconstructed_obs[..., 1:]
-        else:
-            reconstructed_obs = mean
-
-        if observation_shape is not None:
-            reconstructed_obs = torch.reshape(reconstructed_obs, observation_shape)
-
-        return reconstructed_obs
     
     
     def loss(

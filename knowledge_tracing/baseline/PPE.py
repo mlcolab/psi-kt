@@ -16,11 +16,6 @@ from knowledge_tracing.baseline.BaseModel import BaseModel, BaseLearnerModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
 
-T_SCALE = 60
-EPS = 1e-6
-# junyi 60*60*24
-# as 17 60
-
 ##########################################################################################
 # PPE Model
 ##########################################################################################

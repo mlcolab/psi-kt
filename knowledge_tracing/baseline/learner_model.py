@@ -21,8 +21,6 @@ from baseline.BaseModel import BaseLearnerModel, BaseModel
 
 from enum import Enum
 
-T_SCALE = 60  # 60 * 60 * 24
-
 
 ##########################################################################################
 # OU Process

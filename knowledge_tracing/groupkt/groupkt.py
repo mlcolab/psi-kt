@@ -193,7 +193,37 @@ class GroupKT(BaseModel):
 
         return pe
 
+    
+    def get_time_embedding(
+        self, 
+        time: torch.Tensor,
+        type: str = 'dt',
+    ):
+        """
+        Get time embeddings based on the given time tensor.
+        Args:
+            time (torch.Tensor): Input time tensor of shape [bs, times, ...].
+            type (str): Type of time embedding to compute. Can be 'dt' for time differences
+                        or 'absolute' for absolute time values. Defaults to 'dt'.
 
+        Returns:
+            torch.Tensor: Time embeddings of shape [bs, times, dim].
+
+        Note:
+            The 'dt' option computes time differences by taking the differences between consecutive
+            time steps. The 'absolute' option uses the original time values as time embeddings.
+        
+        """
+    
+        if type == 'dt':
+            dt = torch.diff(time, dim=1) 
+            t_pe = self._positional_encoding1d(self.node_dim, dt.shape[1], dt) # [bs, times, dim]
+        elif type =='absolute':
+            norm_t = time 
+            t_pe = self._positional_encoding1d(self.node_dim, time.shape[1], norm_t) # [bs, times, dim]
+        return t_pe
+    
+    
 
 
     def get_objective_values(
@@ -395,50 +425,8 @@ class AmortizedGroupKT(GroupKT):
         self.infer_network_posterior_mean_var_z = VAEEncoder(
             self.node_dim * 2, self.node_dim, self.num_node
         )
-        
-
-    @staticmethod
-    def positionalencoding1d(
-        d_model, 
-        length, 
-        actual_time=None):
-        """
-        :param d_model: dimension of the model
-        :param length: length of positions
-        :return: length*d_model position matrix
-        https://github.com/wzlxjtu/PositionalEncoding2D
-        """
-        device = actual_time.device
-        if d_model % 2 != 0:
-            raise ValueError("Cannot use sin/cos positional encoding with "
-                            "odd dim (got dim={:d})".format(d_model))
-        pe = torch.zeros(actual_time.shape[0], length, d_model, device=device)
-        if actual_time != None:
-            position = actual_time.unsqueeze(-1) # [bs, times, 1]
-        else:
-            position = torch.arange(0, length).unsqueeze(1)
-
-        div_term = torch.exp((torch.arange(0, d_model, 2, dtype=torch.float) *
-                            -(math.log(10000.0) / d_model))).reshape(1,1,-1).to(device)
-        pe[..., 0::2] = torch.sin(position.float() * div_term)
-        pe[..., 1::2] = torch.cos(position.float() * div_term)
-
-        return pe
     
-    
-    def get_time_embedding(
-        self, 
-        time: torch.Tensor,
-        type: str = 'dt',
-    ):
-        if type == 'dt':
-            dt = torch.diff(time, dim=1) # ?
-            t_pe = self.positionalencoding1d(self.node_dim, dt.shape[1], dt) # [bs, times, dim]
-        elif type =='absolute':
-            norm_t = time # time-time.min(1)[0].unsqueeze(1) # TODO
-            t_pe = self.positionalencoding1d(self.node_dim, time.shape[1], norm_t) # [bs, times, dim]
-        return t_pe
-    
+
     
     def st_transition_gen(
         self, 

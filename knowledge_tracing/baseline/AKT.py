@@ -126,14 +126,14 @@ class AKT(BaseModel):
         idx: int = None,
     ) -> Dict[str, torch.Tensor]:
         """
-        Forward pass for the classification task, given the input feed_dict and the current time index.
+        Forward pass for the continual learning task, given the input feed_dict and the current time index.
 
         Args:
             feed_dict: A dictionary containing the input tensors for the model.
             idx: The current time index. Only items and labels up to this index are used.
 
         Returns:
-            A dictionary containing the output tensors for the classification task.
+            A dictionary containing the output tensors for the continual learning task.
         """
 
         # Extract input tensors from feed_dict

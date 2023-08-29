@@ -19,8 +19,6 @@ from utils.logger import Logger
 
 from baseline.BaseModel import BaseModel
 
-EPS = 1e-6
-T_SCALE = 60
 
 
 class GroupKT(BaseModel):
@@ -45,13 +43,11 @@ class GroupKT(BaseModel):
             nx_graph: the graph adjacancy matrix. If mode=='synthetic', the graph is generated in advance. 
                         Otherwise, the ground-truth graph will be provided if the real-world dataset has one. 
         '''  
-        self.num_node = num_node
         self.logs = logs
         self.device = device
         self.args = args
         self.num_seq = num_seq
         self.num_sample = args.num_sample
-        self.node_dim = args.node_dim
         self.var_log_max = torch.tensor(args.var_log_max) 
 
         # Set the device to use for computations

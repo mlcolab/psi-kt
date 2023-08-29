@@ -412,23 +412,80 @@ class AmortizedGroupKT(GroupKT):
             self.node_dim * 2, self.node_dim, self.num_node
         )
     
+
     def st_transition_gen(
         self, 
         qs_dist: MultivariateNormal,
         eval: bool = False,
     ) -> MultivariateNormal:
-        
+        """
+        """
         qs_mean = qs_dist.mean # [bs, 1, time, dim_s]
         qs_cov_mat = qs_dist.covariance_matrix # [bs, 1, time, dim_s, dim_s]
         device = qs_mean.device
         bs = qs_mean.shape[0]
         
+        # retreive initalized variables for p(s0)
+        ps0_cov_mat = torch.diag_embed(torch.exp(self.gen_s0_log_var.to(device)) + EPS)
+        ps0_mean = self.gen_s0_mean.to(device)
+        
         # -- 1. the prior from generative model of GMVAE --
+        # s_category = self.s_category
+        # out_gen = self.gen_network_transition_s(s_category) 
+        # ps_mean = out_gen['s_mean'] # [bs, 1, dim_s]
+        # ps_var = out_gen['s_var'] # [bs, 1, dim_s]
         
         # -- 2. prior of single step of H, R -- 
-        
+        # unit_test.test_one_step_and_multi_step_log_probability(
+        #     qs_dist, self.gen_st_h, self.gen_st_b, self.gen_st_log_r, self.gen_s0_mean, self.gen_s0_log_var
+        # )
+        pst_mean = qs_mean[:, :, :-1] @ self.gen_st_h + self.gen_st_b # [bs, 1, time-1, dim_s]
+        pst_transition_var = torch.exp(self.gen_st_log_r)
+        pst_transition_cov_mat = torch.diag_embed(pst_transition_var + EPS) 
+        pst_cov_mat = self.gen_st_h @ qs_cov_mat[:, :, :-1] @ self.gen_st_h.transpose(-1, -2) + \
+                        pst_transition_cov_mat # [bs, 1, time-1, dim_s, dim_s]
+        # concatenate sequential st and initial s0
+        ps0_mean_bs = ps0_mean.reshape(1, 1, 1, self.dim_s).repeat(bs, 1, 1, 1)
+        ps_mean = torch.cat([ps0_mean_bs, pst_mean], dim=-2) # [bs, 1, time, dim_s]
+        ps0_cov_mat_mc = ps0_cov_mat.reshape(1, 1, 1, self.dim_s, self.dim_s).repeat(bs, 1, 1, 1, 1)
+        ps_cov_mat = torch.cat([ps0_cov_mat_mc, pst_cov_mat], dim=-3) # [bs, 1, time, dim_s, dim_s]
+
         # # -- 3. multi-step transition --
         # # -- prior of multiple steps of H, R --
+        # qs_sample = qs_dist.rsample((self.num_sample,)) # [num_sample, bs, 1, time, dim_s]
+        # qst_sample = qs_sample[:, :, :, 1:]
+        # bs = qst_sample.shape[1]
+        # device = qst_sample.device # useful when doing DDP
+        # time_step = qst_sample.shape[-2]
+        
+        # # log-probability of sequential value s_{1:t} # TODO: a bit hacky
+        # prev_var = ps0_var
+        # prev_mean = ps0_mean
+        # pst_cov_mat = torch.diag_embed(torch.exp(self.gen_st_log_r) + EPS) 
+        # ps_means, ps_vars = [ps0_mean], [ps0_var]
+        
+        # for _ in range(time_step):
+        #     next_mean = prev_mean @ self.gen_st_h + self.gen_st_b # [bs, 1, dim_s]
+        #     next_var = self.gen_st_h @ prev_var @ self.gen_st_h.transpose(-1, -2) + pst_cov_mat # [bs, 1, dim_s, dim_s]
+        #     ps_means.append(next_mean)
+        #     ps_vars.append(next_var)
+        #     prev_mean = next_mean
+        #     prev_var = next_var
+        
+        # ps_mean = torch.stack(ps_means, dim=1).unsqueeze(0) # [1, 1, time, dim_s]
+        # ps_cov_mat = torch.stack(ps_vars, dim=1).unsqueeze(0) # [1, 1, time, dim_s, dim_s]
+        
+        ps_dist = MultivariateNormal(
+            loc=ps_mean, 
+            scale_tril=torch.tril(ps_cov_mat)
+        )
+        
+        if not eval: # For debugging
+            self.register_buffer('ps_mean', ps_mean.clone().detach())
+            self.register_buffer('ps_cov_mat', ps_cov_mat.clone().detach())
+
+        return ps_dist
+    
     
     def zt_transition_gen(
         self, 

@@ -16,6 +16,7 @@ from models.modules import CausalTransformerModel, VAEEncoder
 from models.groupkt_graph_representation import VarTransformation, VarAttention
 from models.gmvae import *
 from utils.logger import Logger
+from groupkt import * 
 
 from baseline.BaseModel import BaseModel
 
@@ -156,10 +157,43 @@ class GroupKT(BaseModel):
         # tril_indices = torch.tril_indices(row=dim, col=dim, offset=0)
         # x0_scale[:, tril_indices[0], tril_indices[1]] += m
         # x0_scale = nn.Parameter(x0_scale, requires_grad=use_trainable_cov)
-        x0_log_var = torch.ones((num_sample, dim)) * torch.log(torch.tensor(0.05))# nn.init.xavier_uniform_(torch.empty(num_sample, dim)) #, device=self.device))
+        x0_log_var = torch.ones((num_sample, dim)) * torch.log(torch.tensor(COV_MIN))
         x0_log_var = nn.Parameter(x0_log_var, requires_grad=use_trainable_cov)
         
         return x0_mean, x0_log_var
+
+    @staticmethod
+    def _positional_encoding1d(
+        d_model: int,
+        length: int,
+        actual_time=None):
+        """
+        Modified based on https://github.com/wzlxjtu/PositionalEncoding2D
+        Args:
+            d_model: dimension of the model
+            length: length of positions
+        
+        Returns:
+            length*d_model position matrix
+        """
+        device = actual_time.device
+        if d_model % 2 != 0:
+            raise ValueError("Cannot use sin/cos positional encoding with "
+                            "odd dim (got dim={:d})".format(d_model))
+        pe = torch.zeros(actual_time.shape[0], length, d_model, device=device)
+        if actual_time != None:
+            position = actual_time.unsqueeze(-1) # [bs, times, 1]
+        else:
+            position = torch.arange(0, length).unsqueeze(1)
+
+        div_term = torch.exp((torch.arange(0, d_model, 2, dtype=torch.float) *
+                            -(math.log(10000.0) / d_model))).reshape(1,1,-1).to(device)
+        pe[..., 0::2] = torch.sin(position.float() * div_term)
+        pe[..., 1::2] = torch.cos(position.float() * div_term)
+
+        return pe
+
+
 
 
     def get_objective_values(

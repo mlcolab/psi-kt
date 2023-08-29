@@ -3,8 +3,7 @@
 Simple overview of use/purpose.
 
 ## Description 
-
-An in-depth paragraph about your project and overview of use.
+- [ ] An in-depth paragraph about your project and overview of use.
 
 ## Getting Started
 
@@ -21,14 +20,14 @@ Dependencies are in the `envrionment.yml` file.
 
 * Baseline models
 ```
-cd baseline
-python exp_baseline.py --dataset assistment17 --model_name DKT --random_seed 2023
+cd script
+python predict_learner_performance_baseline.py --dataset assistment17 --model_name DKT --random_seed 2023
 ```
 
 * Our model
 ```
-cd exp
-python exp_learner_predict.py --dataset assistment17 --model_name AmortizedHSSM --random_seed 2023
+cd script
+python predict_learner_performance_groupkt.py --dataset assistment17 --model_name AmortizedGroupKT --random_seed 2023
 ```
 
 
@@ -39,9 +38,7 @@ Contributors and contact info
 
 ## Version History
 
-* 0.2
-    * Various bug fixes and optimizations
-    * See [commit change]() or See [release history]()
+* 0.2  
 * 0.1
     * Initial Release
 

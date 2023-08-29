@@ -306,36 +306,7 @@ class GroupKT(BaseModel):
         outdict: Dict[str, torch.Tensor],
         metrics: List[str] = None,
     ):
-        losses = defaultdict(lambda: torch.zeros(()))#, device=self.device))
-        
-        gt = outdict["label"] 
-        pred = outdict["prediction"]
-        num_sample = pred.shape[1]
-        gt = torch.tile(gt[:,None, ...], (1,num_sample,1,1,1))
-        
-        loss_fn = torch.nn.BCELoss()
-        bceloss = loss_fn(pred, gt.float())
-        losses['loss_bce'] = bceloss
-        
-        for key in ['elbo', 'initial_likelihood', 'sequence_likelihood', 
-                    'st_entropy', 'zt_entropy',
-                    'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
-            losses[key] = outdict[key].mean()
-        
-        losses['loss_total'] = -outdict['elbo'].mean()
-        
-        if metrics != None:
-            pred = pred.detach().cpu().data.numpy()
-            gt = gt.detach().cpu().data.numpy()
-            evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
-        for key in evaluations.keys():
-            losses[key] = evaluations[key]
-        
-        losses['ou_speed'] = outdict["sampled_s"][...,0].mean()
-        losses['ou_mean'] = outdict["sampled_s"][...,1].mean()
-        losses['ou_vola'] = outdict["sampled_s"][...,2].mean()
-
-        return losses
+        pass
 
 
 class AmortizedGroupKT(GroupKT):

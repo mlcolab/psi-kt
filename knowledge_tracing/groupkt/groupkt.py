@@ -320,29 +320,28 @@ class AmortizedGroupKT(GroupKT):
         logs: Logger = None,
         nx_graph: numpy.ndarray = None,
     ):
-        # self.fit_vi_global_s, self.fit_vi_transition_s, self.infer_global_s, self.infer_transition_s = 0,0,0,1
-        
-        # ----- specify dimensions of all latents -----
-        self.node_dim = 8
-        self.emb_mean_var_dim = 8
         self.num_node = num_node
+        
+        # specify dimensions of all latents
+        self.node_dim = args.node_dim
+        self.emb_mean_var_dim = 16
 
-        # ----- initialize graph parameters -----
+        self.var_log_max = torch.tensor(args.var_log_max) 
+        self.num_category = args.num_category
+        self.time_dependent_s = args.time_dependent_s
         self.learned_graph = args.learned_graph
+        
+        # initialize graph parameters 
         if self.learned_graph == 'none' or self.num_node == 1:
-            self.dim_s = 3
-            self.dim_z = 1
+            self.dim_s, self.dim_z = 3, 1
         else: 
-            self.dim_s = 4
-            self.dim_z = 1# self.node_dim
-            if self.learned_graph == 'w_gt': # TODO
-                pass
-            elif self.learned_graph == 'no_gt':
-                pass
+            self.dim_s, self.dim_z = 4, 1
             self.adj = torch.tensor(nx_graph)
             assert(self.adj.shape[-1] >= num_node)
         
-        self.var_log_max = torch.tensor(10) # TODO
+        self.qs_temperature = 1.0
+        self.qs_hard = 0
+        
         super().__init__(mode, num_node, num_seq, args, device, logs, nx_graph)
 
 

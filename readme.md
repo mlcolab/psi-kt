@@ -10,11 +10,7 @@ An in-depth paragraph about your project and overview of use.
 
 ### Dependencies
 
-Draft: 
-pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-pip install ipdb
-pip install tqdm
-pip install networkx
+Dependencies are in the `envrionment.yml` file.  
 
 ### Installing
 

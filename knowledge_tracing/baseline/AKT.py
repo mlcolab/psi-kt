@@ -206,7 +206,6 @@ class AKT(BaseModel):
             "prediction": prediction,
             "label": label.float(),
             "emb": x,
-            "user": feed_dict["user_seq"],
         }
 
         return out_dict

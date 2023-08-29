@@ -356,24 +356,31 @@ class AmortizedGroupKT(GroupKT):
         Returns:
             None
         """
-        self.node_dist = VarTransformation(device=self.device, num_nodes=self.num_node, tau_gumbel=1, dense_init = False, 
-                        latent_prior_std=None, latent_dim=self.node_dim)
+        self.node_dist = VarTransformation(
+            device=self.device, 
+            num_nodes=self.num_node, 
+            latent_dim=self.node_dim,
+            tau_gumbel=1, 
+            dense_init=False, 
+            latent_prior_std=None, 
+        )
         
         # --------------- for parameters Theta ---------------
         # the initial distribution p(s0) p(z0), the transition distribution p(s|s') p(z|s,z'), the emission distribution p(y|s,z)
         # ----- 1. initial distribution p(s0) p(z0): trainable mean and variance??? -----
-        self.gen_s0_mean, self.gen_s0_log_var = self._initialize_normal_mean_log_var(self.dim_s, False)
-        self.gen_z0_mean, self.gen_z0_log_var = self._initialize_normal_mean_log_var(self.dim_z, False) # self.z0_scale is std
+        self.gen_s0_mean, self.gen_s0_log_var = self._initialize_gaussian_mean_log_var(self.dim_s, True)
+        self.gen_z0_mean, self.gen_z0_log_var = self._initialize_gaussian_mean_log_var(self.dim_z, True) 
         
         # ----- 2. transition distribution p(s|s') or p(s|s',y',c'); p(z|s,z') (OU) -----
-        self.s_fit_gmvae = 1
+        time_step = int(self.args.max_step * self.args.train_time_ratio)
+        # TODO: more systematic way
+        gen_st_h = nn.init.xavier_uniform_(torch.empty(1, self.dim_s))
+        self.gen_st_h = nn.Parameter(torch.diag_embed(gen_st_h)[0], requires_grad=True)
+        gen_st_b = nn.init.xavier_uniform_(torch.empty(1, self.dim_s))
+        self.gen_st_b = nn.Parameter(gen_st_b, requires_grad=True)
+        gen_st_log_r = nn.init.xavier_uniform_(torch.empty(1, self.dim_s))
+        self.gen_st_log_r = nn.Parameter(gen_st_log_r, requires_grad=True)
         
-        self.num_classes = 100
-        self.gaussian_size = self.dim_s
-
-        self.gen_network_transition_s = GenerativeNet(
-            self.node_dim, self.dim_s, self.num_classes,
-        )
         # ----- 3. emission distribution p(y|z) -----
         self.y_emit = torch.nn.Sigmoid() 
         
@@ -382,19 +389,15 @@ class AmortizedGroupKT(GroupKT):
         # the embedding network at each time step emb_t = f(y_t, c_t, t)
         # the variational posterior distribution q(s_1:t | y_1:t, c_1:t) and q(z_1:t | y_1:t, c_1:t) TODO could add structure later q(z_1:t | y_1:t, s_1:t)
         # ----- 1. embedding network -----
-        self.infer_network_emb = nn.LSTM( 
-            input_size=self.node_dim*2, 
-            hidden_size=self.node_dim, 
-            bidirectional=False, # TODO why bidirectional
-            batch_first=True,
+        self.infer_network_emb = build_dense_network(
+            self.node_dim*2,
+            [self.node_dim, self.node_dim],
+            [nn.ReLU(), None]
         )
-        time_step = 10
+        
         # ----- 2. variational posterior distribution q(s_1:t | y_1:t, c_1:t) = q(s_1:t | emb_1:t) -----
         self.infer_network_posterior_s = InferenceNet(
-            self.node_dim * time_step, self.dim_s, self.num_classes,
-        )
-        self.infer_network_posterior_mean_var_s = VAEEncoder(
-            self.node_dim, self.emb_mean_var_dim, self.dim_s, tanh=False  
+            self.node_dim * time_step, self.dim_s, self.num_category, time_step
         )
 
         # self.st_transition_infer
@@ -408,8 +411,6 @@ class AmortizedGroupKT(GroupKT):
         self.infer_network_posterior_mean_var_z = VAEEncoder(
             self.node_dim * 2, self.node_dim, self.num_node
         )
-    
-
     
     def st_transition_gen(
         self, 

@@ -489,14 +489,86 @@ class AmortizedGroupKT(GroupKT):
     
     def zt_transition_gen(
         self, 
-        qs_sampled: torch.Tensor,
         feed_dict: Dict[str, torch.Tensor],
         idx: int = 0,
-        sampled_z: torch.Tensor = None,
+        qs_dist: distributions.MultivariateNormal = None,
+        qz_dist: distributions.MultivariateNormal = None,
         eval: bool = False,
+        qs_sampled: torch.Tensor = None,
     ):
-        pass
-        # return pz_dist 
+        '''
+        '''
+        if idx:
+            input_t = feed_dict['time_seq'][:, :idx]
+        else:
+            input_t = feed_dict['time_seq']
+        bs, num_steps = input_t.shape
+        device = input_t.device
+        
+        # -- p(z0) --
+        pz0_mean = self.gen_z0_mean.to(device)
+        pz0_var = torch.exp(self.gen_z0_log_var.to(device))
+        
+        # -- p(z_n | z_{n-1}, s_n) --
+        # calculate time difference dt
+        dt = torch.diff(input_t, dim=-1).unsqueeze(-1) /T_SCALE + EPS  # [bs, num_steps-1, 1] 
+ 
+        # retreive variables from qs_dist.mean
+        # z_{n-1}
+        qz_mean = qz_dist.mean[:, :-1] # [bs, time-1, num_node]
+        # s_n and its disentangled elements
+        qs_mean = qs_dist.mean[:, 0, 1:] # [bs, time-1, dim_s]
+        q_alpha = torch.relu(qs_mean[..., 0:1]) + EPS # *self.args.alpha_minimum # TODO # [bs, num_steps-1, 1]
+        q_mu = qs_mean[..., 1:2] #  torch.tanh(qs_mean[..., 1:2]) # 
+        q_sigma = qs_mean[..., 2:3] # TODO  sampled_log_var = torch.minimum(qst_sampled[..., 2], self.var_log_max.to(device)) 
+        q_gamma = torch.sigmoid(qs_mean[..., 3:4]) # torch.zeros_like(q_sigma)# 
+       
+        # calculate useful variables
+        # exp(-alpha * dt)
+        
+        pz_ou_decay = torch.exp(-q_alpha * dt) # [bs, num_steps-1, 1] 
+        # empower^{\ell,k}_n = gamma^\ell_n * \sum_{i=1}^K (a^{ik} * (z^{\ell,k}_{n-1})) * (1/num_node)
+        pz_graph_adj = self.node_dist.sample_A(self.num_sample)[-1][:,0].mean(0).to(device) # # adj =  torch.exp(self.node_dist.edge_log_probs()[0]).to(sampled_s.device) # adj_ij means i has influence on j     
+        pz_empower =  q_gamma * (qz_mean @ pz_graph_adj) / self.num_node
+        # mu^{\ell,k}_n = q_mu^\ell_n + empower^{\ell,k}_n
+        pz_empowered_mu = q_mu + pz_empower # [bs, time-1, num_node]
+        
+        # OU process
+        # mean m^{\ell,k}_n = mu^{\ell,k}_n * (1 - exp(-alpha * dt)) + m^{\ell,k}_{n-1} * exp(-alpha * dt)
+        #                   = pz_empowered_mu * (1 - pz_ou_decay) + qz_mean * pz_ou_decay
+        pz_ou_mean = pz_ou_decay * qz_mean + (1 - pz_ou_decay) * pz_empowered_mu # [bs, time-1, num_node]
+        # var v^{\ell,k}_n = (sigma^{\ell,k}_n)^2 * (1 - exp(-2 * alpha * dt)) / (2 * alpha) 
+        pz_ou_var = q_sigma * q_sigma * (1 - pz_ou_decay * pz_ou_decay) / (2 * q_alpha + EPS) + EPS # [bs, num_steps-1, 1]
+
+        # pz_dist
+        pz0_mean_mc = pz0_mean.reshape(1, 1, 1).repeat(bs, 1, self.num_node)
+        pz_mean = torch.cat([pz0_mean_mc, pz_ou_mean], dim=1) # [bs, time, num_node]
+        pz0_var_mc = pz0_var.reshape(1, 1, 1).repeat(bs, 1, 1)
+        pz_var = torch.cat([pz0_var_mc, pz_ou_var], dim=1).repeat(1,1,self.num_node) # [bs, time, num_node]
+        
+        pz_dist = MultivariateNormal(
+            loc=pz_mean,
+            scale_tril=torch.tril(torch.diag_embed(pz_var + EPS))
+        )
+        
+        # if qs_sampled is None:
+        #     samples = qs_dist.rsample((self.num_sample,)) # [n, bs, time, dim_s] 
+        #     qs_sampled = samples.transpose(1,0).reshape(bsn, 1, num_steps, self.dim_s) 
+    
+        # if self.time_dependent_s:
+        #     qst_sampled = qs_sampled[:,:,1:] # [bsn, 1, num_steps-1, dim_s]
+        # else:
+        #     qst_sampled = qs_sampled # TODO should repeat time-1 times
+
+        if not eval:
+            self.register_buffer('pz_decay', pz_ou_decay.clone().detach())
+            self.register_buffer('pz_empower', pz_empower.clone().detach())
+            self.register_buffer('pz_empowered_mu', pz_empowered_mu.clone().detach())
+            
+            self.register_buffer(name="pz_mean", tensor=pz_mean.clone().detach())
+            self.register_buffer(name="pz_var", tensor=pz_var.clone().detach())
+            
+        return pz_dist 
         
         
     def yt_emission_func(self, ):

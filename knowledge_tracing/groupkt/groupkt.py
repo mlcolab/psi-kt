@@ -734,6 +734,24 @@ class AmortizedGroupKT(GroupKT):
         
         return qs_dist, qz_dist
     
+
+    def generative_process(
+        self,
+        qs_dist: distributions.MultivariateNormal,
+        qz_dist: distributions.MultivariateNormal,
+        feed_dict: Dict[str, torch.Tensor] = None,
+        eval: bool = False,
+    ):
+        # generative model for s (Karman filter)
+        ps_dist = self.st_transition_gen(qs_dist, eval=eval) 
+        
+        # generative model for z (OU process)
+        pz_dist = self.zt_transition_gen(
+            qs_dist=qs_dist, qz_dist=qz_dist, feed_dict=feed_dict, eval=eval
+        )
+
+        return ps_dist, pz_dist 
+    
     
     def forward(
         self, 

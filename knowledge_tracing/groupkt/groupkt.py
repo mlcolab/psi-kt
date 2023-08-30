@@ -790,3 +790,103 @@ class AmortizedGroupKT(GroupKT):
         self.register_buffer(name="output_emb_input", tensor=emb_history.clone().detach())
 
         return return_dict
+    
+    
+    def predictive_model(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+    ):
+        t_all = feed_dict['time_seq']
+        y_all = feed_dict['label_seq']
+        item_all = feed_dict['skill_seq']
+        bs, time_step = t_all.shape
+        bsn = bs * self.num_sample
+        
+        max_step = self.args.max_step
+        train_step = int(max_step * self.args.train_time_ratio)
+        test_step = int(max_step * self.args.test_time_ratio)
+        
+        emb_history = self.embedding_process(
+            time=t_all[:, :train_step], 
+            label=y_all[:, :train_step], 
+            item=item_all[:, :train_step]
+        )
+        
+        qs_dist, qz_dist = self.inference_process(emb_history, eval=True)
+
+        # analytical solution
+        pred_s_mean, pred_s_var, pred_z_mean, pred_z_var = [], [], [], []
+        s_last_mean = qs_dist.mean[:, 0, -1:] # [bs, 1, dim_s]
+        s_last_cov_mat = qs_dist.covariance_matrix[:, 0, -1:] # [bs, 1, dim_s, dim_s]
+        st_tran_r = torch.diag_embed(torch.exp(self.gen_st_log_r) + EPS)
+        z_last_mean = qz_dist.mean[:, -1:] # [bs, 1, num_node]
+        pz_graph_adj = self.node_dist.sample_A(self.num_sample)[-1][:,0].mean(0).to(z_last_mean.device) # # adj =  torch.exp(self.node_dist.edge_log_probs()[0]).to(sampled_s.device) # adj_ij means i has influence on j
+        dt = torch.diff(t_all[:, -test_step-1:], dim=-1).unsqueeze(-1) /T_SCALE + EPS  # [bs, num_steps-1, 1] 
+        for i in range(test_step):
+            # p(st-1) = N(m, P), p(st|st-1) = N(st|H*st-1 + b, R)
+            # p(st) = N(st|H*m + b, H*P*H' + R)
+            s_next_mean = s_last_mean @ self.gen_st_h + self.gen_st_b # [bs, 1, dim_s]
+            s_next_cov_mat = self.gen_st_h @ s_last_cov_mat @ self.gen_st_h.transpose(-1, -2) + st_tran_r # [bs, 1, dim_s, dim_s]
+            pred_s_mean.append(s_next_mean)
+            pred_s_var.append(s_next_cov_mat)
+            s_last_mean = s_next_mean
+            s_last_cov_mat = s_next_cov_mat
+            
+            # p(zt) = N(zt|zt-1, st)
+            q_alpha = torch.relu(s_next_mean[..., 0:1]) + EPS 
+            q_mu = s_next_mean[..., 1:2] # torch.tanh(s_next_mean[..., 1:2])  # 
+            q_sigma = s_next_mean[..., 2:3]  # [bs, 1, 1]
+            q_gamma = torch.sigmoid(s_next_mean[..., 3:4]) # torch.zeros_like(q_sigma) # 
+            # calculate useful variables
+            pz_ou_decay = torch.exp(-q_alpha * dt[:, i:i+1]) # [bs, 1, 1] 
+            pz_ou_var = q_sigma * q_sigma * (1 - pz_ou_decay * pz_ou_decay) / (2 * q_alpha + EPS)  # [bs, num_steps-1, 1]
+            pz_empower =  (z_last_mean @ pz_graph_adj) / self.num_node * q_gamma
+            pz_empowered_mu = q_mu + pz_empower # [bs, time-1, num_node]
+            pz_ou_mean = pz_ou_decay * z_last_mean + (1 - pz_ou_decay) * pz_empowered_mu # [bs, 1, num_node]
+            z_last_mean = pz_ou_mean
+            pred_z_mean.append(pz_ou_mean)
+            pred_z_var.append(pz_ou_var)    
+        
+        pred_s_mean = torch.cat(pred_s_mean, dim=1) # [bs, time, dim_s]
+        pred_s_cov_mat = torch.cat(pred_s_var, dim=1) # [bs, time, dim_s, dim_s]
+        pred_z_mean = torch.cat(pred_z_mean, dim=1) # [bs, time, num_node]
+        pred_z_var = torch.cat(pred_z_var, dim=1).repeat(1,1,self.num_node) # [bs, time, num_node]
+            
+        pred_z_dist = MultivariateNormal(
+            loc=pred_z_mean,
+            scale_tril=torch.tril(torch.diag_embed(pred_z_var + EPS))
+        )
+        pred_z_sampled = pred_z_dist.sample((self.num_sample,)) # [n, bs, time, num_node]
+        pred_z_sampled = pred_z_sampled.transpose(1,0).reshape(bsn, test_step, self.num_node) # [bsn, time, num_node]
+        pred_z_sampled = pred_z_sampled.transpose(-1,-2).contiguous() # [bsn, num_node, time]
+        
+        item_test = item_all[:, -test_step:]
+        item_test_mc = item_test.unsqueeze(1).repeat(1, self.num_sample, 1).reshape(bsn, 1, test_step) # [bsn, 1, time]
+        pred_z_sampled_item = torch.gather(pred_z_sampled, 1, item_test_mc).transpose(-1,-2).contiguous() # [bsn, time, 1]
+        
+        
+        # # here are Karman filter
+        # ps_sampled_future = []
+        # qs_sampled = qs_dist.rsample((self.num_sample,)) # [n, bs, 1, time, dim_s]
+        # qs_sampled = qs_sampled.transpose(1,0).reshape(-1, 1, train_step, self.dim_s)
+        # ps_prev = qs_sampled[:,:,-1:]
+        # for i in range(10): # TODO
+        #     ps_next = ps_prev @ self.gen_st_h + self.gen_st_b
+        #     ps_sampled_future.append(ps_next)
+        #     ps_prev = ps_next
+        # ps_sampled_future = torch.cat(ps_sampled_future, dim=-2)
+        # s_sampled = torch.cat([qs_sampled, ps_sampled_future], dim=-2) # [bsn, 1, time, dim_s]
+        # z_prior_dist = self.zt_transition_gen(qs_sampled = s_sampled, feed_dict=feed_dict, eval=True)
+        # sampled_scalar_z = z_prior_dist.rsample()[:,:,-test_step:] 
+        # bsn = sampled_scalar_z.shape[0]
+        # items = item_all.unsqueeze(1).repeat(1, self.num_sample, 1).reshape(bsn, 1, -1)[:,:,-test_step:] # [bsn, 1, time]
+        # sampled_scalar_z_item = torch.gather(sampled_scalar_z[..., 0], 1, items).transpose(-1,-2).contiguous() # [bsn, time, 1]
+        
+        pred_y_test = self.y_emit(pred_z_sampled_item)
+        pred = pred_y_test.reshape(bs, self.num_sample, test_step)
+        mc_label = y_all[:, -test_step:].unsqueeze(1).repeat(1, self.num_sample, 1)     
+        
+        return {
+            "prediction": pred,
+            'label': mc_label,
+        }

@@ -945,3 +945,111 @@ class AmortizedGroupKT(GroupKT):
             "prediction": pred,
             "label": mc_label,
         }
+
+    def get_objective_values(
+        self,
+        q_dists,
+        p_dists,
+        feed_dict,
+        temperature: float = 1.0,
+    ):
+
+        qs_dist, qz_dist = q_dists
+        ps_dist, pz_dist = p_dists
+
+        item = feed_dict["skill_seq"]
+        label = feed_dict["label_seq"]
+        bs, time_step = item.shape
+        bsn = bs * self.num_sample
+
+        # st_log_prob
+        qs_sampled = qs_dist.rsample(
+            (self.num_sample,)
+        )  # [num_sample, bs, 1, time, dim_s]
+        qs_log_prob = ps_dist.log_prob(qs_sampled)  # [num_sample, bs, 1, time]
+        qs_log_prob = qs_log_prob.reshape(-1, time_step).squeeze(1)  # [bs, time]
+
+        # zt_log_prob
+        qz_sampled = qz_dist.rsample(
+            (self.num_sample,)
+        )  # [num_sample, bs, time, num_node]
+        qz_log_prob = pz_dist.log_prob(qz_sampled)  # [num_sample, bs, time]
+        qz_log_prob = qz_log_prob.reshape(-1, time_step).squeeze(1)  # [bs, time]
+
+        # yt_log_prob
+        items = (
+            item.unsqueeze(1).repeat(1, self.num_sample, 1).reshape(bsn, 1, -1)
+        )  # [bsn, 1, time]
+        qz_sampled = (
+            qz_sampled.permute(1, 0, 3, 2).contiguous().reshape(bsn, self.num_node, -1)
+        )  # [bsn, num_node, time]
+        qz_sampled_item = (
+            torch.gather(qz_sampled, 1, items).transpose(-1, -2).contiguous()
+        )  # [bsn, time, 1]
+
+        y_prob_train = self.y_emit(qz_sampled_item)
+        y_dist_train = torch.distributions.bernoulli.Bernoulli(probs=y_prob_train)
+        y_train_mc = (
+            label.unsqueeze(1).repeat(1, self.num_sample, 1).reshape(bsn, -1, 1).float()
+        )
+        yt_log_prob = y_dist_train.log_prob(y_train_mc)  # [bsn, time, 1]
+        yt_log_prob = yt_log_prob.squeeze(-1)
+
+        recon_inputs = self.y_emit(qz_sampled)  # [bsn, num_node, time]
+        recon_inputs = recon_inputs.reshape(
+            bs, self.num_sample, self.num_node, time_step, -1
+        )
+        recon_inputs_items = y_prob_train.reshape(bs, self.num_sample, 1, time_step, -1)
+
+        if not eval:
+            self.register_buffer(
+                name="pred_y_all_sampled", tensor=recon_inputs.clone().detach()
+            )
+            self.register_buffer(
+                name="pred_y_sampled", tensor=recon_inputs_items.clone().detach()
+            )
+            self.register_buffer(name="output_items", tensor=items.clone().detach())
+            self.register_buffer(
+                name="pred_z_sampled", tensor=qz_sampled_item.clone().detach()
+            )
+
+        temp_s, temp_z = self.args.s_entropy_weight, self.args.z_entropy_weight
+        w_s, w_z, w_y = (
+            self.args.s_log_weight,
+            self.args.z_log_weight,
+            self.args.y_log_weight,
+        )
+        sequence_likelihood = (
+            w_s * qs_log_prob[:, 1:]
+            + w_z * qz_log_prob[:, 1:]
+            + w_y * yt_log_prob[:, 1:]
+        ) / 3  # [bs,]
+        initial_likelihood = (
+            qs_log_prob[:, 0] + qz_log_prob[:, 0] + yt_log_prob[:, 0]
+        ) / 3
+
+        t1_mean = torch.mean(sequence_likelihood)
+        t2_mean = torch.mean(initial_likelihood) * 1e-4
+
+        t3_mean = torch.mean(qs_dist.entropy())
+        t4_mean = torch.mean(qz_dist.entropy())  # TODO
+
+        elbo = (
+            t1_mean + t2_mean + temp_s * t3_mean + temp_z * t4_mean
+        )  # /self.num_node*t4_mean
+
+        return dict(
+            elbo=elbo,
+            sequence_likelihood=t1_mean,
+            initial_likelihood=t2_mean,
+            st_log_prob=qs_log_prob.mean(),
+            zt_log_prob=qz_log_prob.mean(),
+            yt_log_prob=yt_log_prob.mean(),
+            st_entropy=t3_mean,
+            zt_entropy=t4_mean,
+            prediction=recon_inputs_items.reshape(
+                bsn, 1, time_step, 1
+            ),  # [bsn, 1, time, dim_y]
+            label=label[:, None, :, None],  # [bs, 1, time, 1]
+            sampled_s=qs_sampled,
+        )

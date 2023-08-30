@@ -580,6 +580,8 @@ class AmortizedGroupKT(GroupKT):
         num_sample: int = 0,
         eval: bool = False,
     ):
+        """
+        """
         
         num_sample = self.num_sample if num_sample == 0 else num_sample
         
@@ -591,10 +593,10 @@ class AmortizedGroupKT(GroupKT):
         ) 
 
         s_category = qs_out_inf['categorical'] # [bs, 1, num_cat]
-        s_mean = qs_out_inf['s_mu_infer'] # [bs, time, dim_s]
-        s_var = qs_out_inf['s_var_infer'] # [bs, time, dim_s]
+        s_mean = qs_out_inf['s_mu_infer'] # [bs, 1, time, dim_s]
+        s_var = qs_out_inf['s_var_infer'] # [bs, 1, time, dim_s]
 
-        s_var_mat = torch.diag_embed(s_var + EPS)   # [bs, time, dim_s, dim_s]
+        s_var_mat = torch.diag_embed(s_var + EPS)   # [bs, 1, time, dim_s, dim_s]
         qs_dist = MultivariateNormal(
             loc=s_mean, 
             scale_tril=torch.tril(s_var_mat)

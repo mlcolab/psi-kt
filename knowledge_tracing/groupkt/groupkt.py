@@ -518,17 +518,16 @@ class AmortizedGroupKT(GroupKT):
         qz_mean = qz_dist.mean[:, :-1] # [bs, time-1, num_node]
         # s_n and its disentangled elements
         qs_mean = qs_dist.mean[:, 0, 1:] # [bs, time-1, dim_s]
-        q_alpha = torch.relu(qs_mean[..., 0:1]) + EPS # *self.args.alpha_minimum # TODO # [bs, num_steps-1, 1]
-        q_mu = qs_mean[..., 1:2] #  torch.tanh(qs_mean[..., 1:2]) # 
-        q_sigma = qs_mean[..., 2:3] # TODO  sampled_log_var = torch.minimum(qst_sampled[..., 2], self.var_log_max.to(device)) 
-        q_gamma = torch.sigmoid(qs_mean[..., 3:4]) # torch.zeros_like(q_sigma)# 
+        q_alpha = torch.relu(qs_mean[..., 0:1]) + EPS 
+        q_mu = qs_mean[..., 1:2] # torch.tanh(qs_mean[..., 1:2]) 
+        q_sigma = qs_mean[..., 2:3] # TODO  q_sigma = torch.minimum(qs_mean[..., 2:3], self.var_log_max.to(device)) 
+        q_gamma = torch.sigmoid(qs_mean[..., 3:4]) # torch.zeros_like(q_sigma) 
        
         # calculate useful variables
         # exp(-alpha * dt)
-        
         pz_ou_decay = torch.exp(-q_alpha * dt) # [bs, num_steps-1, 1] 
         # empower^{\ell,k}_n = gamma^\ell_n * \sum_{i=1}^K (a^{ik} * (z^{\ell,k}_{n-1})) * (1/num_node)
-        pz_graph_adj = self.node_dist.sample_A(self.num_sample)[-1][:,0].mean(0).to(device) # # adj =  torch.exp(self.node_dist.edge_log_probs()[0]).to(sampled_s.device) # adj_ij means i has influence on j     
+        pz_graph_adj = self.node_dist.sample_A(self.num_sample)[-1][:,0].mean(0).to(device) # adj_ij means i has influence on j     
         pz_empower =  q_gamma * (qz_mean @ pz_graph_adj) / self.num_node
         # mu^{\ell,k}_n = q_mu^\ell_n + empower^{\ell,k}_n
         pz_empowered_mu = q_mu + pz_empower # [bs, time-1, num_node]

@@ -1,0 +1,5 @@
+
+EPS = 1e-6
+T_SCALE = 60
+
+COV_MIN = 0.05

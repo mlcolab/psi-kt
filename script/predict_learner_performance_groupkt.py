@@ -14,7 +14,7 @@ from data import data_loader
 
 from knowledge_tracing.runner import runner_groupkt, runner_vcl
 from utils import utils, arg_parser, logger
-from groupkt.groupkt import GroupKT, ContinualGroupKT
+from knowledge_tracing.groupkt.groupkt import GroupKT, ContinualGroupKT
 
 if __name__ == "__main__":
     # ----- add aditional arguments for this exp. -----

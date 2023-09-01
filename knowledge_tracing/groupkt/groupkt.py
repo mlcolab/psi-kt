@@ -1,5 +1,4 @@
 import sys
-
 sys.path.append("..")
 
 import math, os, argparse
@@ -12,9 +11,8 @@ from torch import nn, distributions
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.nn import functional as F
 
-from models.modules import build_rnn_cell, build_dense_network
-from models.modules import CausalTransformerModel, VAEEncoder
-from models.groupkt_graph_representation import VarTransformation, VarAttention
+from models.modules import build_dense_network, VAEEncoder
+from models.groupkt_graph_representation import VarTransformation
 from models.gmvae import *
 from utils.logger import Logger
 from groupkt import *

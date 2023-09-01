@@ -18,6 +18,7 @@ from knowledge_tracing.baseline.BaseModel import BaseModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
 
+from baseline import * 
 
 class DKT(BaseModel):
     extra_log_args = ["hidden_size", "num_layer"]

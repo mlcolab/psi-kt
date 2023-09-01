@@ -19,6 +19,8 @@ from knowledge_tracing.data.data_loader import DataReader
 from tqdm import tqdm
 from enum import Enum
 
+from baseline import * 
+
 class HLR(BaseLearnerModel):
     def __init__(
         self,

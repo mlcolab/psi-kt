@@ -16,6 +16,8 @@ from knowledge_tracing.baseline.BaseModel import BaseModel, BaseLearnerModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
 
+from baseline import * 
+
 ##########################################################################################
 # PPE Model
 ##########################################################################################

@@ -4,29 +4,18 @@ import sys
 sys.path.append("..")
 
 import os
-import time
-import pickle
 import argparse
 import numpy as np
 import datetime
 import shutil
 
 import torch
-from torch.autograd import profiler
-
 from data import data_loader
 
-import KTRunner
-import VCLRunner
+from knowledge_tracing.runner import runner_groupkt, runner_vcl
 from utils import utils, arg_parser, logger
-from models.learner_model import PPE, VanillaOU, GraphOU
-from models.HSSM import HSSM, GraphHSSM
+from models.HSSM import GraphHSSM
 from models.learner_hssm_vcl_model import GraphContinualHSSM
-
-import ipdb
-
-# https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
-
 
 if __name__ == "__main__":
     # ----- add aditional arguments for this exp. -----
@@ -100,106 +89,40 @@ if __name__ == "__main__":
 
     adj = np.load(global_args.graph_path)
 
-    if global_args.model_name == "HLR":
-        model = HLR(
+    if global_args.vcl == 0:
+        model = GroupKT(
             mode=global_args.train_mode,
             num_seq=num_seq,
             num_node=1 if not global_args.multi_node else corpus.n_skills,
             nx_graph=None if not global_args.multi_node else adj,
-            device=global_args.device,
-            logs=logs,
-        )
-
-    elif global_args.model_name == "VanillaOU":
-        model = VanillaOU(
-            mode=global_args.train_mode,
-            num_seq=num_seq,
-            num_node=1 if not global_args.multi_node else corpus.n_skills,
-            nx_graph=None if not global_args.multi_node else adj,
-            device=global_args.device,
-            logs=logs,
-        )
-
-    elif global_args.model_name == "GraphOU":
-        model = GraphOU(
-            mode=global_args.train_mode,
-            num_seq=num_seq,
-            num_node=1 if not global_args.multi_node else corpus.n_skills,
-            nx_graph=None if not global_args.multi_node else adj,
-            device=global_args.device,
-            logs=logs,
-        )
-
-    elif global_args.model_name == "PPE":
-        model = PPE(
-            mode=global_args.train_mode,
-            num_seq=num_seq,
-            num_node=1 if not global_args.multi_node else corpus.n_skills,
-            nx_graph=None if not global_args.multi_node else adj,
-            device=global_args.device,
-            logs=logs,
-        )
-
-    elif global_args.model_name == "SwitchingNLDS":
-        model = create_model(
-            dim_s=3,
-            dim_z=1,
-            dim_y=1,
             device=global_args.device,
             args=global_args,
             logs=logs,
         )
-
-    # elif global_args.model_name == 'VanillaHSSM':
-    #     model = VanillaHSSM( # TestHierachicalSSM(
-    #         mode=global_args.train_mode,
-    #         num_seq=num_seq,
-    #         num_node=1 if not global_args.multi_node else corpus.n_skills,
-    #         nx_graph=None if not global_args.multi_node else adj,
-    #         device=global_args.device,
-    #         args=global_args,
-    #         logs=logs,
-    #     )
-    #     shutil.copy('/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_model.py',
-    #                     global_args.log_path)
-    elif (
-        global_args.model_name == "TestHierachicalSSM"
-        or global_args.model_name == "GraphHSSM"
-    ):
-        if global_args.vcl == 0:
-            model = GraphHSSM(  # TestHierachicalSSM(
-                mode=global_args.train_mode,
-                num_seq=num_seq,
-                num_node=1 if not global_args.multi_node else corpus.n_skills,
-                nx_graph=None if not global_args.multi_node else adj,
-                device=global_args.device,
-                args=global_args,
-                logs=logs,
-            )
-        else:
-            model = GraphContinualHSSM(
-                mode=global_args.train_mode,
-                num_seq=num_seq,
-                num_node=1 if not global_args.multi_node else corpus.n_skills,
-                nx_graph=None if not global_args.multi_node else adj,
-                device=global_args.device,
-                args=global_args,
-                logs=logs,
-            )
-        shutil.copy(
-            "/home/mlcolab/hzhou52/knowledge_tracing/models/HSSM.py",
-            global_args.log_path,
+    else:
+        model = GraphGroupKT(
+            mode=global_args.train_mode,
+            num_seq=num_seq,
+            num_node=1 if not global_args.multi_node else corpus.n_skills,
+            nx_graph=None if not global_args.multi_node else adj,
+            device=global_args.device,
+            args=global_args,
+            logs=logs,
         )
-        shutil.copy(
-            "/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_vcl_model.py",
-            global_args.log_path,
-        )
-        shutil.copy(
-            "/home/mlcolab/hzhou52/knowledge_tracing/VCLRunner.py", global_args.log_path
-        )
-        shutil.copy(
-            "/home/mlcolab/hzhou52/knowledge_tracing/KTRunner.py", global_args.log_path
-        )
+    # shutil.copy(
+    #     "/home/mlcolab/hzhou52/knowledge_tracing/models/HSSM.py",
+    #     global_args.log_path,
+    # )
+    # shutil.copy(
+    #     "/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_vcl_model.py",
+    #     global_args.log_path,
+    # )
+    # shutil.copy(
+    #     "/home/mlcolab/hzhou52/knowledge_tracing/VCLRunner.py", global_args.log_path
+    # )
+    # shutil.copy(
+    #     "/home/mlcolab/hzhou52/knowledge_tracing/KTRunner.py", global_args.log_path
+    # )
 
     if global_args.load > 0:
         model.load_model(model_path=global_args.load_folder)
@@ -217,14 +140,11 @@ if __name__ == "__main__":
 
     # Running
     if global_args.vcl:
-        runner = VCLRunner.VCLRunner(global_args, logs)
+        runner = runner_vcl.VCLRunner(global_args, logs)
     else:
-        runner = KTRunner.KTRunner(global_args, logs)
+        runner = runner_groupkt.GroupKTRunner(global_args, logs)
 
 runner.train(model, corpus)
-# logs.write_to_log_file('\nTest After Training: ' + runner._print_res(model, corpus))
-
-# model.module.actions_after_train()
 logs.write_to_log_file(
     os.linesep + "-" * 45 + " END: " + utils.get_time() + " " + "-" * 45
 )

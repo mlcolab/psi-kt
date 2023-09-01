@@ -27,7 +27,7 @@ OPTIMIZER_MAP = {
     'adam': optim.Adam
 }
 
-class HssmKTRunner(KTRunner):
+class GroupKTRunner(KTRunner):
     '''
     This implements the training loop, testing & validation, optimization etc. 
     '''

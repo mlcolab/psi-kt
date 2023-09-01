@@ -14,26 +14,37 @@ from data import data_loader
 
 from knowledge_tracing.runner import runner_groupkt, runner_vcl
 from utils import utils, arg_parser, logger
-from models.HSSM import GraphHSSM
-from models.learner_hssm_vcl_model import GraphContinualHSSM
+from groupkt.groupkt import GroupKT, ContinualGroupKT
 
 if __name__ == "__main__":
     # ----- add aditional arguments for this exp. -----
     parser = argparse.ArgumentParser(description="Global")
     parser.add_argument("--model_name", type=str, help="Choose a model to run.")
 
-    # debug
-    parser.add_argument("--alpha_minimum", type=float, default=100)
-    parser.add_argument("--learned_graph", type=str, default="w_gt")
-
-    # Training options
-    parser.add_argument("--multi_node", type=int, default=0)
+    parser.add_argument(
+        "--learned_graph",
+        type=str,
+        default="w_gt",
+        help="none: no graph is learner; b_gt: graph with binary edge; w_gt: graph with weighted graph",
+    )
+    parser.add_argument(
+        "--multi_node",
+        type=int,
+        default=0,
+        help="whether we train the model with graph; TODO: duplicate with the argument of learned_graph",
+    )
     parser.add_argument(
         "--graph_path",
         type=str,
         default="/mnt/qb/work/mlcolab/hzhou52/kt/junyi15/adj.npy",
+        help="if the data has ground-truth graph we can compare our inferred graph with ground truth. Note the GT graph is not used for training.",
     )
-    parser.add_argument("--num_sample", type=int, default=10)
+    parser.add_argument(
+        "--num_sample",
+        type=int,
+        default=10,
+        help="number of samples when we use MC for non-analytical solution",
+    )
 
     parser = arg_parser.parse_args(parser)
 
@@ -100,7 +111,7 @@ if __name__ == "__main__":
             logs=logs,
         )
     else:
-        model = GraphGroupKT(
+        model = ContinualGroupKT(
             mode=global_args.train_mode,
             num_seq=num_seq,
             num_node=1 if not global_args.multi_node else corpus.n_skills,

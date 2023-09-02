@@ -8,7 +8,7 @@ from collections import defaultdict
 
 import torch
 
-from typing import List, Dict, Tuple, Optional, Union, Any, Callable
+from typing import List, Dict, Optional
 
 from knowledge_tracing.baseline.BaseModel import BaseModel
 from knowledge_tracing.utils import utils, logger

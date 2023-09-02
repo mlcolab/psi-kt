@@ -10,7 +10,6 @@ from sklearn.metrics import *
 from typing import List, Tuple, Dict
 
 import torch
-import torch.nn.functional as F
 
 from knowledge_tracing.utils import utils, logger
 

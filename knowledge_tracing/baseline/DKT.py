@@ -44,7 +44,7 @@ class DKT(BaseModel):
 
     """
 
-    extra_log_args = ["hidden_size", "num_layer"]
+    extra_log_args = ["hidden_size"]
 
     @staticmethod
     def parse_model_args(
@@ -72,9 +72,6 @@ class DKT(BaseModel):
             default=16,
             help="Size of hidden vectors in LSTM.",
         )
-        parser.add_argument(
-            "--num_layer", type=int, default=1, help="Number of GRU layers."
-        )
         return BaseModel.parse_model_args(parser, model_name)
 
     def __init__(
@@ -87,7 +84,6 @@ class DKT(BaseModel):
         self.skill_num = int(corpus.n_skills)
         self.emb_size = args.emb_size
         self.hidden_size = args.hidden_size
-        self.num_layer = args.num_layer
         self.dropout = args.dropout
 
         # Set the device to use for computations
@@ -120,7 +116,6 @@ class DKT(BaseModel):
             input_size=self.emb_size,
             hidden_size=self.hidden_size,
             batch_first=True,
-            num_layers=self.num_layer,
         )
 
         self.out = torch.nn.Linear(self.hidden_size, self.skill_num)

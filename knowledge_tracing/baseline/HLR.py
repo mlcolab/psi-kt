@@ -317,6 +317,17 @@ class HLR(BaseLearnerModel):
         feed_dict: Dict[str, torch.Tensor],
         single_step: bool = True,
     ) -> Dict[str, torch.Tensor]:
+        """
+        Perform predictive modeling using the learner model.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data tensors.
+            single_step (bool, optional): Whether to perform single-step prediction. Defaults to True.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing predicted outputs and related information.
+        """
+
         train_step = int(self.args.max_step * self.args.train_time_ratio)
 
         skills_test = feed_dict["skill_seq"][:, train_step - 1 :]

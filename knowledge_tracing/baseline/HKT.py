@@ -12,17 +12,61 @@ import torch.nn.functional as F
 
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 
-from knowledge_tracing.baseline import * 
+from knowledge_tracing.baseline import *
 
 from knowledge_tracing.baseline.BaseModel import BaseModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
 
+
 class HKT(BaseModel):
+    """
+    An implementation of the HKT model, extending the BaseModel.
+
+    This class defines the HKT (Hawkes Knowledge Tracing) model,
+    which extends the BaseModel class. It includes methods for parsing model
+    arguments and initializing the instance.
+
+    Args:
+        args (argparse.Namespace):
+            Namespace containing parsed command-line arguments.
+        corpus (DataReader):
+            An instance of the DataReader class containing corpus data.
+        logs (Logger):
+            An instance of the Logger class for logging purposes.
+
+    Attributes:
+        extra_log_args (List[str]): List of additional arguments to include in logs.
+            These are specific to the HKT model.
+
+    Methods:
+        parse_model_args(parser, model_name="HKT"):
+            Parse HKT-specific model arguments from the command line.
+
+        __init__(args, corpus, logs):
+            Initialize an instance of the HKT class.
+
+    """
+
     extra_log_args = ["time_log"]
 
     @staticmethod
-    def parse_model_args(parser, model_name="HKT"):
+    def parse_model_args(
+        parser: argparse.ArgumentParser,
+        model_name: str = "HKT",
+    ) -> argparse.Namespace:
+        """
+        Parse HKT-specific model arguments from the command line.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+            model_name (str, optional): Name of the model. Defaults to "HKT".
+
+        Returns:
+            argparse.Namespace: Parsed command-line arguments.
+
+        """
+
         parser.add_argument(
             "--emb_size", type=int, default=16, help="Size of embedding vectors."
         )
@@ -227,21 +271,6 @@ class HKT(BaseModel):
             ),  # [batch_size, seq_len]
         }
         return feed_dict
-
-    # This is not used in the current version
-    # def actions_after_train(self):
-    #     joblib.dump(self.alpha_inter_embeddings.weight.data.cpu().numpy(),
-    #                 '../data/{}/alpha_inter_embeddings.npy'.format(self.dataset))
-    #     joblib.dump(self.alpha_skill_embeddings.weight.data.cpu().numpy(),
-    #                 '../data/{}/alpha_skill_embeddings.npy'.format(self.dataset))
-    #     joblib.dump(self.beta_inter_embeddings.weight.data.cpu().numpy(),
-    #                 '../data/{}/beta_inter_embeddings.npy'.format(self.dataset))
-    #     joblib.dump(self.beta_skill_embeddings.weight.data.cpu().numpy(),
-    #                 '../data/{}/beta_skill_embeddings.npy'.format(self.dataset))
-    #     joblib.dump(self.problem_base.weight.data.cpu().numpy(),
-    #                 '../data/{}/problem_base.npy'.format(self.dataset))
-    #     joblib.dump(self.skill_base.weight.data.cpu().numpy(),
-    #                 '../data/{}/skill_base.npy'.format(self.dataset))
 
     def predictive_model(
         self,

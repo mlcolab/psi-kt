@@ -49,7 +49,10 @@ class AKT(BaseModel):
     extra_log_args = ["num_layer", "num_head"]
 
     @staticmethod
-    def parse_model_args(parser, model_name="AKT") -> argparse.Namespace:
+    def parse_model_args(
+        parser: argparse.ArgumentParser,
+        model_name: str = "AKT",
+    ) -> argparse.Namespace:
         """
         Parse AKT-specific model arguments from the command line.
 

@@ -14,11 +14,55 @@ from knowledge_tracing.baseline.BaseModel import BaseModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
 
+
 class DKT(BaseModel):
+    """
+    An implementation of the DKT model, extending the BaseModel.
+
+    This class defines the DKT (Deep Knowledge Tracing) model,
+    which extends the BaseModel class. It includes methods for parsing model
+    arguments and initializing the instance.
+
+    Args:
+        args (argparse.Namespace):
+            Namespace containing parsed command-line arguments.
+        corpus (DataReader):
+            An instance of the DataReader class containing corpus data.
+        logs (Logger):
+            An instance of the Logger class for logging purposes.
+
+    Attributes:
+        extra_log_args (List[str]): List of additional arguments to include in logs.
+            These are specific to the DKT model.
+
+    Methods:
+        parse_model_args(parser, model_name):
+            Parse DKT-specific model arguments from the command line.
+
+        __init__(args, corpus, logs):
+            Initialize an instance of the DKT class.
+
+    """
+
     extra_log_args = ["hidden_size", "num_layer"]
 
     @staticmethod
-    def parse_model_args(parser, model_name="DKT"):
+    def parse_model_args(
+        parser: argparse.ArgumentParser,
+        model_name: str = "DKT",
+    ) -> argparse.ArgumentParser:
+        """
+        Parse DKT-specific model arguments from the command line.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+            model_name (str, optional): Name of the model. Defaults to "DKT".
+
+        Returns:
+            argparse.Namespace: Parsed command-line arguments.
+
+        """
+
         parser.add_argument(
             "--emb_size", type=int, default=16, help="Size of embedding vectors."
         )
@@ -39,20 +83,6 @@ class DKT(BaseModel):
         corpus: DataReader,
         logs: logger.Logger,
     ):
-        """
-        Initialize the model.
-
-        This function creates an instance of the model based on the provided arguments.
-
-        Args:
-            args: An object containing the arguments for the model.
-            corpus: An object containing the corpus of data for the model.
-            logs: An object containing the logs for the model.
-
-        Returns:
-            None
-        """
-
         # Set the size of the skill embedding, the hidden size of the LSTM layer, the number of LSTM layers, and the dropout rate
         self.skill_num = int(corpus.n_skills)
         self.emb_size = args.emb_size
@@ -74,7 +104,8 @@ class DKT(BaseModel):
         """
         Initialize the weights of the model.
 
-        This function creates the necessary layers of the model and initializes their weights.
+        This function creates and initializes the layers and weights of the learner model,
+        including skill embeddings, an LSTM layer, and an output linear layer.
 
         Returns:
             None
@@ -102,7 +133,7 @@ class DKT(BaseModel):
         idx: int = None,
     ) -> Dict[str, torch.Tensor]:
         """
-        Forward pass for the ontinual learning task, given the input feed_dict and the current time index.
+        Forward pass for the continual learning task, given the input feed_dict and the current time index.
 
         Args:
             feed_dict: A dictionary containing the input tensors for the model.
@@ -161,6 +192,17 @@ class DKT(BaseModel):
         feed_dict: Dict[str, torch.Tensor],
         idx: int = None,
     ) -> Dict[str, torch.Tensor]:
+        """
+        Evaluate the learner model's performance.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data tensors.
+            idx (int, optional): Index of the evaluation batch. Defaults to None.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing evaluation results.
+        """
+
         raise NotImplementedError
 
     def forward(
@@ -200,7 +242,6 @@ class DKT(BaseModel):
         output, _ = self.rnn(embed_history_i_packed, None)  # [bs, time, emb_size]
 
         # Unpack the output of the RNN and run it through the output layer
-        # output, _ = torch.nn.utils.rnn.pad_packed_sequence(output, batch_first=True) # output.data [bs, time-1, emb_size]
         pred_vector = self.out(output)  # [bs, time, skill_num]
 
         # Extract the prediction for the next item and the corresponding label

@@ -1,9 +1,5 @@
 # @Date: 2023/07/29
 
-import sys
-
-sys.path.append("..")
-
 import os
 import numpy as np
 import pandas as pd
@@ -17,8 +13,6 @@ from typing import List, Dict, Tuple, Optional, Union, Any, Callable
 from knowledge_tracing.baseline.BaseModel import BaseModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
-
-from baseline import * 
 
 class DKTForgetting(BaseModel):
     extra_log_args = ["hidden_size", "num_layer"]

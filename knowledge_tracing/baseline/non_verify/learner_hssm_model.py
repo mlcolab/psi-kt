@@ -28,14 +28,13 @@ class HSSM(BaseLearnerModel):
     ):
         super().__init__(mode=mode, device=device, logs=logs)
 
-        self.dim_y, self.dim_z, self.dim_s = 1, 1, 3
+        self.dim_y = 1
+        self.dim_z = 1
+        self.dim_s = 3
 
-        (
-            self.fit_vi_global_s,
-            self.fit_vi_transition_s,
-            self.infer_global_s,
-            self.infer_transition_s,
-        ) = (0, 0, 0, 1)
+        self.fit_vi_global_s = self.fit_vi_transition_s = self.infer_global_s = 0
+        self.infer_transition_s = 1
+        
         self.user_time_dependent_covariance = 1
         self.diagonal_std, self.lower_tri_std = 1, 0
 

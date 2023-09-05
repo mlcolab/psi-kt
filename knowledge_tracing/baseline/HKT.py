@@ -14,7 +14,7 @@ from typing import List, Dict, Optional
 
 from knowledge_tracing.baseline import *
 
-from knowledge_tracing.baseline.BaseModel import BaseModel
+from knowledge_tracing.baseline.basemodel import BaseModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
 

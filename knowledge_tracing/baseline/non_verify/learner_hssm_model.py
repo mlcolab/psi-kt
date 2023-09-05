@@ -11,7 +11,7 @@ from collections import defaultdict
 
 from knowledge_tracing import *
 from knowledge_tracing.groupkt.modules import *
-from knowledge_tracing.baseline.BaseModel import BaseModel, BaseLearnerModel
+from knowledge_tracing.baseline.basemodel import BaseModel, BaseLearnerModel
 from knowledge_tracing.groupkt.groupkt_graph_representation import VarTransformation
 
 

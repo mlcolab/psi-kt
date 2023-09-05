@@ -6,7 +6,7 @@ import torch.nn as nn
 
 from typing import List, Dict
 
-from knowledge_tracing.baseline.BaseModel import BaseModel, BaseLearnerModel
+from knowledge_tracing.baseline.basemodel import BaseModel, BaseLearnerModel
 from knowledge_tracing.utils import logger
 from knowledge_tracing.data.data_loader import DataReader
 

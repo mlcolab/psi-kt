@@ -16,7 +16,7 @@ from knowledge_tracing.runner import runner_baseline
 # from VCLRunner_baseline import BaselineVCLRunner
 # from FTRunner_baseline import FTRunner
 from knowledge_tracing.utils import utils, arg_parser, logger
-from knowledge_tracing.baseline import DKT, DKTForgetting, HKT, AKT, HLR, PPE
+from knowledge_tracing.baseline import akt, dkt, dktforgetting, hkt, hlr, ppe
 
 # TODO: this is duplicate with the one in exp
 
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     # Get the model name from the command-line arguments.
     # Evaluate the model name string as a Python expression to get the corresponding model class.
     model_name = init_args.model_name
-    model = eval('{0}.{0}'.format(model_name))
+    model = eval('{0}.{0}'.format(model_name.lower(), model_name.upper()))
     
     # ----- args -----
     # reference:

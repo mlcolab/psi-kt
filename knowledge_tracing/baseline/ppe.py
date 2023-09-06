@@ -95,18 +95,11 @@ class PPE(BaseLearnerModel):
 
         """
 
-        # Training mode choosing
-        class ThetaShape(Enum):
-            SIMPLE_SPLIT_TIME = (1, 1, 1)
-            SIMPLE_SPLIT_LEARNER = (1, 1, 1)
-            LS_SPLIT_TIME = (self.num_seq, 1, 1)
-            NS_SPLIT_TIME = (1, self.num_node, 1)
-            NS_SPLIT_LEARNER = (1, self.num_node, 1)
-            LN_SPLIT_TIME = (self.num_seq, self.num_node, 1)
-
         if self.mode != "synthetic":
             try:
-                shape = ThetaShape[self.mode.upper()].value
+                shape = utils.get_theta_shape(self.num_seq, self.num_node, 1)[
+                    self.mode.lower()
+                ].value
             except KeyError:
                 raise ValueError(f"Invalid mode: {self.mode}")
             self.lr = self._initialize_parameter(shape, self.device)

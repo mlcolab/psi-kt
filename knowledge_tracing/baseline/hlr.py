@@ -7,7 +7,7 @@ import torch.nn as nn
 from typing import List, Dict
 
 from knowledge_tracing.baseline.basemodel import BaseModel, BaseLearnerModel
-from knowledge_tracing.utils import logger
+from knowledge_tracing.utils import logger, utils
 from knowledge_tracing.data.data_loader import DataReader
 
 from enum import Enum
@@ -75,20 +75,13 @@ class HLR(BaseLearnerModel):
         super().__init__(mode=args.train_mode, device=args.device, logs=logs)
 
     def _init_weights(self) -> None:
-        # Training mode choosing
-        class ThetaShape(Enum):
-            SIMPLE_SPLIT_TIME = (1, 1, 3)
-            SIMPLE_SPLIT_LEARNER = (1, 1, 3)
-            LS_SPLIT_TIME = (self.num_seq, 1, 3)
-            NS_SPLIT_TIME = (1, self.num_node, 3)
-            NS_SPLIT_LEARNER = (1, self.num_node, 3)
-            LN_SPLIT_TIME = (self.num_seq, self.num_node, 3)
-
         if self.mode == "synthetic":
             self.theta = torch.tensor(self.theta, device=self.device).float()
         else:
             try:
-                shape = ThetaShape[self.mode.upper()].value
+                shape = utils.get_theta_shape(self.num_seq, self.num_node, 3)[
+                    self.mode.lower()
+                ].value
             except KeyError:
                 raise ValueError(f"Invalid mode: {self.mode}")
             self.theta = self._initialize_parameter(shape, self.device)

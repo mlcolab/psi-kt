@@ -39,12 +39,12 @@ def get_theta_shape(num_seq: int, num_node: int, other) -> dict:
               representing the shape of theta parameters.
     """
     return dict(
-        SIMPLE_SPLIT_TIME=(1, 1, other),
-        SIMPLE_SPLIT_LEARNER=(1, 1, other),
-        LS_SPLIT_TIME=(num_seq, 1, other),
-        NS_SPLIT_TIME=(1, num_node, other),
-        NS_SPLIT_LEARNER=(1, num_node, other),
-        LN_SPLIT_TIME=(num_seq, num_node, other),
+        simple_split_time = (1, 1, other),
+        simple_split_learner = (1, 1, other),
+        ls_split_time = (num_seq, 1, other),
+        ns_split_time = (1, num_node, other),
+        ns_split_learner = (1, num_node, other),
+        ln_split_time = (num_seq, num_node, other),
     )
 
 

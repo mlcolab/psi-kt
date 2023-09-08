@@ -20,8 +20,7 @@ class DKT(BaseModel):
     An implementation of the DKT model, extending the BaseModel.
 
     This class defines the DKT (Deep Knowledge Tracing) model,
-    which extends the BaseModel class. It includes methods for parsing model
-    arguments and initializing the instance.
+    originally proposed in [Piech et al., 2015](https://arxiv.org/abs/1506.05908).
 
     Args:
         args (argparse.Namespace):
@@ -34,13 +33,6 @@ class DKT(BaseModel):
     Attributes:
         extra_log_args (List[str]): List of additional arguments to include in logs.
             These are specific to the DKT model.
-
-    Methods:
-        parse_model_args(parser, model_name):
-            Parse DKT-specific model arguments from the command line.
-
-        __init__(args, corpus, logs):
-            Initialize an instance of the DKT class.
 
     """
 
@@ -324,9 +316,7 @@ class DKT(BaseModel):
             "prediction": prediction,
             "label": label,
             "emb": hiddens,
-            "item": items,
-            "time": feed_dict["time_seq"],
-        }  # TODO
+        }
 
         return out_dict
 
@@ -357,8 +347,6 @@ class DKT(BaseModel):
 
         # Compute the loss for the main prediction task
         predictions, labels = out_dict["prediction"][indice], out_dict["label"][indice]
-        # predictions = torch.nn.utils.rnn.pack_padded_sequence(predictions, lengths, batch_first=True).data
-        # labels = torch.nn.utils.rnn.pack_padded_sequence(labels, lengths, batch_first=True).data
         loss = self.loss_function(predictions, labels.float())
         losses["loss_total"] = loss
 

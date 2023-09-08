@@ -16,8 +16,8 @@ from knowledge_tracing.runner import runner_baseline
 # from VCLRunner_baseline import BaselineVCLRunner
 # from FTRunner_baseline import FTRunner
 from knowledge_tracing.utils import utils, arg_parser, logger
-# from knowledge_tracing.baseline import akt, dktforgetting, hkt, hlr, ppe
-from knowledge_tracing.baseline.EduKTM import dkt
+# from knowledge_tracing.baseline import akt, hkt, hlr, ppe
+from knowledge_tracing.baseline.EduKTM import dkt, dktforgetting
 
 # TODO: this is duplicate with the one in exp
 

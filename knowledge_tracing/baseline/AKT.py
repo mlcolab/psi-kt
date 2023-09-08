@@ -17,6 +17,7 @@ from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
 
 class AKT(BaseModel):
+
     extra_log_args = ["num_layer", "num_head"]
 
     @staticmethod

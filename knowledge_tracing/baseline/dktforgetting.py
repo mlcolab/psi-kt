@@ -18,9 +18,7 @@ from knowledge_tracing.data.data_loader import DataReader
 
 class DKTFORGETTING(BaseModel):
     """
-    An implementation of the DKTForgetting model, extending the BaseModel.
-
-    This class defines the DKTForgetting (Attention-based Knowledge Tracing) model,
+    This class defines the DKTForgetting model,
     original paper: https://dl.acm.org/doi/10.1145/3308558.3313565
 
     Args:

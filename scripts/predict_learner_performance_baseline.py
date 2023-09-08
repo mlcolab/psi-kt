@@ -18,7 +18,7 @@ from knowledge_tracing.runner import runner_baseline
 from knowledge_tracing.utils import utils, arg_parser, logger
 from knowledge_tracing.baseline import dktforgetting # akt, hkt, ppe
 from knowledge_tracing.baseline.EduKTM import dkt
-from knowledge_tracing.baseline.halflife-regression import hlr
+from knowledge_tracing.baseline.halflife_regression import hlr
 
 # TODO: this is duplicate with the one in exp
 

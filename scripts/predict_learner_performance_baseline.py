@@ -18,7 +18,11 @@ from knowledge_tracing.runner import runner_baseline
 # from VCLRunner_baseline import BaselineVCLRunner
 # from FTRunner_baseline import FTRunner
 from knowledge_tracing.utils import utils, arg_parser, logger
+<<<<<<< HEAD:script/predict_learner_performance_baseline.py
 from knowledge_tracing.baseline import DKTForgetting, HKT, AKT, HLR, PPE
+=======
+from knowledge_tracing.baseline import akt, dkt, dktforgetting, hkt, hlr, ppe
+>>>>>>> b4df127d6c418aa808d749d4ec8151f719b98d17:scripts/predict_learner_performance_baseline.py
 
 # TODO: this is duplicate with the one in exp
 
@@ -40,7 +44,7 @@ if __name__ == '__main__':
     # Get the model name from the command-line arguments.
     # Evaluate the model name string as a Python expression to get the corresponding model class.
     model_name = init_args.model_name
-    model = eval('{0}.{0}'.format(model_name))
+    model = eval('{0}.{0}'.format(model_name.lower(), model_name.upper()))
     
     # ----- args -----
     # reference:

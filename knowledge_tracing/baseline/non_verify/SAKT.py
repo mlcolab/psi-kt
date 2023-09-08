@@ -107,11 +107,12 @@ class SAKT(BaseModel):
 
 class TransformerLayer(nn.Module):
     def __init__(self, d_model, d_feature, d_ff, n_heads, dropout, kq_same, gpu=""):
-        super().__init__()
         """
             This is a Basic Block of Transformer paper. It containts one Multi-head attention object. 
             Followed by layer norm and postion wise feedforward net and dropout layer.
         """
+        
+        super().__init__()
         self.gpu = gpu
         # Multi-Head Attention Block
         self.masked_attn_head = MultiHeadAttention(
@@ -158,10 +159,12 @@ class MultiHeadAttention(nn.Module):
     def __init__(
         self, d_model, d_feature, n_heads, dropout, kq_same, bias=True, gpu=""
     ):
-        super().__init__()
         """
         It has projection layer for getting keys, queries and values. Followed by attention and a connected layer.
         """
+        
+        super().__init__()
+
         self.d_model = d_model
         self.d_k = d_feature
         self.h = n_heads

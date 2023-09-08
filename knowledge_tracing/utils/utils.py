@@ -12,16 +12,45 @@ import pickle
 
 # a dict to store the activations
 activation = {}
+
+
 def getActivation(name):
     # the hook signature
     def hook(model, input, output):
         activation[name] = output.detach()
+
     return hook
- 
+
+
+def get_theta_shape(num_seq: int, num_node: int, other) -> dict:
+    """
+    Get the shape of theta parameters based on the training mode.
+
+    This function returns a dictionary containing the shape of theta parameters based on the
+    number of sequences, number of nodes, and other parameters.
+
+    Args:
+        num_seq (int): The number of sequences.
+        num_node (int): The number of nodes.
+        other: Other parameters or arguments.
+
+    Returns:
+        dict: A dictionary with keys representing different training modes and values
+              representing the shape of theta parameters.
+    """
+    return dict(
+        simple_split_time = (1, 1, other),
+        simple_split_learner = (1, 1, other),
+        ls_split_time = (num_seq, 1, other),
+        ns_split_time = (1, num_node, other),
+        ns_split_learner = (1, num_node, other),
+        ln_split_time = (num_seq, num_node, other),
+    )
+
 
 def load_corpus(logs, args):
-    '''
-    Load corpus from the corpus path, and split the data into k folds. 
+    """
+    Load corpus from the corpus path, and split the data into k folds.
 
     Args:
         logs: An object to write logs to.
@@ -29,34 +58,44 @@ def load_corpus(logs, args):
 
     Returns:
         The corpus object that contains the loaded data.
-    '''
+    """
 
     # Construct the path to the corpus file based on the dataset and max_step arguments.
-    corpus_path = os.path.join(args.data_dir, args.dataset, 'Corpus_{}.pkl'.format(args.max_step))
+    corpus_path = os.path.join(
+        args.data_dir, args.dataset, "Corpus_{}.pkl".format(args.max_step)
+    )
     logs.write_to_log_file(f"Load corpus from {corpus_path}")
-    
-    # Load the corpus object from the pickle file at the specified path.
-    with open(corpus_path, 'rb') as f:
-        corpus = pickle.load(f)
-    
-    # Check the value of the train_mode argument to determine the type of data split.
-    if 'split_learner' in args.train_mode:
-        corpus.gen_fold_data(args.fold)
-        logs.write_to_log_file('# Training mode splits LEARNER')
 
-    elif 'split_time' in args.train_mode:
-        corpus.gen_time_split_data(args.train_time_ratio, args.test_time_ratio, args.val_time_ratio*args.validate)
-        logs.write_to_log_file('# Training mode splits TIME')
-        
-    logs.write_to_log_file('# Train: {}, # val: {}, # Test: {}'.format(
-            len(corpus.data_df['train']), len(corpus.data_df['val']), len(corpus.data_df['test'])
-        ))
+    # Load the corpus object from the pickle file at the specified path.
+    with open(corpus_path, "rb") as f:
+        corpus = pickle.load(f)
+
+    # Check the value of the train_mode argument to determine the type of data split.
+    if "split_learner" in args.train_mode:
+        corpus.gen_fold_data(args.fold)
+        logs.write_to_log_file("# Training mode splits LEARNER")
+
+    elif "split_time" in args.train_mode:
+        corpus.gen_time_split_data(
+            args.train_time_ratio,
+            args.test_time_ratio,
+            args.val_time_ratio * args.validate,
+        )
+        logs.write_to_log_file("# Training mode splits TIME")
+
+    logs.write_to_log_file(
+        "# Train: {}, # val: {}, # Test: {}".format(
+            len(corpus.data_df["train"]),
+            len(corpus.data_df["val"]),
+            len(corpus.data_df["test"]),
+        )
+    )
 
     return corpus
 
 
 def get_feed_general(keys, data, start, batch_size, pad_list=False):
-    '''
+    """
     Creates a PyTorch feed_dict for a batch of data.
 
     Args:
@@ -68,23 +107,23 @@ def get_feed_general(keys, data, start, batch_size, pad_list=False):
 
     Returns:
         A dictionary containing the input data as PyTorch tensors.
-    '''
+    """
 
     # Create an empty dictionary to hold the feed_dict values
     feed_dict = {}
-    
+
     # Iterate over the keys in the provided list
     for key, value in keys.items():
         # Extract the sequence of values for the current key from the input data
-        seq = data[value][start: start + batch_size].values
-        
+        seq = data[value][start : start + batch_size].values
+
         # If the key ends in '_seq' and the pad_list flag is True, pad the sequence
-        if '_seq' in key or 'num_' in key:
+        if "_seq" in key or "num_" in key:
             seq = pad_lst(seq)
-        
+
         # Convert the sequence to a PyTorch tensor and add it to the feed_dict dictionary
         feed_dict[key] = torch.as_tensor(seq)
-        
+
     return feed_dict
 
 
@@ -93,39 +132,68 @@ def format_arg_str(args, exclude_lst, max_len=20):
     arg_dict = vars(args)
     keys = [k for k in arg_dict.keys() if k not in exclude_lst]
     values = [arg_dict[k] for k in keys]
-    key_title, value_title = 'Arguments', 'Values'
+    key_title, value_title = "Arguments", "Values"
     key_max_len = max(map(lambda x: len(str(x)), keys))
     value_max_len = min(max(map(lambda x: len(str(x)), values)), max_len)
-    key_max_len, value_max_len = max([len(key_title), key_max_len]), max([len(value_title), value_max_len])
+    key_max_len, value_max_len = max([len(key_title), key_max_len]), max(
+        [len(value_title), value_max_len]
+    )
     horizon_len = key_max_len + value_max_len + 5
-    res_str = linesep + '=' * horizon_len + linesep
-    res_str += ' ' + key_title + ' ' * (key_max_len - len(key_title)) + ' | ' \
-               + value_title + ' ' * (value_max_len - len(value_title)) + ' ' + linesep + '=' * horizon_len + linesep
+    res_str = linesep + "=" * horizon_len + linesep
+    res_str += (
+        " "
+        + key_title
+        + " " * (key_max_len - len(key_title))
+        + " | "
+        + value_title
+        + " " * (value_max_len - len(value_title))
+        + " "
+        + linesep
+        + "=" * horizon_len
+        + linesep
+    )
     for key in sorted(keys):
         value = arg_dict[key]
         if value is not None:
-            key, value = str(key), str(value).replace('\t', '\\t')
-            value = value[:max_len-3] + '...' if len(value) > max_len else value
-            res_str += ' ' + key + ' ' * (key_max_len - len(key)) + ' | ' \
-                       + value + ' ' * (value_max_len - len(value)) + linesep
-    res_str += '=' * horizon_len
+            key, value = str(key), str(value).replace("\t", "\\t")
+            value = value[: max_len - 3] + "..." if len(value) > max_len else value
+            res_str += (
+                " "
+                + key
+                + " " * (key_max_len - len(key))
+                + " | "
+                + value
+                + " " * (value_max_len - len(value))
+                + linesep
+            )
+    res_str += "=" * horizon_len
     return res_str
 
 
 def format_metric(metric):
-    assert(type(metric) == dict)
+    assert type(metric) == dict
     format_str = []
     for name in np.sort(list(metric.keys())):
         m = metric[name]
-        if type(m) is float or type(m) is np.float or type(m) is np.float32 or type(m) is np.float64:
-            format_str.append('{}:{:<.4f}'.format(name, m))
-        elif type(m) is int or type(m) is np.int or type(m) is np.int32 or type(m) is np.int64:
-            format_str.append('{}:{}'.format(name, m))
-    return ','.join(format_str)
+        if (
+            type(m) is float
+            or type(m) is np.float
+            or type(m) is np.float32
+            or type(m) is np.float64
+        ):
+            format_str.append("{}:{:<.4f}".format(name, m))
+        elif (
+            type(m) is int
+            or type(m) is np.int
+            or type(m) is np.int32
+            or type(m) is np.int64
+        ):
+            format_str.append("{}:{}".format(name, m))
+    return ",".join(format_str)
 
 
 def check_dir(file_name):
-    '''
+    """
     Checks if the directory containing the specified file exists, and creates it if necessary.
 
     Args:
@@ -133,16 +201,15 @@ def check_dir(file_name):
 
     Returns:
         None
-    '''
+    """
 
     # Get the path to the directory containing the specified file.
     dir_path = os.path.dirname(file_name)
 
     # If the directory doesn't exist, create it.
     if not os.path.exists(dir_path):
-        print('make dirs:', dir_path)
+        print("make dirs:", dir_path)
         os.makedirs(dir_path)
-
 
 
 def get_time():
@@ -181,7 +248,7 @@ def as_list(obj) -> list:
 
 def create_rel_rec_send(num_atoms, device):
     """Based on https://github.com/ethanfetaya/NRI (MIT License)."""
-    
+
     # Generate off-diagonal interaction graph
     off_diag = np.ones([num_atoms, num_atoms])
     # ipdb.set_trace()
@@ -228,6 +295,7 @@ class ConfigDict(dict):
     print(config.test_number)  # 1 will be returned.
     ```
     """
+
     def __init__(self, *args, **kwargs):
         super(ConfigDict, self).__init__(*args, **kwargs)
         for arg in args:
@@ -237,36 +305,38 @@ class ConfigDict(dict):
         if kwargs:
             for k, v in kwargs.iteritems():
                 self[k] = v
+
     def __getattr__(self, attr):
         return self.get(attr)
+
     def __setattr__(self, key, value):
         self.__setitem__(key, value)
+
     def __setitem__(self, key, value):
         super(ConfigDict, self).__setitem__(key, value)
         self.__dict__.update({key: value})
+
     def __delattr__(self, item):
         self.__delitem__(item)
+
     def __delitem__(self, key):
         super(ConfigDict, self).__delitem__(key)
         del self.__dict__[key]
-        
-        
-        
+
+
 def pad_lst(lst, value=-1, dtype=np.int64):
     # Find the maximum length of any row in the input list
     inner_max_len = max(map(len, lst))
-    
+
     # Create a new array with the same number of rows as the input list
     # and the maximum row length as the number of columns
     result = np.ones([len(lst), inner_max_len], dtype) * value
-    
+
     # Iterate over each row of the input list
     for i, row in enumerate(lst):
         # Iterate over each element in the row
         for j, val in enumerate(row):
             # Copy the element value to the corresponding position in the new array
             result[i][j] = val
-            
+
     return result
-
-

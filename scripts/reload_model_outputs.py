@@ -19,7 +19,11 @@ from knowledge_tracing.data import data_loader
 from knowledge_tracing.runner import runner_baseline
 
 from knowledge_tracing.utils import utils, arg_parser, logger
+<<<<<<< HEAD:script/reload_model_outputs.py
 from knowledge_tracing.baseline import DKTForgetting, HKT, AKT, HLR, PPE
+=======
+from knowledge_tracing.baseline import akt, dkt, dktforgetting, hkt, hlr, ppe
+>>>>>>> b4df127d6c418aa808d749d4ec8151f719b98d17:scripts/reload_model_outputs.py
 from knowledge_tracing.groupkt import groupkt
 
 if __name__ == "__main__":

@@ -1,26 +1,40 @@
-import sys
-sys.path.append("..")
-
 import math, os, argparse
 import numpy
-from collections import defaultdict
-from typing import List, Dict, Tuple, Optional, Union, Any, Callable
+from typing import List, Dict, Tuple, Optional
 
 import torch
 from torch import nn, distributions
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.nn import functional as F
 
-from models.modules import build_dense_network, VAEEncoder
-from models.groupkt_graph_representation import VarTransformation
-from models.gmvae import *
-from utils.logger import Logger
-from groupkt import *
+from knowledge_tracing.groupkt import *
+from knowledge_tracing.groupkt.modules import build_dense_network, VAEEncoder
+from knowledge_tracing.groupkt.groupkt_graph_representation import VarTransformation
+from knowledge_tracing.groupkt.groupkt_gmvae import *
+from knowledge_tracing.utils.logger import Logger
 
-from baseline.BaseModel import BaseModel
+from knowledge_tracing.baseline.basemodel import BaseModel
 
 
 class GroupKT(BaseModel):
+    """
+    Group Knowledge Tracing Model.
+
+    This class represents a Group Knowledge Tracing model used for training with different modes.
+
+    Args:
+        mode (str): The training mode. Examples include 'train' and 'ls_split_time'.
+        num_node (int): The number of nodes in the graph.
+        num_seq (int): The number of sequences in the dataset (used when mode is 'synthetic').
+        nx_graph (nx.Graph or None): The graph adjacency matrix (None for synthetic mode).
+        device (torch.device or None): The device for computations (None for default).
+        args (argparse.Namespace or None): Command-line arguments (None for default).
+        logs: Logs for the model.
+
+    Usage:
+    >>> group_kt_model = GroupKT(mode, num_node, num_seq, nx_graph, device, args, logs)
+    """
+
     def __init__(
         self,
         mode: str = "train",
@@ -31,16 +45,6 @@ class GroupKT(BaseModel):
         args: argparse.Namespace = None,
         logs=None,
     ):
-        """
-        Args:
-            mode: the training model. E.g., when mode=='ls_split_time', the model is trained with
-                    learner-specific parameters and the training data is split across time for each learner.
-            num_node: the number of nodes in the graph.
-            num_seq: the number of sequences in the dataset. This is an argument for the model when the mode
-                        is 'synthetic' to generate synthetic data.
-            nx_graph: the graph adjacancy matrix. If mode=='synthetic', the graph is generated in advance.
-                        Otherwise, the ground-truth graph will be provided if the real-world dataset has one.
-        """
         self.logs = logs
         self.device = device
         self.args = args
@@ -62,7 +66,7 @@ class GroupKT(BaseModel):
     @staticmethod
     def _normalize_timestamps(
         timestamps: torch.Tensor,
-    ):
+    ) -> torch.Tensor:
         """
         Normalizes timestamps by subtracting the mean and dividing by the standard deviation.
         Args:
@@ -80,7 +84,7 @@ class GroupKT(BaseModel):
     def _construct_normal_from_mean_std(
         mean: torch.Tensor,
         std: torch.Tensor,
-    ):
+    ) -> distributions.MultivariateNormal:
         """
         Construct a multivariate Gaussian distribution from a mean and covariance matrix.
 
@@ -132,7 +136,7 @@ class GroupKT(BaseModel):
     @staticmethod
     def _initialize_normal_mean_log_var(
         dim: int, use_trainable_cov: bool, num_sample: int = 1
-    ):
+    ) -> Tuple[nn.Parameter, nn.Parameter]:
         """
         Construct the initial mean and covariance matrix for the multivariate Gaussian distribution.
 
@@ -161,7 +165,9 @@ class GroupKT(BaseModel):
         return x0_mean, x0_log_var
 
     @staticmethod
-    def _positional_encoding1d(d_model: int, length: int, actual_time=None):
+    def _positional_encoding1d(
+        d_model: int, length: int, actual_time=None
+    ) -> torch.Tensor:
         """
         Modified based on https://github.com/wzlxjtu/PositionalEncoding2D
         Args:
@@ -202,7 +208,7 @@ class GroupKT(BaseModel):
         self,
         time: torch.Tensor,
         type: str = "dt",
-    ):
+    ) -> torch.Tensor:
         """
         Get time embeddings based on the given time tensor.
         Args:
@@ -237,7 +243,7 @@ class GroupKT(BaseModel):
         observation_shape: torch.Size = None,
         sample_for_reconstruction: bool = True,
         sample_hard: bool = False,
-    ):
+    ) -> torch.Tensor:
         """
         Generate reconstructed observations based on hidden state sequence.
 
@@ -273,13 +279,23 @@ class GroupKT(BaseModel):
         log_prob_q: torch.Tensor = None,
         posterior_entropies: List[torch.Tensor] = None,
         temperature: float = 1.0,
-    ):
+    ) -> dict:
+        """
+        Calculate objective values for the model.
+
+        Args:
+            log_probs (List[torch.Tensor]): List of log probabilities for different components.
+            log_prob_q (torch.Tensor, optional): Log probability q.
+            posterior_entropies (List[torch.Tensor], optional): List of posterior entropies.
+            temperature (float, optional): Temperature parameter.
+
+        Returns:
+            dict: A dictionary containing objective values including ELBO and others.
+        """
         temperature = 0.01
         w_s, w_z, w_y = 1.0, 1.0, 1.0
         [log_prob_st, log_prob_zt, log_prob_yt] = log_probs
 
-        # sequence_likelihood = log_prob_yt[:, 1:].mean(-1) # [bs,]
-        # initial_likelihood = log_prob_yt[:, 0]
         sequence_likelihood = (
             w_s * log_prob_st[:, 1:]
             + w_z * log_prob_zt[:, 1:]
@@ -299,12 +315,8 @@ class GroupKT(BaseModel):
 
         elbo = t1_mean + t2_mean + temperature * (t3_mean + t4_mean)
 
-        iwae = None  # TODO ???
-        # iwae = self._get_iwae(sequence_likelihood, initial_likelihood, log_prob_q,
-        #                     num_sample)
         return dict(
             elbo=elbo,
-            iwae=iwae,
             initial_likelihood=t2_mean,
             sequence_likelihood=t1_mean,
             st_entropy=t3_mean,
@@ -321,6 +333,19 @@ class GroupKT(BaseModel):
 
 
 class AmortizedGroupKT(GroupKT):
+    """
+    An instance of AmortizedGroupKT.
+
+    Args:
+        mode (str): The mode for initialization (default: "ls_split_time").
+        num_node (int): The number of nodes (default: 1).
+        num_seq (int): The number of sequences (default: 1).
+        args (argparse.Namespace): Command-line arguments (default: None).
+        device (torch.device): The device to use (default: torch.device("cpu")).
+        logs (Logger): Logger object for logging (default: None).
+        nx_graph (np.ndarray): NumPy array for the graph (default: None).
+    """
+
     def __init__(
         self,
         mode: str = "ls_split_time",
@@ -355,7 +380,7 @@ class AmortizedGroupKT(GroupKT):
 
         super().__init__(mode, num_node, num_seq, args, device, logs, nx_graph)
 
-    def _init_weights(self):
+    def _init_weights(self) -> None:
         """
         Initialize the weights of the model.
 
@@ -426,7 +451,22 @@ class AmortizedGroupKT(GroupKT):
         qs_dist: MultivariateNormal,
         eval: bool = False,
     ) -> MultivariateNormal:
-        """"""
+        """
+        Generate state transitions based on a given multivariate normal distribution.
+
+        This function computes state transitions for a sequence of states based on the
+        provided multivariate normal distribution `qs_dist`. The resulting state
+        transitions are returned as a new multivariate normal distribution.
+
+        Args:
+            qs_dist (MultivariateNormal): A multivariate normal distribution representing
+                the initial states. It contains mean and covariance information.
+            eval (bool): A flag indicating whether to perform evaluation mode (default: False).
+
+        Returns:
+            MultivariateNormal: A multivariate normal distribution representing the state
+            transitions. It contains mean and covariance information for the generated states.
+        """
         qs_mean = qs_dist.mean  # [bs, 1, time, dim_s]
         qs_cov_mat = qs_dist.covariance_matrix  # [bs, 1, time, dim_s, dim_s]
         device = qs_mean.device
@@ -507,7 +547,25 @@ class AmortizedGroupKT(GroupKT):
         eval: bool = False,
         qs_sampled: torch.Tensor = None,
     ):
-        """"""
+        """
+        Generate state transitions in a dynamic system based on OU process.
+
+        This function computes state transitions for a dynamic system based on the
+        provided input data and latent variables. It models the transition process
+        and returns a distribution representing the generated states.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data tensors.
+            idx (int, optional): An index parameter used to limit the number of time steps (default: 0).
+            qs_dist (MultivariateNormal, optional): A multivariate normal distribution representing the latent variables qs (default: None).
+            qz_dist (MultivariateNormal, optional): A multivariate normal distribution representing the latent variables qz (default: None).
+            eval (bool, optional): A flag indicating whether to perform evaluation mode (default: False).
+            qs_sampled (torch.Tensor, optional): A tensor representing sampled qs values (default: None).
+
+        Returns:
+            MultivariateNormal: A multivariate normal distribution representing the state transitions.
+                It contains mean and covariance information for the generated states.
+        """
         if idx:
             input_t = feed_dict["time_seq"][:, :idx]
         else:
@@ -591,18 +649,23 @@ class AmortizedGroupKT(GroupKT):
 
         return pz_dist
 
-    def yt_emission_func(
-        self,
-    ):
-        pass
-
     def st_transition_infer(
         self,
         emb_inputs: torch.Tensor,
         num_sample: int = 0,
         eval: bool = False,
-    ):
-        """"""
+    ) -> torch.distributions.MultivariateNormal:
+        """
+        Perform state transition inference.
+
+        Args:
+            emb_inputs (torch.Tensor): Embedding inputs with dtype torch.Tensor.
+            num_sample (int, optional): Number of samples (default: 0).
+            eval (bool, optional): Flag to indicate evaluation mode (default: False).
+
+        Returns:
+            torch.distributions.MultivariateNormal: Multivariate Gaussian distribution.
+        """
 
         num_sample = self.num_sample if num_sample == 0 else num_sample
 
@@ -640,7 +703,6 @@ class AmortizedGroupKT(GroupKT):
         emb_inputs: Optional[torch.Tensor] = None,
         eval: bool = False,
     ) -> MultivariateNormal:
-
         """
         Compute the posterior distribution of `z_t` using an inference network.
 
@@ -762,7 +824,20 @@ class AmortizedGroupKT(GroupKT):
         qz_dist: distributions.MultivariateNormal,
         feed_dict: Dict[str, torch.Tensor] = None,
         eval: bool = False,
-    ):
+    ) -> Tuple[distributions.MultivariateNormal, distributions.MultivariateNormal]:
+        """
+        Perform generative process.
+
+        Args:
+            qs_dist (distributions.MultivariateNormal): Multivariate Gaussian distribution for s.
+            qz_dist (distributions.MultivariateNormal): Multivariate Gaussian distribution for z.
+            feed_dict (Dict[str, torch.Tensor], optional): Dictionary of feed-forward tensors (default: None).
+            eval (bool, optional): Flag to indicate evaluation mode (default: False).
+
+        Returns:
+            Tuple[distributions.MultivariateNormal, distributions.MultivariateNormal]: Tuple of generative
+            distributions for s and z.
+        """
         # generative model for s (Karman filter)
         ps_dist = self.st_transition_gen(qs_dist, eval=eval)
 
@@ -818,7 +893,13 @@ class AmortizedGroupKT(GroupKT):
     def predictive_model(
         self,
         feed_dict: Dict[str, torch.Tensor],
-    ):
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Perform predictive modeling.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): Dictionary containing input data with dtype torch.Tensor.
+        """
         t_all = feed_dict["time_seq"]
         y_all = feed_dict["label_seq"]
         item_all = feed_dict["skill_seq"]
@@ -946,11 +1027,29 @@ class AmortizedGroupKT(GroupKT):
 
     def get_objective_values(
         self,
-        q_dists,
-        p_dists,
-        feed_dict,
+        q_dists: Tuple[
+            distributions.MultivariateNormal, distributions.MultivariateNormal
+        ],
+        p_dists: Tuple[
+            distributions.MultivariateNormal, distributions.MultivariateNormal
+        ],
+        feed_dict: Dict[str, torch.Tensor],
         temperature: float = 1.0,
-    ):
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Calculate objective values.
+
+        Args:
+            q_dists (Tuple[distributions.MultivariateNormal, distributions.MultivariateNormal]):
+                Tuple of Multivariate Gaussian distributions for q (qs_dist, qz_dist).
+            p_dists (Tuple[distributions.MultivariateNormal, distributions.MultivariateNormal]):
+                Tuple of Multivariate Gaussian distributions for p (ps_dist, pz_dist).
+            feed_dict (Dict[str, torch.Tensor]): Dictionary containing input data with dtype torch.Tensor.
+            temperature (float, optional): Temperature parameter (default: 1.0).
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: Tuple of st_log_prob, zt_log_prob, yt_log_prob.
+        """
 
         qs_dist, qz_dist = q_dists
         ps_dist, pz_dist = p_dists

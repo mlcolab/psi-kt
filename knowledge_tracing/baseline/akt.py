@@ -10,18 +10,64 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from typing import List, Dict, Tuple, Optional, Union, Any, Callable
+from typing import List, Dict
 
-from knowledge_tracing.baseline.BaseModel import BaseModel
+from knowledge_tracing.baseline.basemodel import BaseModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
 
+
 class AKT(BaseModel):
+<<<<<<< HEAD:knowledge_tracing/baseline/AKT.py
+=======
+    """
+    An implementation of the AKT model, extending the BaseModel.
+
+    This class defines the AKT (Attention-based Knowledge Tracing) model,
+    which extends the BaseModel class. It includes methods for parsing model
+    arguments and initializing the instance.
+
+    Args:
+        args (argparse.Namespace):
+            Namespace containing parsed command-line arguments.
+        corpus (DataReader):
+            An instance of the DataReader class containing corpus data.
+        logs (Logger):
+            An instance of the Logger class for logging purposes.
+
+    Attributes:
+        extra_log_args (List[str]): List of additional arguments to include in logs.
+            These are specific to the AKT model.
+
+    Methods:
+        parse_model_args(parser, model_name="AKT"):
+            Parse AKT-specific model arguments from the command line.
+
+        __init__(args, corpus, logs):
+            Initialize an instance of the AKT class.
+
+    """
+>>>>>>> b4df127d6c418aa808d749d4ec8151f719b98d17:knowledge_tracing/baseline/akt.py
 
     extra_log_args = ["num_layer", "num_head"]
 
     @staticmethod
-    def parse_model_args(parser, model_name="AKT"):
+    def parse_model_args(
+        parser: argparse.ArgumentParser,
+        model_name: str = "AKT",
+    ) -> argparse.Namespace:
+        """
+        Parse AKT-specific model arguments from the command line.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+            model_name (str, optional): Name of the model. Defaults to "AKT".
+
+        Returns:
+            argparse.Namespace: Parsed command-line arguments.
+
+        """
+
         parser.add_argument(
             "--emb_size", type=int, default=16, help="Size of embedding vectors."
         )
@@ -39,15 +85,6 @@ class AKT(BaseModel):
         corpus: DataReader,
         logs: logger.Logger,
     ) -> None:
-        """
-        Initialize the instance of your class.
-
-        Parameters:
-            args (argparse.Namespace): Namespace containing parsed command-line arguments.
-            corpus (DataReader): An instance of the DataReader class containing corpus data.
-            logs (Logger): An instance of the Logger class for logging purposes.
-        """
-
         self.skill_num = int(corpus.n_skills)
         self.question_num = int(corpus.n_problems)
         self.emb_size = args.emb_size
@@ -66,7 +103,14 @@ class AKT(BaseModel):
         self,
     ) -> None:
         """
-        Initialize the weights of the model.
+        Initialize the weights of the model's embeddings and Transformer layers.
+
+        This method initializes the embedding matrices and Transformer layers' weights
+        with appropriate dimensions and configurations.
+
+        Returns:
+            None
+
         """
 
         self.skill_embeddings = nn.Embedding(self.skill_num, self.emb_size)
@@ -150,7 +194,7 @@ class AKT(BaseModel):
         """
         Forward pass of the model.
 
-        Parameters:
+        Args:
             feed_dict (Dict[str, torch.Tensor]): A dictionary containing input tensors.
                 - 'skill_seq' (torch.Tensor): Skill sequence tensor of shape [batch_size, real_max_step].
                 - 'quest_seq' (torch.Tensor): Question sequence tensor of shape [batch_size, real_max_step].
@@ -213,7 +257,7 @@ class AKT(BaseModel):
         """
         Perform prediction using the trained model.
 
-        Parameters:
+        Args:
             feed_dict (Dict[str, torch.Tensor]): A dictionary containing input tensors.
                 - 'skill_seq' (torch.Tensor): Skill sequence tensor of shape [batch_size, real_max_step].
                 - 'quest_seq' (torch.Tensor): Question sequence tensor of shape [batch_size, real_max_step].
@@ -304,6 +348,18 @@ class AKT(BaseModel):
         out_dict: Dict[str, torch.Tensor],
         metrics: Optional[List[str]] = None,
     ) -> Dict[str, torch.Tensor]:
+        """
+        Compute the loss and evaluation metrics for the model's predictions.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input tensors.
+            out_dict (Dict[str, torch.Tensor]): A dictionary containing the model's output tensors.
+            metrics (Optional[List[str]]): A list of evaluation metrics to compute (default: None).
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing computed losses and evaluation metrics.
+        """
+
         losses = defaultdict(lambda: torch.zeros((), device=self.device))
 
         predictions = out_dict["prediction"].flatten()
@@ -333,7 +389,7 @@ class AKT(BaseModel):
         """
         Create a feed dictionary containing input tensors for the model's forward pass.
 
-        Parameters:
+        Args:
             corpus (DataReader): An instance of the DataReader class containing corpus data.
             data (pd.DataFrame): The DataFrame containing the batch data.
             batch_start (int): The starting index of the batch.
@@ -377,12 +433,31 @@ class AKT(BaseModel):
 
 
 class TransformerLayer(nn.Module):
-    def __init__(self, d_model, d_feature, d_ff, n_heads, dropout, kq_same, gpu=""):
+    def __init__(
+        self,
+        d_model: int,
+        d_feature: int,
+        d_ff: int,
+        n_heads: int,
+        dropout: float,
+        kq_same: bool,
+        gpu: str = "",
+    ) -> None:
+        """
+        This is a Basic Block of the Transformer paper. It contains one Multi-head attention object.
+        Followed by layer norm and position-wise feedforward net and dropout layer.
+
+        Args:
+            d_model (int): The input dimension of the model.
+            d_feature (int): The dimension of the feature in the attention mechanism.
+            d_ff (int): The dimension of the feedforward network.
+            n_heads (int): The number of attention heads.
+            dropout (float): Dropout rate for regularization.
+            kq_same (bool): Whether to use the same linear transformation for keys and queries.
+            gpu (str): The GPU device identifier if used (default: "").
+
+        """
         super().__init__()
-        """
-            This is a Basic Block of Transformer paper. It containts one Multi-head attention object. 
-            Followed by layer norm and postion wise feedforward net and dropout layer.
-        """
         self.gpu = gpu
         # Multi-Head Attention Block
         self.masked_attn_head = MultiHeadAttention(
@@ -401,7 +476,28 @@ class TransformerLayer(nn.Module):
         self.layer_norm2 = nn.LayerNorm(d_model)
         self.dropout2 = nn.Dropout(dropout)
 
-    def forward(self, mask, query, key, values, apply_pos=True):
+    def forward(
+        self,
+        mask: int,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        values: torch.Tensor,
+        apply_pos: bool = True,
+    ) -> torch.Tensor:
+        """
+        Forward pass of the Transformer layer.
+
+        Args:
+            mask (int): Mask value indicating whether to use padding.
+            query (torch.Tensor): Query tensor of shape [batch_size, seqlen, d_model].
+            key (torch.Tensor): Key tensor of shape [batch_size, seqlen, d_model].
+            values (torch.Tensor): Value tensor of shape [batch_size, seqlen, d_model].
+            apply_pos (bool): Whether to apply position-wise feedforward operations (default: True).
+
+        Returns:
+            torch.Tensor: Output tensor of shape [batch_size, seqlen, d_model].
+        """
+
         seqlen, batch_size = query.size(1), query.size(0)
         nopeek_mask = np.triu(np.ones((1, 1, seqlen, seqlen)), k=mask).astype("uint8")
         src_mask = torch.from_numpy(nopeek_mask) == 0
@@ -428,12 +524,28 @@ class TransformerLayer(nn.Module):
 
 class MultiHeadAttention(nn.Module):
     def __init__(
-        self, d_model, d_feature, n_heads, dropout, kq_same, bias=True, gpu=""
-    ):
+        self,
+        d_model: int,
+        d_feature: int,
+        n_heads: int,
+        dropout: float,
+        kq_same: bool,
+        bias: bool = True,
+        gpu: str = "",
+    ) -> None:
+        """
+        Multi-Head Attention module for Transformer architecture.
+
+        Args:
+            d_model (int): The dimensionality of the input and output vectors.
+            d_feature (int): The dimensionality of each head in multi-head attention.
+            n_heads (int): The number of attention heads.
+            dropout (float): The dropout rate applied to the attention scores.
+            kq_same (bool): Whether to use the same weights for key and query projections.
+            bias (bool, optional): Whether to include bias terms (default: True).
+            gpu (str, optional): GPU device identifier to use (default: "").
+        """
         super().__init__()
-        """
-        It has projection layer for getting keys, queries and values. Followed by attention and a connected layer.
-        """
         self.d_model = d_model
         self.d_k = d_feature
         self.h = n_heads
@@ -450,7 +562,28 @@ class MultiHeadAttention(nn.Module):
         self.gammas = nn.Parameter(torch.zeros(n_heads, 1, 1))
         torch.nn.init.xavier_uniform_(self.gammas)
 
-    def forward(self, q, k, v, mask, zero_pad):
+    def forward(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        mask: torch.Tensor,
+        zero_pad: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Perform a forward pass through the Multi-Head Attention layer.
+
+        Args:
+            q (torch.Tensor): Queries tensor with shape (batch_size, query_length, d_model).
+            k (torch.Tensor): Keys tensor with shape (batch_size, key_length, d_model).
+            v (torch.Tensor): Values tensor with shape (batch_size, value_length, d_model).
+            mask (torch.Tensor): Mask tensor to mask out padded positions during attention calculation.
+            zero_pad (torch.Tensor): Zero padding tensor to mark padded positions.
+
+        Returns:
+            torch.Tensor: Output tensor after applying Multi-Head Attention.
+        """
+
         bs = q.size(0)
 
         # perform linear operation and split into h heads
@@ -476,9 +609,32 @@ class MultiHeadAttention(nn.Module):
 
         return output
 
-    def attention(self, q, k, v, d_k, mask, dropout, zero_pad, gamma=None):
+    def attention(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        d_k: int,
+        mask: torch.Tensor,
+        dropout: nn.Module,
+        zero_pad: torch.Tensor,
+        gamma: torch.Tensor = None,
+    ) -> torch.Tensor:
         """
-        This is called by Multi-head attention object to find the values.
+        Calculate the attention scores and apply attention mechanism.
+
+        Args:
+            q (torch.Tensor): Queries tensor with shape (batch_size, n_heads, query_length, d_k).
+            k (torch.Tensor): Keys tensor with shape (batch_size, n_heads, key_length, d_k).
+            v (torch.Tensor): Values tensor with shape (batch_size, n_heads, value_length, d_k).
+            d_k (int): The dimensionality of keys and queries in each head.
+            mask (torch.Tensor): Mask tensor to mask out padded positions during attention calculation.
+            dropout (nn.Module): Dropout layer for applying dropout to attention scores.
+            zero_pad (torch.Tensor): Zero padding tensor to mark padded positions.
+            gamma (torch.Tensor, optional): Gamma parameter for position effect (default: None).
+
+        Returns:
+            torch.Tensor: Output tensor after applying attention mechanism.
         """
         scores = (
             torch.matmul(q, k.transpose(-2, -1)) / d_k**0.5

@@ -1,6 +1,7 @@
 # @Date: 2023/07/25
 
 import os
+import argparse
 import time
 import numpy as np
 from tqdm import tqdm
@@ -9,17 +10,21 @@ from sklearn.metrics import *
 from typing import List, Tuple, Dict
 
 import torch
-import torch.nn.functional as F
 
-
-from knowledge_tracing.utils import utils
-
-##########################################################################################
-# Base Model for all KT
-##########################################################################################
+from knowledge_tracing.utils import utils, logger
 
 
 class BaseModel(torch.nn.Module):
+    """
+    Base class for neural network models.
+    Args:
+        model_path (str, optional): The path to save/load the model. Defaults to '../model/Model/Model_{}_{}.pt'.
+
+    Attributes:
+        runner (str): The type of runner for the model.
+        extra_log_args (list): Additional arguments for logging.
+    """
+
     runner = "KTRunner"
     extra_log_args = []
 
@@ -27,20 +32,16 @@ class BaseModel(torch.nn.Module):
         self,
         model_path: str = "../model/Model/Model_{}_{}.pt",
     ):
-        """
-        Initialize the base model.
-
-        Args:
-            model_path (str, optional): The path to save/load the model. Defaults to '../model/Model/Model_{}_{}.pt'.
-        """
-
         super(BaseModel, self).__init__()
         self.model_path = model_path
         self._init_weights()
         self.optimizer = None
 
     @staticmethod
-    def parse_model_args(parser, model_name="BaseModel"):
+    def parse_model_args(
+        parser: argparse.ArgumentParser,
+        model_name: str = "BaseModel",
+    ):
         parser.add_argument(
             "--model_path", type=str, default="", help="Model save path."
         )
@@ -181,6 +182,23 @@ class BaseModel(torch.nn.Module):
         batch_size: int,
         phase: str,
     ):
+        """
+        Create a feed dictionary containing input tensors for the model's forward pass.
+
+        Args:
+            corpus (DataReader): An instance of the DataReader class containing corpus data.
+            data (pd.DataFrame): The DataFrame containing the batch data.
+            batch_start (int): The starting index of the batch.
+            batch_size (int): The size of the batch.
+            phase (str): The phase of the data, e.g., 'train', 'valid', or 'test'.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing input tensors for the model.
+                - 'skill_seq' (torch.Tensor): Padded skill sequence tensor of shape [batch_size, real_max_step].
+                - 'quest_seq' (torch.Tensor): Padded question sequence tensor of shape [batch_size, real_max_step].
+                - 'label_seq' (torch.Tensor): Padded label sequence tensor of shape [batch_size, real_max_step].
+        """
+
         batch_end = min(len(data), batch_start + batch_size)
         real_batch_size = batch_end - batch_start
 
@@ -366,16 +384,21 @@ class BaseModel(torch.nn.Module):
 
 
 class BaseLearnerModel(BaseModel):
-    def __init__(self, mode, device="cpu", logs=None) -> None:
-        """
-        Initialize the BaseLearnerModel.
+    """
+    Base class for learner models.
 
-        Args:
-            mode (str): The mode of the learner model (e.g., 'train', 'val', 'test').
-            device (str, optional): The device to run the model on (e.g., 'cpu', 'cuda:0'). Defaults to 'cpu'.
-            logs (LogWriter, optional): An instance of LogWriter class for logging. Defaults to None.
-        """
+    Args:
+        mode (str): The mode of the learner model (e.g., 'train', 'val', 'test').
+        device (str, optional): The device to run the model on (e.g., 'cpu', 'cuda:0'). Defaults to 'cpu'.
+        logs (LogWriter, optional): An instance of LogWriter class for logging. Defaults to None.
+    """
 
+    def __init__(
+        self,
+        mode: str,
+        device: torch.device,
+        logs: logger.Logger,
+    ) -> None:
         super(BaseLearnerModel, self).__init__()
         # Store the mode, device, and logs
         self.mode = mode

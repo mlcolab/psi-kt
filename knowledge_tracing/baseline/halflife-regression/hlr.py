@@ -20,8 +20,7 @@ class HLR(BaseLearnerModel):
     An implementation of the HLR model, extending the BaseLearnerModel.
 
     This class defines the HLR (Half-life regression) model,
-    which extends the BaseLearnerModel class. It includes methods for parsing model
-    arguments and initializing the instance.
+    original paper: https://aclanthology.org/P16-1174/.
 
     Modified from:
         https://github.com/duolingo/halflife-regression/blob/0041df0dcd436bf1b4aa7a17a020d9c670db70d8/experiment.py
@@ -195,20 +194,19 @@ class HLR(BaseLearnerModel):
             cur_item = items[:, i]  # [num_seq, ]
             cur_dt = (
                 t[:, None, i] - whole_last_time[..., i]
-            ) / T_SCALE + eps  # [bs, num_node]
+            ) / T_SCALE + EPS  # [bs, num_node]
             cur_feat = whole_stats[:, :, i]
 
             feat = torch.mul(cur_feat, batch_theta).sum(-1)
             feat = torch.minimum(feat, torch.tensor(1e2).to(self.device))
-            # half_life = self.hclip(self.base ** feat)
+
+            half_life = self.hclip(self.base**feat)
             half_life = self.base**feat
             p_all = self.pclip(self.base ** (-cur_dt / half_life))  # [bs, num_node]
             p_item = p_all[torch.arange(num_seq), cur_item]  # [bs, ]
 
             if stats_cal_on_fly or self.mode == "synthetic":
-                success = nn.functional.gumbel_softmax(
-                    torch.log(p_item), hard=True
-                )  # TODO
+                success = nn.functional.gumbel_softmax(torch.log(p_item), hard=True)
                 success = success.unsqueeze(-1)
                 all_feature[torch.arange(num_seq), cur_item, i:, 0] += 1
                 all_feature[torch.arange(num_seq), cur_item, i:, 1] += success

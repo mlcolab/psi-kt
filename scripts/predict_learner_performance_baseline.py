@@ -16,8 +16,9 @@ from knowledge_tracing.runner import runner_baseline
 # from VCLRunner_baseline import BaselineVCLRunner
 # from FTRunner_baseline import FTRunner
 from knowledge_tracing.utils import utils, arg_parser, logger
-# from knowledge_tracing.baseline import akt, hkt, hlr, ppe
-from knowledge_tracing.baseline.EduKTM import dkt, dktforgetting
+from knowledge_tracing.baseline import dktforgetting # akt, hkt, ppe
+from knowledge_tracing.baseline.EduKTM import dkt
+from knowledge_tracing.baseline.halflife-regression import hlr
 
 # TODO: this is duplicate with the one in exp
 
@@ -89,7 +90,7 @@ if __name__ == '__main__':
     else: num_seq = 1
     
     model = model(global_args, corpus, logs)
-        
+    import ipdb; ipdb.set_trace()
     if global_args.load > 0:
         model.load_state_dict(torch.load(global_args.load_folder), strict=False)
     logs.write_to_log_file(model)

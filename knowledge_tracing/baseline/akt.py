@@ -18,8 +18,6 @@ from knowledge_tracing.data.data_loader import DataReader
 
 
 class AKT(BaseModel):
-<<<<<<< HEAD:knowledge_tracing/baseline/AKT.py
-=======
     """
     An implementation of the AKT model, extending the BaseModel.
 
@@ -47,7 +45,6 @@ class AKT(BaseModel):
             Initialize an instance of the AKT class.
 
     """
->>>>>>> b4df127d6c418aa808d749d4ec8151f719b98d17:knowledge_tracing/baseline/akt.py
 
     extra_log_args = ["num_layer", "num_head"]
 

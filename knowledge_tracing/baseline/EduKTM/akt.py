@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from knowledge_tracing.baseline.basemodel import BaseModel
 from knowledge_tracing.utils import utils, logger

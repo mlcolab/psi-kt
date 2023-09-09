@@ -24,8 +24,7 @@ class HKT(BaseModel):
     An implementation of the HKT model, extending the BaseModel.
 
     This class defines the HKT (Hawkes Knowledge Tracing) model,
-    which extends the BaseModel class. It includes methods for parsing model
-    arguments and initializing the instance.
+    original paper: https://dl.acm.org/doi/10.1145/3437963.3441802
 
     Args:
         args (argparse.Namespace):
@@ -130,10 +129,10 @@ class HKT(BaseModel):
             A dictionary containing the output tensors for the model.
         """
 
-        items = feed_dict["skill_seq"]  # [batch_size, seq_len]
-        problems = feed_dict["problem_seq"]  # [batch_size, seq_len]
-        times = feed_dict["time_seq"]  # [batch_size, seq_len]
-        labels = feed_dict["label_seq"]  # [batch_size, seq_len]
+        items = feed_dict["skill_seq"]  # [bs, seq_len]
+        problems = feed_dict["problem_seq"]  # [bs, seq_len]
+        times = feed_dict["time_seq"]  # [bs, seq_len]
+        labels = feed_dict["label_seq"]  # [bs, seq_len]
 
         mask_labels = labels * (labels > -1).long()
         inters = items + mask_labels * self.skill_num  # (bs, seq_len)
@@ -259,16 +258,16 @@ class HKT(BaseModel):
         feed_dict = {
             "skill_seq": torch.from_numpy(
                 utils.pad_lst(skill_seqs)
-            ),  # [batch_size, seq_len] # TODO isn't this -1?
+            ),  
             "label_seq": torch.from_numpy(
                 utils.pad_lst(label_seqs, value=-1)
-            ),  # [batch_size, seq_len]
+            ),  # [bs, seq_len]
             "problem_seq": torch.from_numpy(
                 utils.pad_lst(problem_seqs)
-            ),  # [batch_size, seq_len]
+            ),  # [bs, seq_len]
             "time_seq": torch.from_numpy(
                 utils.pad_lst(time_seqs)
-            ),  # [batch_size, seq_len]
+            ),  # [bs, seq_len]
         }
         return feed_dict
 
@@ -288,12 +287,12 @@ class HKT(BaseModel):
 
         train_step = int(self.args.max_step * self.args.train_time_ratio)
 
-        items = feed_dict["skill_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
+        items = feed_dict["skill_seq"][:, train_step - 1 :]  # [bs, seq_len]
         problems = feed_dict["problem_seq"][
             :, train_step - 1 :
-        ]  # [batch_size, seq_len]
-        times = feed_dict["time_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
-        labels = feed_dict["label_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
+        ]  # [bs, seq_len]
+        times = feed_dict["time_seq"][:, train_step - 1 :]  # [bs, seq_len]
+        labels = feed_dict["label_seq"][:, train_step - 1 :]  # [bs, seq_len]
 
         test_time = items.shape[-1]
         predictions = []

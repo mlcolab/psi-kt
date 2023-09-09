@@ -20,15 +20,15 @@ from enum import Enum
 class VanillaOU(BaseLearnerModel):
     def __init__(
         self,
-        mean_rev_speed=None,
-        mean_rev_level=None,
-        vola=None,
-        num_seq=1,
-        num_node=1,
-        mode="train",
-        nx_graph=None,
-        device="cpu",
-        logs=None,
+        mean_rev_speed: torch.Tensor = None,
+        mean_rev_level: torch.Tensor = None,
+        vola: torch.Tensor = None,
+        num_seq: int = 1,
+        num_node: int = 1,
+        mode: str = "train",
+        nx_graph: np.ndarray = None,
+        device: torch.device = "cpu",
+        logs: Any = None,
     ):
         """
         Modified from
@@ -102,7 +102,12 @@ class VanillaOU(BaseLearnerModel):
         assert torch.min(self.mean_rev_speed) >= 0
         assert torch.min(self.vola) >= 0
 
-    def variance(self, t, speed=None, vola=None):
+    def variance(
+        self,
+        t: torch.Tensor,
+        speed: torch.Tensor = None,
+        vola: torch.Tensor = None,
+    ) -> torch.Tensor:
         """
         The variances introduced by the parameter vola, time difference and Wiener process (Gaussian noise)
         Args:
@@ -118,14 +123,14 @@ class VanillaOU(BaseLearnerModel):
 
         return vola * vola * (1.0 - torch.exp(-2.0 * speed * t)) / (2 * speed + eps)
 
-    def std(self, t, speed=None, vola=None):
+    def std(self, t, speed=None, vola=None) -> torch.Tensor:
         """
         Args:
             t: [num_seq/bs, num_node, times] usually is the time difference of a sequence
         """
         return torch.sqrt(self.variance(t, speed, vola) + 1e-6)
 
-    def mean(self, x0, t, speed=None, level=None):
+    def mean(self, x0, t, speed=None, level=None) -> torch.Tensor:
         """
         Args:
             x0:
@@ -136,7 +141,7 @@ class VanillaOU(BaseLearnerModel):
 
         return x0 * torch.exp(-speed * t) + (1.0 - torch.exp(-speed * t)) * level
 
-    def logll(self, x, t, speed=None, level=None, vola=None):
+    def logll(self, x, t, speed=None, level=None, vola=None) -> torch.Tensor:
         """
         Calculates log likelihood of a path
         Args:
@@ -150,7 +155,9 @@ class VanillaOU(BaseLearnerModel):
         vola = vola if vola is not None else self.vola
 
         dt = torch.diff(t)
-        dt = torch.log(dt)  # TODO TODO
+        dt = torch.log(
+            dt
+        )  # TODO to find the right temperature of time difference in different real-world datasets
         mu = self.mean(x, dt, speed, level)
         sigma = self.std(dt, speed, vola)
         var = self.variance(dt, speed, vola)
@@ -164,7 +171,7 @@ class VanillaOU(BaseLearnerModel):
 
     def simulate_path(
         self, x0, t, items=None, user_id=None, stats_cal_on_fly=None, stats=None
-    ):
+    ) -> Dict[str, torch.Tensor]:
         """
         Simulates a sample path or forward based on the parameters (speed, level, vola)
         dX = speed*(level-X)dt + vola*dB
@@ -270,7 +277,7 @@ class VanillaOU(BaseLearnerModel):
 
         return params
 
-    def loss(self, feed_dict, out_dict, metrics=None):
+    def loss(self, feed_dict, out_dict, metrics=None) -> Dict[str, torch.Tensor]:
         losses = defaultdict(lambda: torch.zeros((), device=self.device))
 
         pred = out_dict["prediction"]
@@ -341,7 +348,7 @@ class GraphOU(VanillaOU):
             gamma = torch.rand((num_seq, num_node, 1), device=device)
             self.gamma = nn.Parameter(gamma, requires_grad=True)
 
-    def simulate_path(self, x0, t, items=None, user_id=None, stats=None):
+    def simulate_path(self, x0, t, items=None, user_id=None, stats=None) -> Dict:
         """
         Simulates a sample path or forward based on the parameters (speed, level, vola)
         dX = speed*(level-X)dt + vola*dB
@@ -412,10 +419,6 @@ class GraphOU(VanillaOU):
         in_degree = adj_t.sum(dim=-1)
         ind = torch.where(in_degree == 0)[0]  # [284,]
 
-        # NOTE: `whole_last_time` and `dt` is different
-        all_feature = stats.float()
-        # whole_stats, whole_last_time = self._find_whole_stats(all_feature, t, items, num_node)
-
         for i in range(1, time_step):
             # TODO no spike
             cur_item = items[:, i]  # [num_seq, ]
@@ -463,7 +466,7 @@ class GraphOU(VanillaOU):
 
         return params
 
-    def loss(self, feed_dict, out_dict, metrics=None):
+    def loss(self, feed_dict, out_dict, metrics=None) -> Dict[str, torch.Tensor]:
         losses = defaultdict(lambda: torch.zeros((), device=self.device))
 
         pred = out_dict["prediction"]

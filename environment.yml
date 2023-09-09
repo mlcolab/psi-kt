@@ -1,4 +1,4 @@
-name: kt
+name: knowledge_tracing
 channels:
   - defaults
 dependencies:

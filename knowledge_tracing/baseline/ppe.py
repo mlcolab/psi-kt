@@ -21,7 +21,8 @@ from knowledge_tracing.baseline import *
 
 class PPE(BaseLearnerModel):
     """
-    An implementation of the PPE model, extending the BaseLearnerModel.
+    An implementation of the PPE model, extending the BaseLearnerModel,
+    original paper: https://pubmed.ncbi.nlm.nih.gov/29498437/
 
     Args:
         args (object): An object containing arguments related to the model.
@@ -165,7 +166,6 @@ class PPE(BaseLearnerModel):
 
         # ----- simulate the path -----
         t = torch.tile(t.unsqueeze(1), (1, num_node, 1))
-        drs = []
         x_pred = [x0.unsqueeze(-1)]
         x_item_pred = [x0[torch.arange(0, num_seq), items[:, 0]][:, None]]
 
@@ -183,7 +183,7 @@ class PPE(BaseLearnerModel):
             )  # [bs, num_node, i]
             lag_mask = lags > 0
             dn = ((1 / torch.log(abs(lags + EPS) + np.e)) * lag_mask).sum(dim=-1) / (
-                cur_repeat + 1 + EPS
+                cur_repeat - 1 + EPS
             )  # [bs, num_node]
             dn = batch_b + batch_m * dn.unsqueeze(-1)  # [bs, num_node, 1]
 
@@ -195,9 +195,9 @@ class PPE(BaseLearnerModel):
             # mask1 = (cur_item_times!=0)
             # small_t *= mask1
             small_t = torch.minimum(small_t, torch.tensor(1e2))
-            big_t = torch.nan_to_num(torch.pow(small_t + EPS, batch_x)) / (
+            big_t = torch.nan_to_num(torch.pow(small_t + EPS, -batch_x)) / (
                 torch.sum(
-                    torch.nan_to_num(torch.pow(small_t + EPS, batch_x)),
+                    torch.nan_to_num(torch.pow(small_t + EPS, -batch_x)),
                     1,
                     keepdims=True,
                 )
@@ -226,7 +226,6 @@ class PPE(BaseLearnerModel):
             # ----- update the stats -----
             if stats_cal_on_fly or self.mode == "synthetic":
                 success = (pn >= 0.5) * 1
-                fail = (pn < 0.5) * 1
 
                 all_feature[torch.arange(num_seq), cur_item, i:, 0] += 1
                 all_feature[torch.arange(num_seq), :, i:, 1] += success
@@ -236,13 +235,9 @@ class PPE(BaseLearnerModel):
             x_pred.append(pn)
             x_item_pred.append(pn[torch.arange(num_seq), cur_item])
 
-        # drs = torch.cat(drs, -1) # # [num_seq, num_node, time_step-1]
         x_pred = torch.cat(x_pred, -1)  # [num_seq, num_node, time_step]
         x_item_pred = torch.stack(x_item_pred, -1)
-        params = {
-            # 'decay_rate': drs,
-            "x_item_pred": x_item_pred
-        }
+        params = {"x_item_pred": x_item_pred}
 
         return params
 

@@ -3,14 +3,12 @@ import argparse
 
 import torch
 from torch import nn
-import torch.nn.functional as F
-from models.modules import generate_fully_connected
-
 from torch.nn import LayerNorm, Sequential
+import torch.nn.functional as F
 
 from knowledge_tracing.groupkt import *
+from knowledge_tracing.groupkt.modules import generate_fully_connected
 from knowledge_tracing.utils.utils import create_rel_rec_send
-
 
 
 class Graph(nn.Module):

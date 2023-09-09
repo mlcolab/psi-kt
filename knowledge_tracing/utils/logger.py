@@ -7,9 +7,6 @@ from collections import defaultdict
 
 import torch
 
-import ipdb
-
-
 class Logger:
     def __init__(
         self,

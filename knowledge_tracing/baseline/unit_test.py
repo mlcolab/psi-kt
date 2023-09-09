@@ -1,12 +1,6 @@
-import sys
 
-sys.path.append("..")
-
-from KTRunner_baseline import KTRunner
-from utils.logger import Logger
-
-import ipdb
-
+from knowledge_tracing.runner.runner import KTRunner
+from knowledge_tracing.utils.logger import Logger
 
 # test KTRunner._eva_termination
 def test_eva_termination_multiple_metrics():

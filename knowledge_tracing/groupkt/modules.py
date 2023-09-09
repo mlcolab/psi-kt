@@ -5,11 +5,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch.nn import Dropout, LayerNorm, Linear, Module, Sequential
+from torch.nn import Dropout, Linear, Module, Sequential
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
-
-import ipdb
-
 
 
 class VAEEncoder(nn.Module):

@@ -9,23 +9,9 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 
 import torch
-import torch.optim as optim
-from torch.optim import lr_scheduler
 
-from utils import utils
-import ipdb
-
-from models.HSSM import HSSM
-        
-import ipdb
-from knowledge_tracing.knowledge_tracing.runner.ktrunner import KTRunner
-
-OPTIMIZER_MAP = {
-    'gd': optim.SGD,
-    'adagrad': optim.Adagrad,
-    'adadelta': optim.Adadelta,
-    'adam': optim.Adam
-}
+from knowledge_tracing.utils import utils
+from knowledge_tracing.runner.runner import KTRunner
 
 
 class VCLRunner(KTRunner):

@@ -1,19 +1,17 @@
 # -*- coding: UTF-8 -*-
 import sys
-
 sys.path.append("..")
 
 import os
 import argparse
 import numpy as np
 import datetime
-import shutil
 
 import torch
-from data import data_loader
 
+from knowledge_tracing.data import data_loader
 from knowledge_tracing.runner import runner_groupkt, runner_vcl
-from utils import utils, arg_parser, logger
+from knowledge_tracing.utils import utils, arg_parser, logger
 from knowledge_tracing.groupkt.groupkt import GroupKT, ContinualGroupKT
 
 if __name__ == "__main__":

@@ -1,27 +1,14 @@
-import sys
-
-sys.path.append("..")
 
 import gc, copy, os, argparse
-from time import time
 from tqdm import tqdm
 import numpy as np
 from collections import defaultdict
 
 import torch
-import torch.optim as optim
-from torch.optim import lr_scheduler
 
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
 from knowledge_tracing.runner.runner import KTRunner
-
-OPTIMIZER_MAP = {
-    "gd": optim.SGD,
-    "adagrad": optim.Adagrad,
-    "adadelta": optim.Adadelta,
-    "adam": optim.Adam,
-}
 
 
 class BaselineKTRunner(KTRunner):

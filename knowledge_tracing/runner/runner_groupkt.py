@@ -1,31 +1,19 @@
-import sys
-sys.path.append('..')
 
-import gc, pickle, copy, os
+import gc, copy, os
 
-from time import time
 from tqdm import tqdm
 import numpy as np
-import matplotlib.pyplot as plt
 from collections import defaultdict
 
 import torch
-import torch.optim as optim
 from torch.optim import lr_scheduler
 
 from utils import utils
-from knowledge_tracing.knowledge_tracing.runner.runner import KTRunner
-from data.data_loader import DataReader
-from models.groupkt import * 
 
-import ipdb
-        
-OPTIMIZER_MAP = {
-    'gd': optim.SGD,
-    'adagrad': optim.Adagrad,
-    'adadelta': optim.Adadelta,
-    'adam': optim.Adam
-}
+from knowledge_tracing.runner import OPTIMIZER_MAP
+from knowledge_tracing.runner.runner import KTRunner
+from knowledge_tracing.data.data_loader import DataReader
+from knowledge_tracing.groupkt.groupkt import * 
 
 class GroupKTRunner(KTRunner):
     '''

@@ -1,5 +1,4 @@
 import sys
-
 sys.path.append("..")
 
 import os
@@ -11,12 +10,9 @@ from numpy.random import default_rng
 import pandas as pd
 import networkx as nx
 
-import scipy
-from scipy import stats
-
 import torch
 
-from knowledge_tracing.models.learner_model import *
+from knowledge_tracing.baseline.learner_model import *
 from knowledge_tracing.utils.visualize import *
 
 

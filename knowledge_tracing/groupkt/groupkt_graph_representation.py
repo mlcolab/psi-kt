@@ -8,8 +8,6 @@ import torch.distributions as td
 import torch.nn.functional as F
 from torch import nn
 
-import ipdb
-EPS = 1e-6
 class VarGT(nn.Module):
     def __init__(self, device, num_nodes, gt_adj_path=None):
         super(VarGT, self).__init__()

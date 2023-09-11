@@ -1,7 +1,7 @@
 # @Date: 2023/07/25
 
-import sys
-sys.path.append('..')
+# import sys
+# sys.path.append('..')
 
 import os 
 import pickle
@@ -9,14 +9,18 @@ import argparse
 import numpy as np
 import datetime
 
-import torch
+import sys    
+print("In module products sys.path[0], __package__ ==", sys.path[0], __package__)
 
-from knowledge_tracing.data import data_loader
+import torch
+from ...knowledge_tracing import knowledge_tracing
+from ..knowledge_tracing.data import data_loader
 from knowledge_tracing.runner import runner_baseline
 # from VCLRunner_baseline import BaselineVCLRunner
 # from FTRunner_baseline import FTRunner
 from knowledge_tracing.utils import utils, arg_parser, logger
-from knowledge_tracing.baseline.HawkesKT import dktforgetting# , hkt, ppe
+from knowledge_tracing.baseline import ppe
+from knowledge_tracing.baseline.HawkesKT import dktforgetting, hkt
 from knowledge_tracing.baseline.EduKTM import dkt, akt
 from knowledge_tracing.baseline.halflife_regression import hlr
 

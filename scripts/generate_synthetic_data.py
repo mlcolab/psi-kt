@@ -5,6 +5,8 @@ import os
 import argparse
 import datetime
 
+from scipy.special import expit
+
 import numpy as np
 from numpy.random import default_rng
 import pandas as pd
@@ -99,7 +101,7 @@ def parse_args(parser):
     parser.add_argument(
         "--save_path",
         type=str,
-        default="/mnt/qb/work/mlcolab/hzhou52/kt/synthetic",
+        default="..kt_data/synthetic",
         help="Path to save results",
     )
 
@@ -133,7 +135,7 @@ def save_as_unified_format(
     timestamp = times.flatten()
     dwell_time = np.zeros_like(timestamp)
 
-    correct = (path >= 0.5) * 1  # (sigmoid(p_items) >= 0.5)*1 # TODO???
+    correct = (path >= 0.5) * 1 
 
     problem_id = items.flatten()
     skill_id = items.flatten()
@@ -238,21 +240,6 @@ def review_item_generate():
     return items
 
 
-def sigmoid(x: np.ndarray) -> np.ndarray:
-    """
-    Compute the sigmoid function for a given input.
-
-    The sigmoid function is commonly used in machine learning for mapping input values to a range between 0 and 1.
-
-    Args:
-        x (numpy.ndarray): Input values.
-
-    Returns:
-        numpy.ndarray: Output values after applying the sigmoid function.
-    """
-    return 1 / (1 + np.exp(-x))
-
-
 if __name__ == "__main__":
     # ----- args -----
     parser = argparse.ArgumentParser(description="Global")
@@ -275,7 +262,7 @@ if __name__ == "__main__":
         args.num_node, args.edge_prob, seed=args.random_seed, directed=True
     )
     adj = nx.adjacency_matrix(graph).toarray()
-    # draw_graph(graph, args)
+    draw_graph(graph, args)
 
     # -- generate time points & reviewing items
     times = torch.tensor(time_point_generate(), device=args.device)
@@ -349,7 +336,7 @@ if __name__ == "__main__":
 
         draw_path(ou_path[0], args, times[0], items=items[0], prefix=prefix)
         draw_path(
-            sigmoid(ou_path[0]),
+            expit(ou_path[0]),
             args,
             times[0],
             items=items[0],
@@ -362,5 +349,5 @@ if __name__ == "__main__":
     # TODO debug: visualize
     draw_path(path[0], args, times[0], prefix="graph")
     draw_path(vanilla_path[0], args, times[0], prefix="vanilla")
-    draw_path(sigmoid(path[0]), args, times[0], prefix="sigmoid")
+    draw_path(expit(path[0]), args, times[0], prefix="sigmoid")
     visualize_ground_truth(graph, args, adj)

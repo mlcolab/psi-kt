@@ -1,6 +1,8 @@
 # @Date: 2023/07/25
 
 import sys
+
+from knowledge_tracing.baseline.HawkesKT import dktforgetting
 sys.path.append("..")
 
 import os
@@ -16,7 +18,7 @@ from knowledge_tracing.data import data_loader
 from knowledge_tracing.runner import runner_baseline
 
 from knowledge_tracing.utils import utils, arg_parser, logger
-from knowledge_tracing.baseline import akt, dkt, dktforgetting, hkt, hlr, ppe
+from knowledge_tracing.baseline import akt, dkt, hkt, hlr, ppe
 from knowledge_tracing.groupkt import groupkt
 
 if __name__ == "__main__":

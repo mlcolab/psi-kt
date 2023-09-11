@@ -94,9 +94,9 @@ class HLR(BaseLearnerModel):
         Returns:
             torch.Tensor: Clipped tensor with half-life values bounded within a specific range.
         """
-        MIN_HALF_LIFE = torch.tensor(15.0 / (24 * 60), device=h.device)  # 15 minutes
-        MAX_HALF_LIFE = torch.tensor(274.0, device=h.device)  # 9 months
-        return torch.min(torch.max(h, MIN_HALF_LIFE), MAX_HALF_LIFE)
+        min_half_life = torch.tensor(15.0 / (24 * 60), device=h.device)  # 15 minutes
+        max_half_life = torch.tensor(274.0, device=h.device)  # 9 months
+        return torch.min(torch.max(h, min_half_life), max_half_life)
 
     @staticmethod
     def pclip(
@@ -114,9 +114,9 @@ class HLR(BaseLearnerModel):
         Returns:
             torch.Tensor: Clipped tensor with model predictions bounded within a specific range.
         """
-        MIN_P = torch.tensor(0.0001, device=p.device)
-        MAX_P = torch.tensor(0.9999, device=p.device)
-        return torch.min(torch.max(p, MIN_P), MAX_P)
+        min_p = torch.tensor(0.0001, device=p.device)
+        max_p = torch.tensor(0.9999, device=p.device)
+        return torch.min(torch.max(p, min_p), max_p)
 
     def simulate_path(
         self,

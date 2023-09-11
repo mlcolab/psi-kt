@@ -6,6 +6,7 @@ import os
 import argparse
 import numpy as np
 import datetime
+from pathlib import Path
 
 import torch
 
@@ -53,13 +54,13 @@ if __name__ == "__main__":
     logs = logger.Logger(global_args)
 
     # ----- data part -----
-    corpus_path = os.path.join(
+    corpus_path = Path(
         global_args.data_dir,
         global_args.dataset,
         "Corpus_{}.pkl".format(global_args.max_step),
     )
     data = data_loader.DataReader(global_args, logs)
-    if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
+    if not corpus_path.exists() or global_args.regenerate_corpus:
         data.create_corpus()
         data.show_columns()
     corpus = data.load_corpus()

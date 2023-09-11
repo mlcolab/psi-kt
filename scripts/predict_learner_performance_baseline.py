@@ -1,20 +1,22 @@
 # @Date: 2023/07/25
 
-# import sys
-# sys.path.append('..')
+import sys
+sys.path.append('..')
 
 import os 
 import pickle
 import argparse
 import numpy as np
 import datetime
+from pathlib import Path
 
-import sys    
-print("In module products sys.path[0], __package__ ==", sys.path[0], __package__)
+# import sys    
+# print("In module products sys.path[0], __package__ ==", sys.path[0], __package__)
+# from ...knowledge_tracing import knowledge_tracing
 
 import torch
-from ...knowledge_tracing import knowledge_tracing
-from ..knowledge_tracing.data import data_loader
+
+from knowledge_tracing.data import data_loader
 from knowledge_tracing.runner import runner_baseline
 # from VCLRunner_baseline import BaselineVCLRunner
 # from FTRunner_baseline import FTRunner
@@ -65,9 +67,9 @@ if __name__ == '__main__':
     logs = logger.Logger(global_args)
     
     # ----- data part -----
-    corpus_path = os.path.join(global_args.data_dir, global_args.dataset, 'Corpus_{}.pkl'.format(global_args.max_step))
+    corpus_path = Path(global_args.data_dir, global_args.dataset, 'Corpus_{}.pkl'.format(global_args.max_step))
     data = data_loader.DataReader(global_args, logs)
-    if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
+    if not corpus_path.exists() or global_args.regenerate_corpus:
         data.create_corpus()
         data.show_columns() 
     corpus = data.load_corpus(global_args) 
@@ -94,7 +96,6 @@ if __name__ == '__main__':
     else: num_seq = 1
     
     model = model(global_args, corpus, logs)
-    import ipdb; ipdb.set_trace()
     if global_args.load > 0:
         model.load_state_dict(torch.load(global_args.load_folder), strict=False)
     logs.write_to_log_file(model)

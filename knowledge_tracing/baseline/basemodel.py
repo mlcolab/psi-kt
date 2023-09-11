@@ -6,6 +6,7 @@ import time
 import numpy as np
 from tqdm import tqdm
 from sklearn.metrics import *
+from pathlib import Path
 
 from typing import List, Tuple, Dict
 
@@ -292,7 +293,7 @@ class BaseModel(torch.nn.Module):
             model_path = self.model_path
         model_path = model_path.format(epoch, mini_epoch)
 
-        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        Path(model_path).parents[0].touch()
         torch.save(self.state_dict(), model_path)
         self.logs.write_to_log_file("Save model to " + model_path)
 
@@ -410,7 +411,7 @@ class BaseLearnerModel(BaseModel):
 
         # Set the model_path for saving the trained model
         if logs is not None:
-            self.model_path = os.path.join(logs.args.log_path, "Model/Model_{}_{}.pt")
+            self.model_path = Path(logs.args.log_path, "Model/Model_{}_{}.pt")
         else:
             self.model_path = None
 

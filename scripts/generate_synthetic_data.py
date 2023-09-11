@@ -5,6 +5,7 @@ import os
 import argparse
 import datetime
 
+from pathlib import Path
 from scipy.special import expit
 
 import numpy as np
@@ -169,9 +170,9 @@ def save_as_unified_format(
     )
 
     # Save
-    adj_path = os.path.join(args.log_path, "adj.npy")
+    adj_path = Path(args.log_path, "adj.npy")
     np.save(adj_path, adj)
-    df_path = os.path.join(args.log_path, "interactions_{}.csv".format(args.time_step))
+    df_path = Path(args.log_path, "interactions_{}.csv".format(args.time_step))
     df.to_csv(df_path, sep="\t", index=False)
 
 
@@ -251,11 +252,10 @@ if __name__ == "__main__":
     args.time = datetime.datetime.now().isoformat()
     args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    args.log_path = os.path.join(
+    args.log_path = Path(
         args.save_path, args.time + "_" + "node_" + str(args.num_node)
     )
-    if not os.path.exists(args.log_path):
-        os.makedirs(args.log_path)
+    Path(args.log_path).touch()
 
     # -- generate random graphs
     graph = nx.erdos_renyi_graph(

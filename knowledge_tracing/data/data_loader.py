@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pickle
 import argparse
+from pathlib import Path
 
 from knowledge_tracing.utils import logger
 
@@ -44,12 +45,12 @@ class DataReader(object):
         self.logs = logs
 
         self.inter_df = pd.read_csv(
-            os.path.join(
+            Path(
                 self.data_dir, self.dataset, "interactions_{}.csv".format(self.max_step)
             ),
             sep="\t",
         )
-        self.corpus_path = os.path.join(
+        self.corpus_path = Path(
             self.data_dir, self.dataset, "Corpus_{}.pkl".format(self.max_step)
         )
 
@@ -153,8 +154,8 @@ class DataReader(object):
         Returns:
             adj (ndarray): Adjacency matrix representing the ground truth graph.
         """
-        graph_path = os.path.join(self.data_dir, self.dataset, "adj.npy")
-        if os.path.exists(graph_path):
+        graph_path = Path(self.data_dir, self.dataset, "adj.npy")
+        if graph_path.exists():
             adj = np.load(graph_path)
         else:
             adj = np.zeros((self.n_skills, self.n_skills))

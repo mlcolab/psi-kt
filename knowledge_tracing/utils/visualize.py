@@ -1,7 +1,7 @@
-import os
-
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
+
+from pathlib import Path
 
 import numpy as np
 import networkx as nx
@@ -119,7 +119,7 @@ def _create_heatmap(data, tasks, model_names, metrics, save_path, prefix):
 
     # Display the plot
     # plt.show()
-    plt.savefig(os.path.join(save_path, 'heatmap' + prefix +'.png'))
+    plt.savefig(Path(save_path, 'heatmap' + prefix +'.png'))
     
     
 def _create_bar(data, tasks, model_names, metrics, save_path, prefix):
@@ -164,7 +164,7 @@ def _create_bar(data, tasks, model_names, metrics, save_path, prefix):
 
         # Add legend
         ax.legend(loc='center left')
-    fig.savefig(os.path.join(save_path, 'bar' + prefix +'.png'))
+    fig.savefig(Path(save_path, 'bar' + prefix +'.png'))
 
 
 def _create_line(data, tasks, model_names, metrics, save_path, prefix):
@@ -198,7 +198,7 @@ def _create_line(data, tasks, model_names, metrics, save_path, prefix):
 
     # Adjust the layout to accommodate the legend
     plt.tight_layout(rect=[0, 0, 0.9, 1])
-    fig.savefig(os.path.join(save_path, 'line' + prefix +'.png'))
+    fig.savefig(Path(save_path, 'line' + prefix +'.png'))
     
     
 def compare_model_task_metric(data, tasks, model_names, metrics, save_path=None, fig_format='heatmap', prefix=''):
@@ -282,9 +282,8 @@ def draw_path(path, args, times, items=None, prefix=None, scatter=False):
                 colors = 'grey', linestyles='dashdot')
                 
     plt.legend()
-    if not os.path.exists(os.path.join(args.log_path, process)):
-        os.makedirs(os.path.join(args.log_path, process))
-    plt.savefig(os.path.join(args.log_path, process, prefix+'.png'))
+    Path(args.log_path, process).touch()
+    plt.savefig(Path(args.log_path, process, prefix+'.png'))
 
 
 
@@ -313,7 +312,7 @@ def draw_params(params, args, times, items=None, prefix=None, scatter=False):
             plt.scatter(times[seq, ind], values[seq, ind-1, i], marker='*')
 
         plt.legend()
-        plt.savefig(os.path.join(args.log_path, process, prefix+'_params_'+keys+'.png'))
+        plt.savefig(Path(args.log_path, process, prefix+'_params_'+keys+'.png'))
 
 
 
@@ -321,7 +320,7 @@ def draw_params(params, args, times, items=None, prefix=None, scatter=False):
 def visualize_ground_truth(graph, args, adj, size=4.0):
     plt.clf()
     nx.draw(graph, with_labels=True)
-    plt.savefig(os.path.join(args.log_path, 'graph_raw.png'), dpi=300, bbox_inches='tight')
+    plt.savefig(Path(args.log_path, 'graph_raw.png'), dpi=300, bbox_inches='tight')
 
     plt.clf()
     plt.rcParams['figure.figsize'] = [size, size]
@@ -331,6 +330,6 @@ def visualize_ground_truth(graph, args, adj, size=4.0):
     plt.setp(ax.get_yticklabels(), visible=False)
     ax.tick_params(axis='both', which='both', length=0)
     ax.set_title(r'Ground truth $G^*$', pad=10)
-    plt.savefig(os.path.join(args.log_path, 'graph_adj.png'))
+    plt.savefig(Path(args.log_path, 'graph_adj.png'))
     
     

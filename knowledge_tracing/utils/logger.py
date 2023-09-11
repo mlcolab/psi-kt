@@ -1,4 +1,5 @@
 import time, os, argparse, math, itertools
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -60,17 +61,17 @@ class Logger:
             args: An object containing various arguments.
             add_path_var: Additional path variable to be included in the log path.
         """
-        args.log_path = os.path.join(args.save_folder, add_path_var, args.model_name, args.dataset,
+        args.log_path = Path(args.save_folder, add_path_var, args.model_name, args.dataset,
                                      f"{args.time}_{args.expername}_overfit_{args.overfit}")
-        os.makedirs(args.log_path, exist_ok=True)
+        args.log_path.touch()
 
-        self.log_file = os.path.join(args.log_path, "log.txt")
+        self.log_file = Path(args.log_path, "log.txt")
         self.write_to_log_file(args)
 
-        args.plotdir = os.path.join(args.log_path, "plots")
-        os.makedirs(args.plotdir, exist_ok=True)
-        args.visdir = os.path.join(args.log_path, "out_dict")
-        os.makedirs(args.visdir, exist_ok=True)
+        args.plotdir = Path(args.log_path, "plots")
+        args.plotdir.touch()
+        args.visdir = Path(args.log_path, "out_dict")
+        args.visdir.touch()
 
 
     def write_to_log_file(
@@ -183,7 +184,7 @@ class Logger:
 
             # save image
             filename = f'train_{i}.png'
-            filepath = os.path.join(self.args.plotdir, filename)
+            filepath = Path(self.args.plotdir, filename)
             plt.savefig(filepath)
             plt.close()
             
@@ -205,8 +206,8 @@ class Logger:
             specifier: optional string specifier to differentiate checkpoints
         """
         # Set file paths for saving model and optimizer state dicts
-        model_file_path = os.path.join(args.log_path, f"model_{specifier}.pt")
-        optimizer_file_path = os.path.join(args.log_path, f"optimizer_{specifier}.pt")
+        model_file_path = Path(args.log_path, f"model_{specifier}.pt")
+        optimizer_file_path = Path(args.log_path, f"optimizer_{specifier}.pt")
 
         # Save model state dict if model exists
         if model is not None:
@@ -238,16 +239,16 @@ class Logger:
         print("Saving model and log-file to " + args.log_path)
 
         # Save losses throughout training and plot
-        self.train_results.to_pickle(os.path.join(self.args.log_path, "out_dict", "train_loss"))
+        self.train_results.to_pickle(Path(self.args.log_path, "out_dict", "train_loss"))
 
         if self.val_results is not None:
-            self.val_results.to_pickle(os.path.join(self.args.log_path, "out_dict", "val_loss"))
+            self.val_results.to_pickle(Path(self.args.log_path, "out_dict", "val_loss"))
 
         if self.test_results is not None:
-            self.test_results.to_pickle(os.path.join(self.args.log_path, "out_dict", "test_loss"))
+            self.test_results.to_pickle(Path(self.args.log_path, "out_dict", "test_loss"))
             
         if accuracy is not None:
-            np.save(os.path.join(self.args.log_path, "accuracy"), accuracy)
+            np.save(Path(self.args.log_path, "accuracy"), accuracy)
 
         if final_test:
             pd_test_results = pd.DataFrame(
@@ -258,7 +259,7 @@ class Logger:
                 ],
                 columns=["loss", "score"],
             )
-            pd_test_results.to_pickle(os.path.join(self.args.log_path, "out_dict", "test_results"))
+            pd_test_results.to_pickle(Path(self.args.log_path, "out_dict", "test_results"))
 
             pd_test_results_per_influenced = pd.DataFrame(
                 list(
@@ -278,7 +279,7 @@ class Logger:
                 columns=["loss", "num_influenced", "score"],
             )
             pd_test_results_per_influenced.to_pickle(
-                os.path.join(args.log_path, "out_dict", "test_loss_per_influenced")
+                Path(args.log_path, "out_dict", "test_loss_per_influenced")
             )
             specifier = "final"
 
@@ -299,7 +300,7 @@ class Logger:
     #         plt.legend(loc="upper right")
 
     #         # save image
-    #         plt.savefig(os.path.join(self.args.log_path, 'train_' + i + ".png"))
+    #         plt.savefig(Path(self.args.log_path, 'train_' + i + ".png"))
     #         plt.close()
     
     # def draw_tta_curves(self):
@@ -314,7 +315,7 @@ class Logger:
     #             plt.legend(loc="upper right")
 
     #             # save image
-    #             plt.savefig(os.path.join(self.args.log_path, i + ".png"))
+    #             plt.savefig(Path(self.args.log_path, i + ".png"))
     #             plt.close()
     #         if 'tta' not in i:
     #             plt.figure()
@@ -325,5 +326,5 @@ class Logger:
     #             plt.legend(loc="upper right")
 
     #             # save image
-    #             plt.savefig(os.path.join(self.args.log_path, 'val_' + i + ".png"))
+    #             plt.savefig(Path(self.args.log_path, 'val_' + i + ".png"))
     #             plt.close()

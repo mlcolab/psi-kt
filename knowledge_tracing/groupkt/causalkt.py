@@ -1,5 +1,7 @@
 import os
 import numpy as np
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -128,7 +130,7 @@ class CausalKT(BaseModel):
         # self.dev0 = dev0
         # self.dev1 = dev1
 
-        super().__init__(model_path=os.path.join(args.log_path, "Model_{}.pt"))
+        super().__init__(model_path=Path(args.log_path, "Model_{}.pt"))
 
     def _init_weights(self):
         self.loss_function = torch.nn.BCELoss()

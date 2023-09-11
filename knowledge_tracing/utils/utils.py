@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import os
 import pickle
+from pathlib import Path
 
 # a dict to store the activations
 activation = {}
@@ -57,7 +58,7 @@ def load_corpus(logs, args):
     """
 
     # Construct the path to the corpus file based on the dataset and max_step arguments.
-    corpus_path = os.path.join(
+    corpus_path = Path(
         args.data_dir, args.dataset, "Corpus_{}.pkl".format(args.max_step)
     )
     logs.write_to_log_file(f"Load corpus from {corpus_path}")
@@ -200,12 +201,8 @@ def check_dir(file_name):
     """
 
     # Get the path to the directory containing the specified file.
-    dir_path = os.path.dirname(file_name)
-
-    # If the directory doesn't exist, create it.
-    if not os.path.exists(dir_path):
-        print("make dirs:", dir_path)
-        os.makedirs(dir_path)
+    dir_path = Path(file_name).parents[0]
+    dir_path.touch()
 
 
 def get_time():

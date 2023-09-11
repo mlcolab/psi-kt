@@ -1,10 +1,8 @@
-# @Date: 2023/07/29
-
-import os
 import numpy as np
 import pandas as pd
 import argparse
 from collections import defaultdict
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -94,7 +92,7 @@ class AKT(BaseModel):
         # Store the arguments and logs for later use
         self.args = args
         self.logs = logs
-        super().__init__(model_path=os.path.join(args.log_path, "Model/Model_{}_{}.pt"))
+        super().__init__(model_path=Path(args.log_path, "Model/Model_{}_{}.pt"))
 
     def _init_weights(
         self,

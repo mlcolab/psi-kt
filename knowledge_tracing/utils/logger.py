@@ -1,4 +1,4 @@
-import time, os, argparse, math, itertools
+import time, argparse, math, itertools
 from pathlib import Path
 
 import matplotlib.pyplot as plt

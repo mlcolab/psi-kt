@@ -1,6 +1,4 @@
-# @Date: 2023/07/30
-
-import os
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import argparse
@@ -92,7 +90,7 @@ class HKT(BaseModel):
         self.args = args
         self.logs = logs
 
-        super().__init__(model_path=os.path.join(args.log_path, "Model/Model_{}_{}.pt"))
+        super().__init__(model_path=Path(args.log_path, "Model/Model_{}_{}.pt"))
 
     def _init_weights(self) -> None:
         """

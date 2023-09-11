@@ -4,7 +4,6 @@ import sys
 sys.path.append('..')
 
 import os 
-import pickle
 import argparse
 import numpy as np
 import datetime

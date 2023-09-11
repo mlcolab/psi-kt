@@ -1,6 +1,4 @@
-# @Date: 2023/07/25
-
-import os
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import argparse
@@ -85,7 +83,7 @@ class DKT(BaseModel):
         self.args = args
         self.logs = logs
         BaseModel.__init__(
-            self, model_path=os.path.join(args.log_path, "Model/Model_{}_{}.pt")
+            self, model_path=Path(args.log_path, "Model/Model_{}_{}.pt")
         )
 
     def _init_weights(self) -> None:

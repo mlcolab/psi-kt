@@ -1,11 +1,8 @@
-# @Date: 2023/07/25
-
 import sys
-
-from knowledge_tracing.baseline.HawkesKT import dktforgetting
 sys.path.append("..")
 
-import os
+from knowledge_tracing.baseline.HawkesKT import dktforgetting
+
 import pickle
 import argparse
 import numpy as np

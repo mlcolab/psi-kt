@@ -1,10 +1,8 @@
 import sys
 sys.path.append("..")
 
-import os
 import argparse
 import datetime
-
 from pathlib import Path
 from scipy.special import expit
 

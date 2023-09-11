@@ -10,7 +10,7 @@ import torch
 import torch.nn.init as init
 from torch import nn
 from torch.nn import functional as F
-import ipdb
+
 DIM = 64
 # Inference Network
 class InferenceNet(nn.Module):

@@ -1,10 +1,8 @@
-# @Date: 2023/07/29
-
-import os
 import numpy as np
 import pandas as pd
 import argparse
 from collections import defaultdict
+from pathlib import Path
 
 import torch
 
@@ -94,7 +92,7 @@ class DKTFORGETTING(BaseModel):
 
         # Call the constructor of the superclass (BaseModel) with the specified model path
         BaseModel.__init__(
-            self, model_path=os.path.join(args.log_path, "Model/Model_{}.pt")
+            self, model_path=Path(args.log_path, "Model/Model_{}.pt")
         )
 
     @staticmethod

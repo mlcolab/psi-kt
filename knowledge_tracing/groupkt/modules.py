@@ -1,4 +1,4 @@
-from typing import List, Optional, Type
+from typing import List
 import math
 
 import torch

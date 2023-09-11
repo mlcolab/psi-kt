@@ -24,7 +24,7 @@ The MLE estimators are biased, but we should be in the large-N limit where any
 correction is small.
 """
 
-from typing import List, Tuple, Optional
+from typing import Optional
 
 import numpy as np
 import networkx as nx
@@ -33,7 +33,6 @@ import scipy
 import scipy.constants
 import scipy.stats
 import scipy.optimize
-import scipy.optimize as opt
 
 
 class VanillaOU:

@@ -8,11 +8,6 @@ import networkx as nx
 import pandas as pd
 import seaborn as sns
 
-from numpy.random import default_rng
-
-import scipy
-from scipy import stats
-
 
 ##########################################################################################
 # Compare different models, different tasks, single metrics (ideally f1 score)

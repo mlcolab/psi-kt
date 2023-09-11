@@ -431,7 +431,7 @@ class AmortizedGroupKT(GroupKT):
 
         # ----- 2. variational posterior distribution q(s_1:t | y_1:t, c_1:t) = q(s_1:t | emb_1:t) -----
         self.infer_network_posterior_s = InferenceNet(
-            self.node_dim * time_step, self.dim_s, self.num_category, time_step
+            self.node_dim, self.dim_s, self.num_category, time_step
         )
 
         # self.st_transition_infer

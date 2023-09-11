@@ -25,20 +25,26 @@ class InferenceNet(nn.Module):
 
         # q(class|input)
         self.inference_qyx = torch.nn.ModuleList([
+            nn.LSTM(
+                input_size=in_dim,  
+                hidden_size=in_dim * 2,
+                bidirectional=False,
+                batch_first=True,
+            ),
+            nn.Linear(in_dim*2, in_dim),
+            nn.LeakyReLU(0.2),
             nn.Linear(in_dim, DIM),
-            nn.ReLU(),
-            nn.Linear(DIM, DIM),
-            nn.ReLU(),
+            nn.LeakyReLU(0.2),
             GumbelSoftmax(DIM, cate_dim)
         ])
 
         # q(latents|class, input)
         self.inference_qzyx = torch.nn.ModuleList([
-            nn.Linear(in_dim // time_step + cate_dim, DIM),
+            nn.Linear(in_dim + cate_dim, DIM),
             nn.ReLU(),
-            nn.Linear(DIM, DIM),
+            nn.Linear(DIM, in_dim),
             nn.ReLU(),
-            Gaussian(DIM, latent_dim)
+            Gaussian(in_dim, latent_dim)
         ])
 
     # q(y|x) -> q(category|emb_history)

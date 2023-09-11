@@ -106,65 +106,6 @@ def parse_args(parser):
     return parser
 
 
-class KTData(object):
-    """
-    A class for handling knowledge tracing data.
-
-    This class provides methods to initialize synthetic and real data,
-    count user history, and perform other operations related to knowledge tracing.
-
-    Args:
-        data_type (str): Type of data ('syn' for synthetic, else real).
-        df (pandas.DataFrame): DataFrame containing real data (if data_type is not 'syn').
-        times (numpy.ndarray): Array of timestamps for synthetic data.
-        items (numpy.ndarray): Array of item IDs for synthetic data.
-        graph_adj (numpy.ndarray): Adjacency matrix for synthetic data.
-
-    """
-
-    def __init__(
-        self,
-        data_type: str,
-        df: pd.DataFrame = None,
-        times: np.ndarray = None,
-        items: np.ndarray = None,
-        graph_adj: np.ndarray = None,
-    ) -> None:
-        if data_type == "syn":
-            self.init_synthetic_data(times, items, graph_adj)
-        else:
-            self.init_real_data(df)
-
-    def init_synthetic_data(
-        self, times: np.ndarray, items: np.ndarray, graph_adj: np.ndarray
-    ) -> None:
-        """
-        Initialize the object with synthetic data.
-
-        Args:
-            times (numpy.ndarray): Array of timestamps for synthetic data.
-            items (numpy.ndarray): Array of item IDs for synthetic data.
-            graph_adj (numpy.ndarray): Adjacency matrix for synthetic data.
-        """
-
-        self.num_seq = times.shape[0]
-
-        self.user_id = np.arange(self.num_seq)
-        self.time_seq = times
-        self.skill_id = items
-
-        self.adj = graph_adj
-
-    def init_real_data(self, df: pd.DataFrame) -> None:
-        """
-        Initialize the object with real data.
-
-        Args:
-            df (pandas.DataFrame): DataFrame containing real data.
-        """
-        pass
-
-
 def save_as_unified_format(
     args: argparse.Namespace,
     path: str,
@@ -339,9 +280,6 @@ if __name__ == "__main__":
     # -- generate time points & reviewing items
     times = torch.tensor(time_point_generate(), device=args.device)
     items = torch.tensor(review_item_generate(), device=args.device)
-
-    # -- initialize a KT Data Object
-    # ktdata = KTData(data_type='syn', times=times, items=items, graph_adj=adj) TODO
 
     # -- Vanilla OU process
     x0 = torch.zeros((args.num_sequence, args.num_node), device=args.device)

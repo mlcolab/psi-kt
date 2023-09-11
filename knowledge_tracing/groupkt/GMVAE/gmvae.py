@@ -19,138 +19,64 @@ from knowledge_tracing.groupkt import *
 
 DIM = 64
 
-
 class InferenceNet(nn.Module):
-    """
-    Neural network for inference in a generative model.
-
-    This class represents the inference network of a generative model. It consists
-    of two subnetworks: one for q(y|x) and another for q(z|y,x). The q(y|x) subnetwork
-    produces categorical distributions over latent categories, while the q(z|y,x)
-    subnetwork produces Gaussian distributions over latent continuous variables.
-
-    Args:
-        x_dim (int): Dimensionality of input data x.
-        z_dim (int): Dimensionality of latent continuous variable z.
-        y_dim (int): Dimensionality of latent categorical variable y.
-
-    Methods:
-        qyx(x, temperature, hard):
-            Computes the categorical distribution q(y|x).
-
-        qzxy(x, y):
-            Computes the Gaussian distribution q(z|x,y).
-
-        forward(x, temperature=1.0, hard=0):
-            Forward pass through the inference network.
-
-    Example:
-        An example of how to create and use the InferenceNet class:
-        >>> net = InferenceNet(x_dim=256, z_dim=64, y_dim=10)
-        >>> input_data = torch.randn(32, 256)  # Example input data
-        >>> output = net(input_data)
-    """
-
-    def __init__(self, x_dim: int, z_dim: int, y_dim: int) -> None:
+    def __init__(self, in_dim, latent_dim, cate_dim, time_step):
         super(InferenceNet, self).__init__()
 
-        # q(y|x)
-        self.inference_qyx = torch.nn.ModuleList(
-            [
-                nn.Linear(x_dim, DIM),
-                nn.ReLU(),
-                nn.Linear(DIM, DIM),
-                nn.ReLU(),
-                GumbelSoftmax(DIM, y_dim),
-            ]
-        )
+        # q(class|input)
+        self.inference_qyx = torch.nn.ModuleList([
+            nn.Linear(in_dim, DIM),
+            nn.ReLU(),
+            nn.Linear(DIM, DIM),
+            nn.ReLU(),
+            GumbelSoftmax(DIM, cate_dim)
+        ])
 
-        # q(z|y,x)
-        self.inference_qzyx = torch.nn.ModuleList(
-            [
-                nn.Linear(x_dim // 10 + y_dim, DIM),
-                nn.ReLU(),
-                nn.Linear(DIM, DIM),
-                nn.ReLU(),
-                Gaussian(DIM, z_dim),
-            ]
-        )
+        # q(latents|class, input)
+        self.inference_qzyx = torch.nn.ModuleList([
+            nn.Linear(in_dim // time_step + cate_dim, DIM),
+            nn.ReLU(),
+            nn.Linear(DIM, DIM),
+            nn.ReLU(),
+            Gaussian(DIM, latent_dim)
+        ])
 
-    # q(y|x)
-    def qyx(self, x: torch.Tensor, temperature: float, hard: int) -> torch.Tensor:
-        """
-        Computes the categorical distribution q(y|x).
-
-        Args:
-            x (torch.Tensor): Input data x.
-            temperature (float): Temperature parameter for Gumbel-Softmax.
-            hard (int): Flag for hard sampling from Gumbel-Softmax.
-
-        Returns:
-            torch.Tensor: Categorical distribution q(y|x).
-        """
-
+    # q(y|x) -> q(category|emb_history)
+    def qyx(self, x, temperature, hard):
         num_layers = len(self.inference_qyx)
+        
         for i, layer in enumerate(self.inference_qyx):
             if i == num_layers - 1:
-                # last layer is gumbel softmax
+                #last layer is gumbel softmax
                 x = layer(x, temperature, hard)
             else:
                 x = layer(x)
         return x
 
-    # q(z|x,y)
-    def qzxy(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """
-        Computes the Gaussian distribution q(z|x,y).
-
-        Args:
-            x (torch.Tensor): Input data x.
-            y (torch.Tensor): Latent categorical variable y.
-
-        Returns:
-            torch.Tensor: Gaussian distribution q(z|x,y).
-        """
-
-        concat = torch.cat((x, y), dim=1)
+    # q(z|x,y) -> q(s|emb_history, category)
+    def qzxy(self, x, y):
+        concat = torch.cat((x, y), dim=-1)  
         for layer in self.inference_qzyx:
             concat = layer(concat)
         return concat
+  
+    def forward(self, inputs, temperature=1.0, hard=0, time_dependent_s=False):
+        input_faltten = inputs.reshape(inputs.size(0), -1) 
 
-    def forward(
-        self, x: torch.Tensor, temperature: float = 1.0, hard: int = 0
-    ) -> torch.Tensor:
-        """
-        Forward pass through the inference network.
+        w_logits, w_prob, w_sample = self.qyx(input_faltten, temperature, hard) # [bs, num_categories]
 
-        Args:
-            x (torch.Tensor): Input data x.
-            temperature (float, optional): Temperature parameter for Gumbel-Softmax. Default is 1.0.
-            hard (int, optional): Flag for hard sampling from Gumbel-Softmax. Default is 0.
+        if time_dependent_s:
+            w_sample_mc = w_sample.unsqueeze(1).repeat(1,inputs.shape[1],1)
+            s_mu_infer, s_var_infer, _ = self.qzxy(inputs, w_sample_mc) # [bs, seq_len, latent_dim]
+        else:
+            s_mu_infer, s_var_infer, _ = self.qzxy(inputs.mean(1), w_sample) # [bs, latent_dim] # TODO would it be a little imbalanced? x, y are not the same dimension
 
-        Returns:
-            dict: A dictionary containing various outputs from the inference network.
-        """
-        x_faltten = x.reshape(x.size(0), -1)
-
-        # q(y|x)
-        logits, prob, y = self.qyx(x_faltten, temperature, hard)  # [bs, num_categories]
-
-        # q(z|x,y)
-        # ipdb.set_trace() # TODO we can do it at every time step
-        mu, var, z = self.qzxy(
-            x.mean(1), y
-        )  # [bs, z_dim] # TODO would it be a little imbalanced? x, y are not the same dimension
-
-        output = {
-            "mean": mu,
-            "var": var,
-            "gaussian": z,
-            "logits": logits,
-            "prob_cat": prob,
-            "categorical": y,
-        }
-
+        output = {'s_mu_infer': s_mu_infer, 's_var_infer': s_var_infer,
+                  'logits': w_logits, 'prob_cat': w_prob, 'categorical': w_sample}
+        
+        for key, value in output.items():
+            output[key] = value.unsqueeze(1)
+        
         return output
 
 

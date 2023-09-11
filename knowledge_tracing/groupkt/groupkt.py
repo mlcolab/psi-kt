@@ -426,7 +426,7 @@ class AmortizedGroupKT(GroupKT):
         # the variational posterior distribution q(s_1:t | y_1:t, c_1:t) and q(z_1:t | y_1:t, c_1:t) TODO could add structure later q(z_1:t | y_1:t, s_1:t)
         # ----- 1. embedding network -----
         self.infer_network_emb = build_dense_network(
-            self.node_dim * 2, [self.node_dim, self.node_dim], [nn.ReLU(), None]
+            self.node_dim * 2, [self.node_dim, self.node_dim], [nn.LeakyReLU(0.2), None]
         )
 
         # ----- 2. variational posterior distribution q(s_1:t | y_1:t, c_1:t) = q(s_1:t | emb_1:t) -----

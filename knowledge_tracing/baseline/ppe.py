@@ -224,7 +224,6 @@ class PPE(BaseLearnerModel):
                 all_feature[torch.arange(num_seq), :, i:, 1] += success
                 all_feature[torch.arange(num_seq), :, i:, 2] += 1 - success
 
-            drs.append(dn)
             x_pred.append(pn)
             x_item_pred.append(pn[torch.arange(num_seq), cur_item])
 

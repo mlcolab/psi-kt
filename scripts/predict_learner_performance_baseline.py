@@ -7,10 +7,6 @@ import numpy as np
 import datetime
 from pathlib import Path
 
-# import sys    
-# print("In module products sys.path[0], __package__ ==", sys.path[0], __package__)
-# from ...knowledge_tracing import knowledge_tracing
-
 import torch
 
 from knowledge_tracing.data import data_loader

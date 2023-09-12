@@ -15,8 +15,10 @@ from knowledge_tracing.runner import runner_groupkt, runner_vcl
 from knowledge_tracing.utils import utils, arg_parser, logger
 from knowledge_tracing.groupkt.groupkt import GroupKT, ContinualGroupKT
 
-if __name__ == "__main__":
-    # ----- add aditional arguments for this exp. -----
+def global_parse_args():
+    """
+    Model-specific arguments are defined in corresponding files.
+    """
     parser = argparse.ArgumentParser(description="Global")
     parser.add_argument("--model_name", type=str, help="Choose a model to run.")
 
@@ -40,9 +42,14 @@ if __name__ == "__main__":
     )
     parser.add_argument('--em_train', type=int, default=0)
 
-    parser = arg_parser.parse_args(parser)
+    return parser
 
+if __name__ == "__main__":
+    # ----- add aditional arguments for this exp. -----
+    parser = global_parse_args()
+    parser = arg_parser.parse_args(parser)
     global_args, extras = parser.parse_known_args()
+    
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -84,7 +91,6 @@ if __name__ == "__main__":
         global_args.num_GPU = None
         global_args.batch_size_multiGPU = global_args.batch_size
     logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
-    # ipdb.set_trace()
 
     # ----- Model initialization -----
     if "ls_" or "ln_" in global_args.train_mode:

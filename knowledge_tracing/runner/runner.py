@@ -1,8 +1,8 @@
 import gc, copy, os
-
 from time import time
-from tqdm import tqdm
 from collections import defaultdict
+
+from tqdm import tqdm
 
 import torch
 import torch.optim as optim

@@ -1,6 +1,7 @@
-import numpy as np
 from collections import defaultdict
 from typing import List, Dict
+
+import numpy as np
 
 import torch
 import torch.nn as nn

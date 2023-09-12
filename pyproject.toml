@@ -1,0 +1,40 @@
+[project]
+name = "knowledge_tracing"
+version = "0.1.0.dev0"
+description = ""
+readme = "readme.md"
+requires-python = ">=3.9"
+license = {file = "LICENSE"}
+keywords = []
+authors = [
+  {name = "Hanqi Zhou", email = "hanqi.zhou@uni-tuebingen.de" },
+]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+  "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = [
+  "ipdb>=0.13",
+  "matplotlib>=3.7",
+  "networkx>=3.0",
+  "numpy>=1.22",
+  "pandas>=1.5",
+  "scikit-learn>=1.2",
+  "scipy>=1.10",
+  "seaborn>=0.12",
+  "tqdm>=4.65",
+  "torch>=1.9.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/mlcolab/knowledge_tracing"
+"Bug Reports" = "https://github.com/mlcolab/knowledge_tracing/issues"
+"Source" = "https://github.com/mlcolab/knowledge_tracing"
+
+[tool.setuptools]
+py-modules = []

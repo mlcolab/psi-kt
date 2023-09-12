@@ -6,8 +6,10 @@ import networkx as nx
 import pickle
 from pathlib import Path
 from numpy.random import default_rng
+from scipy.special import expit
 
 from knowledge_tracing.utils import visualize
+
 # a dict to store the activations
 activation = {}
 
@@ -404,9 +406,12 @@ def pad_lst(lst: list, value: int = 0, dtype: type = np.int64) -> np.ndarray:
 def save_as_unified_format(
     args: argparse.Namespace,
     path: str,
+    params: dict,
     times: np.ndarray,
     items: np.ndarray,
     adj: np.ndarray,
+    prefix: str = "",
+    vis: bool = True,
 ) -> None:
     """
     Save data in a unified format.
@@ -462,10 +467,16 @@ def save_as_unified_format(
     )
 
     # Save
-    adj_path = Path(args.log_path, "adj.npy")
+    adj_path = Path(args.log_path, prefix, "adj.npy")
     np.save(adj_path, adj)
     df_path = Path(args.log_path, "interactions_{}.csv".format(args.time_step))
     df.to_csv(df_path, sep="\t", index=False)
+
+    # Visualization
+    if vis:
+        visualize.draw_path(path[0], args, times[0], items=items[0], prefix=prefix)
+        visualize.draw_path(expit(path[0]), args, times[0], prefix="sigmoid" + prefix)
+        visualize.draw_params(params, args, times, items, prefix=prefix)
 
 
 def generate_time_point(args: argparse.Namespace) -> np.ndarray:
@@ -493,7 +504,7 @@ def generate_time_point(args: argparse.Namespace) -> np.ndarray:
     elif args.time_random_type == "random":
         rng = default_rng(args.random_seed)
         times = []
-        for i in range(args.num_sequence):
+        for _ in range(args.num_sequence):
             time = rng.choice(np.arange(args.max_time_step), args.time_step, False)
             time.sort()
             times.append(time)
@@ -549,6 +560,195 @@ def generate_random_graph(args: argparse.Namespace, vis: bool = True) -> np.ndar
     )
     adj = nx.adjacency_matrix(graph).toarray()
     if vis:
-        visualize.draw_graph(graph, args)
+        visualize.visualize_ground_truth(graph, args, adj)
 
-    return adj
+
+def simulate_ou_learning_path(
+    args: argparse.Namespace,
+    times: np.ndarray,
+    items: np.ndarray,
+    model: torch.nn.Module,
+    vis: bool = True,
+) -> np.ndarray:
+    """
+    Simulate a learning path using the OU model.
+
+    Args:
+        args (argparse.Namespace): Command-line arguments containing:
+            - mean_rev_speed (float): Mean reversion speed.
+            - mean_rev_level (float): Mean reversion level.
+            - vola (float): Volatility.
+            - num_sequence (int): Number of sequences.
+            - num_node (int): Number of nodes.
+            - device (torch.device): Device to use for computation.
+        times (numpy.ndarray): Array containing time points for interactions.
+        items (numpy.ndarray): Array containing review items for each sequence.
+
+    Returns:
+        numpy.ndarray: Array containing the simulated learning path.
+    """
+
+    # Initialize the initial state
+    x0 = torch.zeros((args.num_sequence, args.num_node), device=args.device)
+
+    # Create an OU model generator
+    ou_vanilla_generator = model(
+        mean_rev_speed=args.mean_rev_speed,
+        mean_rev_level=args.mean_rev_level,
+        vola=args.vola,
+        num_seq=args.num_sequence,
+        mode="synthetic",
+        device=args.device,
+    )
+
+    # Simulate the learning path
+    vanilla_path, params = ou_vanilla_generator.simulate_path(x0, times)
+
+    # Save the simulated path
+    save_as_unified_format(
+        args, vanilla_path, times, items, adj=None, prefix="vanilla_ou", vis=vis
+    )
+
+    return vanilla_path, params
+
+
+def simulate_graph_ou_learning_path(
+    args: argparse.Namespace,
+    times: np.ndarray,
+    items: np.ndarray,
+    graph_adj: np.ndarray,
+    model: torch.nn.Module,
+    vis: bool = True,
+) -> np.ndarray:
+    """
+    Simulate a learning path using the graph OU model.
+    Args:
+        args (argparse.Namespace): Command-line arguments containing:
+            - mean_rev_speed (float): Mean reversion speed. 
+            - mean_rev_level (float): Mean reversion level.
+            - vola (float): Volatility.
+            - num_sequence (int): Number of sequences.
+            - num_node (int): Number of nodes.
+            - device (torch.device): Device to use for computation.
+        times (numpy.ndarray): Array containing time points for interactions.
+        items (numpy.ndarray): Array containing review items for each sequence.
+        graph_adj (numpy.ndarray): Adjacency matrix of the graph.
+    Returns:
+        numpy.ndarray: Array containing the simulated learning path.
+    """
+    for gamma in args.gamma:
+        graph_ou_generator = model(
+            args.mean_rev_speed,
+            args.mean_rev_level,
+            args.vola,
+            args.num_sequence,
+            nx_graph=graph_adj,
+            gamma=gamma,
+            rho=args.rho,
+            omega=args.omega,
+        )
+        graph_ou_path, params = graph_ou_generator.simulate_path(
+            np.zeros((args.num_node, 1)), times, items=items
+        )
+        prefix = "GraphOU_speed_{}_vola_{}_gamma_{}_rho_{}_omega_{}".format(
+            args.mean_rev_speed, args.vola, gamma, args.rho, args.omega
+        )
+
+        save_as_unified_format(
+            args,
+            graph_ou_path,
+            params,
+            times,
+            items,
+            adj=graph_adj,
+            prefix=prefix,
+            vis=vis,
+        )
+
+    return graph_ou_path, params
+
+
+def simulate_hlr_learning_path(
+    args: argparse.Namespace,
+    times: np.ndarray,
+    items: np.ndarray,
+    model: torch.nn.Module,
+    vis: bool = True,
+) -> np.ndarray:
+    """
+    Simulate a learning path using the HLR (Hierarchical Linear Regression) model.
+
+    Args:
+        args (argparse.Namespace): Command-line arguments containing:
+            - num_sequence (int): Number of sequences.
+            - num_node (int): Number of nodes.
+            - device (torch.device): Device to use for computation.
+            - theta (list): List of theta parameters.
+        times (numpy.ndarray): Array containing time points for interactions.
+        items (numpy.ndarray): Array containing review items for each sequence.
+        model (torch.nn.Module): The HLR model to use for simulation.
+        vis (bool, optional): Whether to visualize the results. Defaults to True.
+
+    Returns:
+        numpy.ndarray: Array containing the simulated learning path.
+    """
+
+    # Initialize the initial state
+    x0 = torch.zeros((args.num_sequence, args.num_node), device=args.device)
+    theta = np.array(args.theta)
+
+    # Create an HLR model generator
+    hlr_generator = model(
+        theta=theta, num_seq=args.num_sequence, mode="synthetic", device=args.device
+    )
+
+    # Simulate the learning path
+    hlr_path, params = hlr_generator.simulate_path(x0=x0, t=times, items=items)
+
+    # Create a prefix for saving
+    prefix = "hlr_theta_{:.2f}_{:.2f}_{:.2f}".format(theta[0], theta[1], theta[2])
+
+    # Save the simulated path
+    save_as_unified_format(
+        args, hlr_path, params, times, items, adj=None, prefix=prefix, vis=vis
+    )
+
+
+def simulate_ppe_learning_path(
+    args: argparse.Namespace,
+    times: np.ndarray,
+    items: np.ndarray,
+    model: torch.nn.Module,
+    vis: bool = True,
+) -> np.ndarray:
+    """
+    Simulate a learning path using the PPE (Power Parameter Estimation) process.
+
+    Args:
+        args (argparse.Namespace): Command-line arguments containing:
+            - num_sequence (int): Number of sequences.
+            - num_node (int): Number of nodes.
+            - learning_rate (list): List of learning rates to simulate.
+        times (numpy.ndarray): Array containing time points for interactions.
+        items (numpy.ndarray): Array containing review items for each sequence.
+        model (torch.nn.Module): The PPE model to use for simulation.
+        vis (bool, optional): Whether to visualize the results. Defaults to True.
+
+    Returns:
+        numpy.ndarray: Array containing the simulated learning path.
+    """
+
+    # Simulate for each learning rate
+    for learning_rate in args.learning_rate:
+        ppe_generator = model(learning_rate, num_seq=args.num_sequence)
+        ppe_path, params = ppe_generator.simulate_path(
+            np.zeros((args.num_node, 1)), times, items
+        )
+
+        # Create a prefix for saving
+        prefix = "ppe_lr_{}".format(learning_rate)
+
+        # Save the simulated path
+        save_as_unified_format(
+            args, ppe_path, params, times, items, adj=None, prefix=prefix, vis=vis
+        )

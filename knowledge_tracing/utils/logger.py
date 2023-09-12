@@ -1,10 +1,10 @@
 import time, argparse, math, itertools
 from pathlib import Path
+from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from collections import defaultdict
 
 import torch
 

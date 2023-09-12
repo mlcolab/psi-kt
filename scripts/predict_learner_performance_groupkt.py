@@ -38,6 +38,7 @@ if __name__ == "__main__":
         default=10,
         help="number of samples when we use MC for non-analytical solution",
     )
+    parser.add_argument('--em_train', type=int, default=0)
 
     parser = arg_parser.parse_args(parser)
 

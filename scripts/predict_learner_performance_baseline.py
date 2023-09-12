@@ -37,7 +37,7 @@ def global_parse_args():
     return parser
 
 if __name__ == '__main__':
-
+    
     # read arguments
     # Define an argument parser for the model name.
     parser = global_parse_args()

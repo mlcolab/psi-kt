@@ -1,9 +1,10 @@
 import math
-import numpy as np
-import pandas as pd
 import pickle
 import argparse
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
 
 from knowledge_tracing.utils import logger
 

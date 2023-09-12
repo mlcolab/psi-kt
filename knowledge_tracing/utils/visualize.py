@@ -7,6 +7,7 @@ import numpy as np
 import networkx as nx
 import pandas as pd
 import seaborn as sns
+import argparse
 
 
 ##########################################################################################
@@ -310,21 +311,39 @@ def draw_params(params, args, times, items=None, prefix=None, scatter=False):
         plt.savefig(Path(args.log_path, process, prefix+'_params_'+keys+'.png'))
 
 
-
-
-def visualize_ground_truth(graph, args, adj, size=4.0):
+def visualize_ground_truth(
+    graph: nx.Graph, 
+    args: argparse.Namespace, 
+    adj: np.ndarray, 
+    size: int = 5
+):
+    """
+    Visualize the ground truth graph.
+    Args:
+        graph: the ground truth graph
+        args: the arguments
+        adj: the adjacency matrix of the ground truth graph
+        size: the size of the figure
+    """
+    # Clear the current figure
     plt.clf()
+
+    # Create the raw graph plot
+    plt.figure(figsize=(size, size))
     nx.draw(graph, with_labels=True)
     plt.savefig(Path(args.log_path, 'graph_raw.png'), dpi=300, bbox_inches='tight')
 
+    # Clear the current figure
     plt.clf()
-    plt.rcParams['figure.figsize'] = [size, size]
-    fig, ax = plt.subplots(1, 1)
-    ax.matshow(adj, vmin=0, vmax=1)
-    plt.setp(ax.get_xticklabels(), visible=False)
-    plt.setp(ax.get_yticklabels(), visible=False)
-    ax.tick_params(axis='both', which='both', length=0)
-    ax.set_title(r'Ground truth $G^*$', pad=10)
+
+    # Create the adjacency matrix plot
+    plt.figure(figsize=(size, size))
+    plt.imshow(adj, vmin=0, vmax=1)
+    plt.axis('off')
+    plt.title(r'Ground truth $G^*$', pad=10)
     plt.savefig(Path(args.log_path, 'graph_adj.png'))
+
+
+
     
     

@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from knowledge_tracing.baseline import *
 from knowledge_tracing.baseline.basemodel import BaseLearnerModel, BaseModel
 
 
@@ -16,6 +17,23 @@ from knowledge_tracing.baseline.basemodel import BaseLearnerModel, BaseModel
 
 
 class VanillaOU(BaseLearnerModel):
+    """
+    Modified from
+        https://github.com/jwergieluk/ou_noise/tree/master/ou_noise
+        https://github.com/felix-clark/ornstein-uhlenbeck/blob/master/ornstein_uhlenbeck.py
+        https://github.com/369geofreeman/Ornstein_Uhlenbeck_Model/blob/main/research.ipynb
+    Args:
+        mean_rev_speed: [bs, num_node, 1] the speed of mean reversion in OU process (alpha).
+        mean_rev_level: [bs, num_node, 1] the mean level of OU process (mu).
+        vola: [bs, num_node, 1] the volatility of OU process (sigma).
+        num_seq: when training mode, the num_seq will be automatically the number of batch size;
+                    when synthetic mode, the num_seq will be the number of sequences to generate
+        mode: can be 'training' or 'synthetic'
+        device: cpu or cuda
+        logs: the logger
+
+    """
+
     def __init__(
         self,
         mean_rev_speed: torch.Tensor = None,
@@ -28,77 +46,62 @@ class VanillaOU(BaseLearnerModel):
         device: torch.device = "cpu",
         logs: Any = None,
     ):
-        """
-        Modified from
-            https://github.com/jwergieluk/ou_noise/tree/master/ou_noise
-            https://github.com/felix-clark/ornstein-uhlenbeck/blob/master/ornstein_uhlenbeck.py
-            https://github.com/369geofreeman/Ornstein_Uhlenbeck_Model/blob/main/research.ipynb
-        Args:
-            mean_rev_speed: [bs/1, 1] or scalar
-            mean_rev_level: [bs/1, 1] or scalar
-            vola: [bs/1, 1] or scalar
-            num_seq: when training mode, the num_seq will be automatically the number of batch size;
-                     when synthetic mode, the num_seq will be the number of sequences to generate
-            mode: can be 'training' or 'synthetic'
-            device:
-        """
         super().__init__(mode=mode, device=device, logs=logs)
         self.num_node = num_node
         self.num_seq = num_seq
 
         if num_node > 1:
             self.adj = torch.tensor(nx_graph, device=self.device)
-            # assert(self.adj.shape[-1] == num_node)
+            assert self.adj.shape[-1] == num_node
         else:
             self.adj = None
 
-        # Training mode choosing
-        if "simple_" in mode:  # global parameter theta for every learner and node
-            speed = torch.rand((1, 1, 1), device=device)
-            level = torch.rand((1, 1, 1), device=device)
-            vola = torch.rand((1, 1, 1), device=device)
-            self.mean_rev_speed = nn.Parameter(speed, requires_grad=True)
-            self.mean_rev_level = nn.Parameter(level, requires_grad=True)
-            self.vola = nn.Parameter(vola, requires_grad=True)
+        self.mean_rev_speed = nn.Parameter(
+            torch.empty(1, 1, 1, device=device), requires_grad=True
+        )
+        self.mean_rev_level = nn.Parameter(
+            torch.empty(1, 1, 1, device=device), requires_grad=True
+        )
+        self.vola = nn.Parameter(
+            torch.empty(1, 1, 1, device=device), requires_grad=True
+        )
 
+        if "simple_" in mode:
+            self.initialize_parameters(1, 1, 1, device)
         elif "ls_" in mode:
-            speed = torch.rand((num_seq, 1, 1), device=device)
-            level = torch.rand((num_seq, 1, 1), device=device)
-            vola = torch.rand((num_seq, 1, 1), device=device)
-            self.mean_rev_speed = nn.Parameter(speed, requires_grad=True)
-            self.mean_rev_level = nn.Parameter(level, requires_grad=True)
-            self.vola = nn.Parameter(vola, requires_grad=True)
-
+            self.initialize_parameters(num_seq, 1, 1, device)
         elif "ns_" in mode:
-            speed = torch.rand((1, num_node, 1), device=device)
-            level = torch.rand((1, num_node, 1), device=device)
-            vola = torch.rand((1, num_node, 1), device=device)
-            self.mean_rev_speed = nn.Parameter(speed, requires_grad=True)
-            self.mean_rev_level = nn.Parameter(level, requires_grad=True)
-            self.vola = nn.Parameter(vola, requires_grad=True)
-
+            self.initialize_parameters(1, num_node, 1, device)
         elif "ln_" in mode:
-            speed = torch.rand((num_seq, num_node, 1), device=device)
-            level = torch.rand((num_seq, num_node, 1), device=device)
-            vola = torch.rand((num_seq, num_node, 1), device=device)
-            self.mean_rev_speed = nn.Parameter(speed, requires_grad=True)
-            self.mean_rev_level = nn.Parameter(level, requires_grad=True)
-            self.vola = nn.Parameter(vola, requires_grad=True)
-
-        elif "all_train" in mode:
-            raise Exception("Not implemented yet")
-
+            self.initialize_parameters(num_seq, num_node, 1, device)
         elif mode == "synthetic":
             assert mean_rev_speed is not None
             self.mean_rev_speed = mean_rev_speed
             self.mean_rev_level = mean_rev_level
             self.vola = vola
-
         else:
             raise Exception("It is not a compatible mode")
 
         assert torch.min(self.mean_rev_speed) >= 0
         assert torch.min(self.vola) >= 0
+
+    def _initialize_parameters(
+        self, num_seq: int, num_node: int, num_values: int, device: torch.device
+    ) -> None:
+        """
+        Initialize the parameters of OU process
+        Args:
+            num_seq: the number of sequences
+            num_node: the number of nodes
+            num_values: the number of values for each node
+        """
+
+        speed = torch.rand((num_seq, num_node, num_values), device=device)
+        level = torch.rand((num_seq, num_node, num_values), device=device)
+        vola = torch.rand((num_seq, num_node, num_values), device=device)
+        self.mean_rev_speed = nn.Parameter(speed, requires_grad=True)
+        self.mean_rev_level = nn.Parameter(level, requires_grad=True)
+        self.vola.data = nn.Parameter(vola, requires_grad=True)
 
     def variance(
         self,
@@ -113,20 +116,19 @@ class VanillaOU(BaseLearnerModel):
             speed: [bs/num_seq, num_node/1]
             vola: [bs/num_seq, num_node/1]
         """
-        eps = 1e-6
         speed = speed if speed is not None else self.mean_rev_speed
         vola = vola if vola is not None else self.vola
         speed = speed.unsqueeze(-1)
         vola = vola.unsqueeze(-1)
 
-        return vola * vola * (1.0 - torch.exp(-2.0 * speed * t)) / (2 * speed + eps)
+        return vola * vola * (1.0 - torch.exp(-2.0 * speed * t)) / (2 * speed + EPS)
 
     def std(self, t, speed=None, vola=None) -> torch.Tensor:
         """
         Args:
             t: [num_seq/bs, num_node, times] usually is the time difference of a sequence
         """
-        return torch.sqrt(self.variance(t, speed, vola) + 1e-6)
+        return torch.sqrt(self.variance(t, speed, vola) + EPS)
 
     def mean(self, x0, t, speed=None, level=None) -> torch.Tensor:
         """
@@ -184,13 +186,11 @@ class VanillaOU(BaseLearnerModel):
             x_pred: [num_seq/bs, num_node, time_step]
         """
         assert len(t) > 0
-        eps = 1e-6
         num_node = x0.shape[-1]
         num_seq, time_step = t.shape
 
-        # ipdb.set_trace()
         dt_normalize = T_SCALE
-        dt = torch.diff(t).unsqueeze(1) / dt_normalize + eps
+        dt = torch.diff(t).unsqueeze(1) / dt_normalize + EPS
         dt = torch.tile(dt, (1, num_node, 1))  # [bs, num_node, time-1]
 
         if items == None or num_node == 1:
@@ -198,23 +198,23 @@ class VanillaOU(BaseLearnerModel):
 
         if "simple" in self.mode:
             batch_speed = torch.tile(
-                torch.relu(self.mean_rev_speed)[..., 0] + eps, (num_seq, num_node)
+                torch.relu(self.mean_rev_speed)[..., 0] + EPS, (num_seq, num_node)
             )
             batch_level = torch.tile(self.mean_rev_level[..., 0], (num_seq, num_node))
             batch_vola = torch.tile(
-                torch.relu(self.vola)[..., 0] + eps, (num_seq, num_node)
+                torch.relu(self.vola)[..., 0] + EPS, (num_seq, num_node)
             )
         elif ("ls_" in self.mode) or ("ln" in self.mode):
-            batch_speed = torch.relu(self.mean_rev_speed[user_id])[..., 0] + eps  # TODO
+            batch_speed = torch.relu(self.mean_rev_speed[user_id])[..., 0] + EPS  # TODO
             batch_level = self.mean_rev_level[user_id][..., 0]
-            batch_vola = torch.relu(self.vola[user_id])[..., 0] + eps
+            batch_vola = torch.relu(self.vola[user_id])[..., 0] + EPS
         elif "ns_" in self.mode:
             batch_speed = torch.tile(
-                torch.relu(self.mean_rev_speed[user_id])[..., 0] + eps, (num_seq, 1)
+                torch.relu(self.mean_rev_speed[user_id])[..., 0] + EPS, (num_seq, 1)
             )
             batch_level = torch.tile(self.mean_rev_level[user_id][..., 0], (num_seq, 1))
             batch_vola = torch.tile(
-                torch.relu(self.vola[user_id])[..., 0] + eps, (num_seq, 1)
+                torch.relu(self.vola[user_id])[..., 0] + EPS, (num_seq, 1)
             )
         else:
             batch_speed = None
@@ -246,7 +246,7 @@ class VanillaOU(BaseLearnerModel):
 
             cur_dt = (
                 t[:, None, i] - whole_last_time[..., i]
-            ) / dt_normalize + eps  # [bs, num_node]
+            ) / dt_normalize + EPS  # [bs, num_node]
 
             x_next = self.mean(
                 x_last, cur_dt, speed=batch_speed, level=batch_level
@@ -302,10 +302,18 @@ class VanillaOU(BaseLearnerModel):
 
 class GraphOU(VanillaOU):
     """
+    Extend the VanillaOU to graph case by adding interactions for each random variable.
     Args:
-        mean_rev_speed:
-        mean_rev_level:
-        vola:
+        mean_rev_speed: [bs, num_node, 1] the speed of mean reversion in OU process (alpha).
+        mean_rev_level: [bs, num_node, 1] the mean level of OU process (mu).
+        vola: [bs, num_node, 1] the volatility of OU process (sigma).
+        gamma: [bs, num_node, 1] the interaction strength of OU process (gamma).
+        num_seq: when training mode, the num_seq will be automatically the number of batch size;
+        num_node: the number of nodes in the graph
+        mode: can be 'training' or 'synthetic'
+        nx_graph: the adjacency matrix of the graph
+        device: cpu or cuda
+        logs: the logger
     """
 
     def __init__(
@@ -361,7 +369,6 @@ class GraphOU(VanillaOU):
             x_pred: [num_seq/bs, num_node, time_step]
         """
         assert len(t) > 0
-        eps = 1e-6
         omega = 0.5
         rho = 50
         self.rho = torch.tensor(rho, device=self.device)
@@ -369,8 +376,8 @@ class GraphOU(VanillaOU):
         num_seq, time_step = t.shape
 
         t = t
-        dt = torch.diff(t).unsqueeze(1) / T_SCALE + eps
-        dt = torch.tile(dt, (1, num_node, 1)) + eps  # [bs, num_node, time-1]
+        dt = torch.diff(t).unsqueeze(1) / T_SCALE + EPS
+        dt = torch.tile(dt, (1, num_node, 1)) + EPS  # [bs, num_node, time-1]
         # dt = torch.log(dt) # TODO to find the right temperature of time difference in different real-world datasets
 
         if items == None or num_node == 1:
@@ -379,24 +386,24 @@ class GraphOU(VanillaOU):
         # ipdb.set_trace()
         if "simple" in self.mode:
             batch_speed = torch.tile(
-                torch.relu(self.mean_rev_speed)[..., 0] + eps, (num_seq, num_node)
+                torch.relu(self.mean_rev_speed)[..., 0] + EPS, (num_seq, num_node)
             )
             batch_level = torch.tile(self.mean_rev_level[..., 0], (num_seq, num_node))
             batch_vola = torch.tile(
-                torch.relu(self.vola)[..., 0] + eps, (num_seq, num_node)
+                torch.relu(self.vola)[..., 0] + EPS, (num_seq, num_node)
             )
             batch_gamma = torch.tile(self.gamma[..., 0], (num_seq, num_node))
         elif ("ls_" in self.mode) or ("ln_" in self.mode):
-            batch_speed = torch.relu(self.mean_rev_speed[user_id])[..., 0] + eps  # TODO
+            batch_speed = torch.relu(self.mean_rev_speed[user_id])[..., 0] + EPS  # TODO
             batch_level = self.mean_rev_level[user_id][..., 0]
-            batch_vola = torch.relu(self.vola[user_id])[..., 0] + eps
+            batch_vola = torch.relu(self.vola[user_id])[..., 0] + EPS
             batch_gamma = self.gamma[user_id][..., 0]
         elif "ns_" in self.mode:
             batch_speed = torch.tile(
-                torch.relu(self.mean_rev_speed)[..., 0] + eps, (num_seq, 1)
+                torch.relu(self.mean_rev_speed)[..., 0] + EPS, (num_seq, 1)
             )
             batch_level = torch.tile(self.mean_rev_level[..., 0], (num_seq, 1))
-            batch_vola = torch.tile(torch.relu(self.vola)[..., 0] + eps, (num_seq, 1))
+            batch_vola = torch.tile(torch.relu(self.vola)[..., 0] + EPS, (num_seq, 1))
             batch_gamma = torch.tile(self.gamma[..., 0], (num_seq, 1))
 
         # graph
@@ -422,10 +429,10 @@ class GraphOU(VanillaOU):
             cur_item = items[:, i]  # [num_seq, ]
 
             empower = torch.einsum("ij, ai->aj", adj_t, x_last)
-            empower = (1 / (in_degree[None, :] + eps)) * batch_gamma * empower
+            empower = (1 / (in_degree[None, :] + EPS)) * batch_gamma * empower
             empower[:, ind] = 0
             # ipdb.set_trace()
-            # stable = torch.pow((success_last/(num_last+eps)), self.rho)
+            # stable = torch.pow((success_last/(num_last+EPS)), self.rho)
 
             # # Choice 1
             # stable = batch_level
@@ -435,7 +442,7 @@ class GraphOU(VanillaOU):
             # Choice 2
             stable = batch_speed
             tmp_mean_level = batch_level
-            tmp_batch_speed = torch.relu(omega * empower + (1 - omega) * stable) + eps
+            tmp_batch_speed = torch.relu(omega * empower + (1 - omega) * stable) + EPS
 
             x_next = self.mean(
                 x_last, dt[..., i - 1], speed=tmp_batch_speed, level=tmp_mean_level

@@ -223,15 +223,6 @@ def compare_model_task_metric(data, tasks, model_names, metrics, save_path=None,
         _create_line(data, tasks, model_names, metrics, save_path, prefix)
 
 
-
-
-
-
-
-
-
-
-
 def draw_path(path, args, times, items=None, prefix=None, scatter=False):
     '''
     Args:

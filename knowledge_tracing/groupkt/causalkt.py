@@ -1,10 +1,11 @@
-import numpy as np
+from collections import defaultdict
 from pathlib import Path
+
+import numpy as np
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from collections import defaultdict
 
 from knowledge_tracing.baseline.basemodel import BaseModel
 from knowledge_tracing.utils import utils

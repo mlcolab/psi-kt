@@ -79,7 +79,9 @@ def parse_args(parser):
     parser.add_argument("--vola", type=float, default=0.01, help="Volatility parameter")
     parser.add_argument("--rho", type=float, default=2, help="Rho parameter")
     parser.add_argument("--omega", type=float, default=0.75, help="Omega parameter")
-    parser.add_argument("--gamma", type=float, default=[0.1, 0.2, 0.5, 0.75, 1], help="Gamma parameter")
+    parser.add_argument(
+        "--gamma", type=float, default=[0.1, 0.2, 0.5, 0.75, 1], help="Gamma parameter"
+    )
 
     # ----- hlr process -----
     parser.add_argument(
@@ -129,16 +131,22 @@ if __name__ == "__main__":
 
     # -- simulate learning processes
     if args.learner_model == "ou":
-        ou_path, params = utils.simulate_ou_learning_path(args, times, items, model=VanillaOU, vis=True)
+        ou_path, params = utils.simulate_ou_learning_path(
+            args, times, items, model=VanillaOU, vis=True
+        )
     elif args.learner_model == "graph_ou":
         # -- generate random graphs
         graph_adj = utils.generate_random_graph(args, vis=True)
-        graph_ou_path, params = utils.simulate_ou_learning_path(args, times, items, graph_adj, model=GraphOU, vis=True)
+        graph_ou_path, params = utils.simulate_ou_learning_path(
+            args, times, items, graph_adj, model=GraphOU, vis=True
+        )
     elif args.learner_model == "hlr":
-        hlr_path, params = utils.simulate_hlr_learning_path(args, times, items, model=HLR, vis=True)
+        hlr_path, params = utils.simulate_hlr_learning_path(
+            args, times, items, model=HLR, vis=True
+        )
     elif args.learner_model == "ppe":
-        ppe_path, params = utils.simulate_ppe_learning_path(args, times, items, model=PPE, vis=True)
+        ppe_path, params = utils.simulate_ppe_learning_path(
+            args, times, items, model=PPE, vis=True
+        )
     else:
         raise NotImplementedError
-
-

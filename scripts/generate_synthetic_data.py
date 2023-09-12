@@ -1,20 +1,24 @@
 import sys
+
 sys.path.append("..")
 
 import argparse
 import datetime
+
 from pathlib import Path
 from scipy.special import expit
-
 import numpy as np
-from numpy.random import default_rng
-import pandas as pd
 import networkx as nx
 
 import torch
 
-from knowledge_tracing.baseline.learner_model import *
-from knowledge_tracing.utils.visualize import *
+from knowledge_tracing.baseline.halflife_regression import hlr as HLR
+from knowledge_tracing.baseline.learner_model import ou as VanillaOU
+from knowledge_tracing.baseline.learner_model import graph_ou as GraphOU
+from knowledge_tracing.baseline.ppe import ppe as PPE
+
+import knowledge_tracing.utils.visualize as visualize
+import knowledge_tracing.utils.utils as utils
 
 
 def parse_args(parser):
@@ -107,152 +111,16 @@ def parse_args(parser):
     return parser
 
 
-def save_as_unified_format(
-    args: argparse.Namespace,
-    path: str,
-    times: np.ndarray,
-    items: np.ndarray,
-    adj: np.ndarray,
-) -> None:
-    """
-    Save data in a unified format.
-
-    This function takes various data components and saves them in a unified format.
-
-    Args:
-        args (argparse.Namespace): Command-line arguments.
-        path (str): Path to save the data.
-        times (numpy.ndarray): Array of timestamps.
-        items (numpy.ndarray): Array of item IDs.
-        adj (numpy.ndarray): Adjacency matrix.
-
-    Returns:
-        None
-
-    """
-    df = []
-    timestamp = times.flatten()
-    dwell_time = np.zeros_like(timestamp)
-
-    correct = (path >= 0.5) * 1 
-
-    problem_id = items.flatten()
-    skill_id = items.flatten()
-
-    user_id = np.tile(
-        np.arange(args.num_sequence).reshape(-1, 1), (1, args.time_step)
-    ).flatten()
-
-    df = np.stack([timestamp, dwell_time, correct, problem_id, skill_id, user_id], -1)
-    df = pd.DataFrame(
-        df,
-        columns=[
-            "timestamp",
-            "dwell_time",
-            "correct",
-            "problem_id",
-            "skill_id",
-            "user_id",
-        ],
-    )
-
-    df = df.astype(
-        {
-            "timestamp": np.float64,
-            "dwell_time": np.float64,
-            "correct": np.float64,
-            "problem_id": np.int64,
-            "skill_id": np.int64,
-            "user_id": np.int64,
-        }
-    )
-
-    # Save
-    adj_path = Path(args.log_path, "adj.npy")
-    np.save(adj_path, adj)
-    df_path = Path(args.log_path, "interactions_{}.csv".format(args.time_step))
-    df.to_csv(df_path, sep="\t", index=False)
-
-
-def time_point_generate():
-    """
-    Generate random or uniform time points for interactions.
-
-    This function generates time points for interactions based on the specified method (uniform or random).
-
-    Args:
-        args (argparse.Namespace): Command-line arguments containing:
-            - time_random_type (str): Type of time point generation ('uniform' or 'random').
-            - max_time_step (int): Maximum time step for generating time points.
-            - time_step (int): Interval between two time points (used only if time_random_type is 'uniform').
-            - num_sequence (int): Number of sequences.
-
-    Returns:
-        numpy.ndarray: Array containing time points for interactions.
-    """
-    if args.time_random_type == "uniform":
-        times = np.arange(0, args.max_time_step, args.max_time_step // args.time_step)
-        times = np.tile(
-            np.expand_dims(times, 0), (args.num_sequence, 1)
-        )  # [num_deq, time_step]
-
-    elif args.time_random_type == "random":
-        rng = default_rng(args.random_seed)
-        times = []
-        for i in range(args.num_sequence):
-            time = rng.choice(np.arange(args.max_time_step), args.time_step, False)
-            time.sort()
-            times.append(time)
-        times = np.stack(times)
-
-    return times
-
-
-def review_item_generate():
-    """
-    Generate review items for each sequence.
-
-    This function generates review items for each sequence based on the provided path.
-
-    Args:
-        args (argparse.Namespace): Command-line arguments containing:
-            - random_seed (int): Seed for random number generation.
-            - num_sequence (int): Number of sequences.
-            - num_node (int): Total number of nodes (items).
-            - time_step (int): Number of time steps in each sequence.
-        path (numpy.ndarray): Array representing the path or sequence of items.
-
-    Returns:
-        numpy.ndarray: Array containing review items for each sequence.
-    """
-
-    rng = default_rng(args.random_seed)
-    items = []
-    # p_items = []
-    for i in range(args.num_sequence):
-        item = rng.choice(np.arange(args.num_node), args.time_step, True)
-        items.append(item)
-        # p_items.append(path[i, np.arange(args.time_step), item])
-    items = np.stack(items)
-    # p_items = np.stack(p_items).flatten()
-
-    return items
-
-
 if __name__ == "__main__":
     # ----- args -----
     parser = argparse.ArgumentParser(description="Global")
     parser = parse_args(parser)
-
-    global args
     args, extras = parser.parse_known_args()
 
     args.time = datetime.datetime.now().isoformat()
     args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    args.log_path = Path(
-        args.save_path, args.time + "_" + "node_" + str(args.num_node)
-    )
+    args.log_path = Path(args.save_path, args.time + "_" + "node_" + str(args.num_node))
     Path(args.log_path).touch()
 
     # -- generate random graphs
@@ -260,11 +128,11 @@ if __name__ == "__main__":
         args.num_node, args.edge_prob, seed=args.random_seed, directed=True
     )
     adj = nx.adjacency_matrix(graph).toarray()
-    draw_graph(graph, args)
+    visualize.draw_graph(graph, args)
 
     # -- generate time points & reviewing items
-    times = torch.tensor(time_point_generate(), device=args.device)
-    items = torch.tensor(review_item_generate(), device=args.device)
+    times = torch.tensor(utils.time_point_generate(args), device=args.device)
+    items = torch.tensor(utils.review_item_generate(args), device=args.device)
 
     # -- Vanilla OU process
     x0 = torch.zeros((args.num_sequence, args.num_node), device=args.device)
@@ -277,7 +145,7 @@ if __name__ == "__main__":
         device=args.device,
     )
     vanilla_path, params = ou_vanilla_generator.simulate_path(x0, times)
-    draw_path(vanilla_path[0], args, times[0], items=items[0], prefix="ou")
+    visualize.draw_path(vanilla_path[0], args, times[0], items=items[0], prefix="ou")
 
     # -- HLR process
     weight_total = [1 / 12, 1 / 6, 1 / 4, 1 / 3, 1 / 2, 2 / 3]
@@ -293,9 +161,7 @@ if __name__ == "__main__":
         hlr_path, params = hlr_generator.simulate_path(x0=x0, t=times, items=items)
         prefix = "hlr_theta_{:.2f}_{:.2f}_{:.2f}".format(theta[0], theta[1], theta[2])
 
-        draw_path(hlr_path[0], args, times[0], items=items[0], prefix=prefix)
-        # draw_params(params, args, times, items, prefix=prefix) TODO to test
-        ipdb.set_trace()
+        visualize.draw_path(hlr_path[0], args, times[0], items=items[0], prefix=prefix)
 
     # -- PPE process
     for learning_rate in [0.01, 0.05, 0.1, 0.2, 0.5, 1]:
@@ -305,10 +171,10 @@ if __name__ == "__main__":
         )
         prefix = "ppe_lr_{}".format(learning_rate)
 
-        draw_path(
+        visualize.draw_path(
             ppe_path[0], args, times[0], items=items[0], prefix=prefix
         )  # , scatter=True)
-        draw_params(params, args, times, items, prefix=prefix)
+        visualize.draw_params(params, args, times, items, prefix=prefix)
 
     # -- Extend Graph OU process
     # -- Graph OU process
@@ -332,20 +198,20 @@ if __name__ == "__main__":
         )
         # args.mean_rev_speed
 
-        draw_path(ou_path[0], args, times[0], items=items[0], prefix=prefix)
-        draw_path(
+        visualize.draw_path(ou_path[0], args, times[0], items=items[0], prefix=prefix)
+        visualize.draw_path(
             expit(ou_path[0]),
             args,
             times[0],
             items=items[0],
             prefix=prefix + "sigmoid",
         )
-        draw_params(params, args, times, items, prefix=prefix)
+        visualize.draw_params(params, args, times, items, prefix=prefix)
 
-    save_as_unified_format(args, path, times, items, adj)
+    path = ou_path  # Or other paths
+    utils.save_as_unified_format(args, path, times, items, adj)
 
-    # TODO debug: visualize
-    draw_path(path[0], args, times[0], prefix="graph")
-    draw_path(vanilla_path[0], args, times[0], prefix="vanilla")
-    draw_path(expit(path[0]), args, times[0], prefix="sigmoid")
-    visualize_ground_truth(graph, args, adj)
+    visualize.draw_path(path[0], args, times[0], prefix="graph")
+    visualize.draw_path(vanilla_path[0], args, times[0], prefix="vanilla")
+    visualize.draw_path(expit(path[0]), args, times[0], prefix="sigmoid")
+    visualize.visualize_ground_truth(graph, args, adj)

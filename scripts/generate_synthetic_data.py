@@ -112,14 +112,14 @@ def parse_args(parser):
 
 
 if __name__ == "__main__":
-    # ----- args -----
+    # read arguments
     parser = argparse.ArgumentParser(description="Global")
     parser = parse_args(parser)
     args, extras = parser.parse_known_args()
 
+    # set up
     args.time = datetime.datetime.now().isoformat()
     args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
     args.log_path = Path(args.save_path, args.time + "_" + "node_" + str(args.num_node))
     Path(args.log_path).touch()
 
@@ -131,8 +131,8 @@ if __name__ == "__main__":
     visualize.draw_graph(graph, args)
 
     # -- generate time points & reviewing items
-    times = torch.tensor(utils.time_point_generate(args), device=args.device)
-    items = torch.tensor(utils.review_item_generate(args), device=args.device)
+    times = torch.tensor(utils.generate_time_point(args), device=args.device)
+    items = torch.tensor(utils.generate_review_item(args), device=args.device)
 
     # -- Vanilla OU process
     x0 = torch.zeros((args.num_sequence, args.num_node), device=args.device)

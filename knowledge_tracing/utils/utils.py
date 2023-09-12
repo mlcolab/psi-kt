@@ -466,7 +466,7 @@ def save_as_unified_format(
     df.to_csv(df_path, sep="\t", index=False)
 
 
-def time_point_generate(args: argparse.Namespace) -> np.ndarray:
+def generate_time_point(args: argparse.Namespace) -> np.ndarray:
     """
     Generate random or uniform time points for interactions.
 
@@ -500,7 +500,7 @@ def time_point_generate(args: argparse.Namespace) -> np.ndarray:
     return times
 
 
-def review_item_generate(args: argparse.Namespace) -> np.ndarray:
+def generate_review_item(args: argparse.Namespace) -> np.ndarray:
     """
     Generate review items for each sequence.
 

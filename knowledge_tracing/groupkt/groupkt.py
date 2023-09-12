@@ -1,7 +1,8 @@
 import math, argparse
-import numpy
 from typing import List, Dict, Tuple, Optional
 from pathlib import Path
+
+import numpy
 
 import torch
 from torch import nn, distributions

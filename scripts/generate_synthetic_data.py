@@ -124,11 +124,7 @@ if __name__ == "__main__":
     Path(args.log_path).touch()
 
     # -- generate random graphs
-    graph = nx.erdos_renyi_graph(
-        args.num_node, args.edge_prob, seed=args.random_seed, directed=True
-    )
-    adj = nx.adjacency_matrix(graph).toarray()
-    visualize.draw_graph(graph, args)
+    graph_adj = utils.generate_random_graph(args, vis=True)
 
     # -- generate time points & reviewing items
     times = torch.tensor(utils.generate_time_point(args), device=args.device)

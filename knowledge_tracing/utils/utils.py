@@ -2,10 +2,12 @@ import os, pickle, datetime, argparse
 import torch
 import numpy as np
 import pandas as pd
+import networkx as nx
 import pickle
 from pathlib import Path
 from numpy.random import default_rng
 
+from knowledge_tracing.utils import visualize
 # a dict to store the activations
 activation = {}
 
@@ -527,3 +529,26 @@ def generate_review_item(args: argparse.Namespace) -> np.ndarray:
     items = np.stack(items)
 
     return items
+
+
+def generate_random_graph(args: argparse.Namespace, vis: bool = True) -> np.ndarray:
+    """
+    Generate a random graph.
+    Args:
+        args (argparse.Namespace): Command-line arguments containing:
+            - num_node (int): Number of nodes in the random graph.
+            - edge_prob (float): Probability of an edge between two nodes.
+            - random_seed (int): Seed for random number generation.
+        vis (bool): A boolean indicating whether to visualize the graph.
+    Returns:
+        numpy.ndarray: Adjacency matrix of the generated graph.
+    """
+
+    graph = nx.erdos_renyi_graph(
+        args.num_node, args.edge_prob, seed=args.random_seed, directed=True
+    )
+    adj = nx.adjacency_matrix(graph).toarray()
+    if vis:
+        visualize.draw_graph(graph, args)
+
+    return adj

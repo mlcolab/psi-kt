@@ -1,10 +1,10 @@
 import gc
 import copy
 import os
-
 from time import time
-from tqdm import tqdm
 from collections import defaultdict
+
+from tqdm import tqdm
 
 import torch
 

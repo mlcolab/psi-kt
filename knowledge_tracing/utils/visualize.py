@@ -1,7 +1,8 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 
-from pathlib import Path
 
 import numpy as np
 import networkx as nx

@@ -1,3 +1,13 @@
+import numpy as np
+from sklearn.metrics import mean_squared_error, mean_absolute_error, roc_auc_score, f1_score, accuracy_score, precision_score, recall_score
+
+import torch
+from torch import distributions
+from torch.testing import assert_allclose
+
+from knowledge_tracing.baseline.basemodel import BaseModel
+
+# TODO: needs a fixture or parameterization
 def test_one_step_and_multi_step_log_probability(
     q_dist,
     transition_h,
@@ -6,9 +16,6 @@ def test_one_step_and_multi_step_log_probability(
     p0_mean,
     p0_log_var,
 ):
-    import torch
-    from torch import nn, distributions
-    from torch.nn import functional as F
     future_tensor = q_dist.rsample((100,))[:,:,:,1:] # [n, bs, 1, time-1, dim_s]
     
     ps_mean = q_dist.mean[:,:,:-1] @ transition_h + transition_b # [bs, 1, time-1, dim_s]
@@ -41,11 +48,7 @@ def test_one_step_and_multi_step_log_probability(
     logprob_multi_step = logprob_multi_step.mean(dim=0) # [bs, 1, time-1]
     
     
-def test_pred_evaluate_method():
-    import numpy as np
-    from sklearn.metrics import mean_squared_error, mean_absolute_error, roc_auc_score, f1_score, accuracy_score, precision_score, recall_score
-    from baseline.BaseModel import pred_evaluate_method
-    
+def test_pred_evaluate_method():    
     # Generate random predictions and true labels
     y_pred = np.random.rand(100)
     y_true = np.random.randint(0, 2, size=100)
@@ -65,17 +68,12 @@ def test_pred_evaluate_method():
     }
 
     # Evaluate the predictions using the optimized function
-    evaluations = pred_evaluate_method(y_pred, y_true, metrics)
+    evaluations = BaseModel.pred_evaluate_method(y_pred, y_true, metrics)
 
     # Compare the actual and expected results
     for metric in metrics:
         assert np.isclose(evaluations[metric], expected_results[metric]), f"Failed for {metric}: expected {expected_results[metric]}, but got {evaluations[metric]}"
 
-
-###########################################################################
-
-import torch
-from torch.testing import assert_allclose
 
 def test_find_whole_stats():
     # Create test inputs

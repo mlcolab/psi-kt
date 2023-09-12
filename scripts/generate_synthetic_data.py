@@ -1,11 +1,10 @@
 import sys
-
 sys.path.append("..")
 
 import argparse
 import datetime
-
 from pathlib import Path
+
 from scipy.special import expit
 import numpy as np
 import networkx as nx

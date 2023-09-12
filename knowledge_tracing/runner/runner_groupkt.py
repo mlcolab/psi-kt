@@ -1,19 +1,18 @@
-
 import gc, copy, os
+from collections import defaultdict
 
 from tqdm import tqdm
 import numpy as np
-from collections import defaultdict
 
 import torch
 from torch.optim import lr_scheduler
 
-from utils import utils
-
+from knowledge_tracing.utils import utils
 from knowledge_tracing.runner import OPTIMIZER_MAP
 from knowledge_tracing.runner.runner import KTRunner
 from knowledge_tracing.data.data_loader import DataReader
 from knowledge_tracing.groupkt.groupkt import * 
+
 
 class GroupKTRunner(KTRunner):
     '''

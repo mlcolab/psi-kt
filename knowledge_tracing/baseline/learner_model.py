@@ -1,11 +1,12 @@
-import numpy as np
 from collections import defaultdict
 from typing import Dict, Any
+
+import numpy as np
 
 import torch
 import torch.nn as nn
 
-from baseline.BaseModel import BaseLearnerModel, BaseModel
+from knowledge_tracing.baseline.basemodel import BaseLearnerModel, BaseModel
 
 
 ##########################################################################################

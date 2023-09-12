@@ -1,12 +1,12 @@
-# -*- coding: UTF-8 -*-
 import sys
 sys.path.append("..")
 
 import os
 import argparse
-import numpy as np
 import datetime
 from pathlib import Path
+
+import numpy as np
 
 import torch
 

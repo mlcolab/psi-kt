@@ -1,15 +1,16 @@
-import numpy as np
 import argparse
+from typing import List, Dict
+
+import numpy as np
 
 import torch
 import torch.nn as nn
-
-from typing import List, Dict
 
 from knowledge_tracing.baseline import *
 from knowledge_tracing.baseline.basemodel import BaseModel, BaseLearnerModel
 from knowledge_tracing.utils import logger, utils
 from knowledge_tracing.data.data_loader import DataReader
+
 
 class HLR(BaseLearnerModel):
     """

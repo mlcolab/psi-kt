@@ -1,14 +1,13 @@
 import sys
 sys.path.append("..")
 
-from knowledge_tracing.baseline.HawkesKT import dktforgetting
-
 import pickle
 import argparse
-import numpy as np
 from pathlib import Path
 import datetime
 import copy
+
+import numpy as np
 
 import torch
 
@@ -18,6 +17,8 @@ from knowledge_tracing.runner import runner_baseline
 from knowledge_tracing.utils import utils, arg_parser, logger
 from knowledge_tracing.baseline import akt, dkt, hkt, hlr, ppe
 from knowledge_tracing.groupkt import groupkt
+from knowledge_tracing.baseline.HawkesKT import hkt, dktforgetting
+
 
 if __name__ == "__main__":
     # ----- add aditional arguments for this exp. -----

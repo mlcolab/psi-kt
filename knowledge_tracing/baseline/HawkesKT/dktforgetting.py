@@ -1,12 +1,12 @@
-import numpy as np
-import pandas as pd
 import argparse
 from collections import defaultdict
 from pathlib import Path
+from typing import List, Dict, Tuple
+
+import numpy as np
+import pandas as pd
 
 import torch
-
-from typing import List, Dict, Tuple
 
 from knowledge_tracing import *
 from knowledge_tracing.baseline.basemodel import BaseModel

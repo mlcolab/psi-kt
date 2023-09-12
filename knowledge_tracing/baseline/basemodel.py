@@ -1,10 +1,11 @@
 import argparse
 import time
+from pathlib import Path
+from typing import List, Tuple, Dict
+
 import numpy as np
 from tqdm import tqdm
 from sklearn.metrics import *
-from pathlib import Path
-from typing import List, Tuple, Dict
 
 import torch
 

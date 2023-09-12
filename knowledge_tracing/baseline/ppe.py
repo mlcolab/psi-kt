@@ -6,11 +6,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from knowledge_tracing.baseline import *
 from knowledge_tracing.baseline.basemodel import BaseModel, BaseLearnerModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
-
-from knowledge_tracing.baseline import *
 
 
 class PPE(BaseLearnerModel):

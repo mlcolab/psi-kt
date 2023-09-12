@@ -1,9 +1,3 @@
-import argparse
-import datetime
-
-import numpy as np
-
-
 def parse_args(parser):
     """
     All of the general arguments defined here.

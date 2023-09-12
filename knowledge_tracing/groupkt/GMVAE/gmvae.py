@@ -7,16 +7,17 @@
 Gaussian Mixture Variational Autoencoder Networks
 
 """
+import numpy as np
+
 import torch
 import torch.nn.init as init
 from torch import nn
 from torch.nn import functional as F
 
-import numpy as np
-
 from knowledge_tracing.groupkt import *
 
 DIM = 64
+
 
 class InferenceNet(nn.Module):
     def __init__(self, in_dim, latent_dim, cate_dim, time_step):

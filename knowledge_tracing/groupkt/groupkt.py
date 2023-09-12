@@ -14,7 +14,6 @@ from knowledge_tracing.groupkt.modules import build_dense_network, VAEEncoder
 from knowledge_tracing.groupkt.groupkt_graph_representation import VarTransformation
 from knowledge_tracing.groupkt.GMVAE.gmvae import *
 from knowledge_tracing.utils.logger import Logger
-
 from knowledge_tracing.baseline.basemodel import BaseModel
 
 

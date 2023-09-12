@@ -3,9 +3,10 @@ from typing import List, Optional
 import numpy as np
 
 import torch
+from torch import nn
 import torch.distributions as td
 import torch.nn.functional as F
-from torch import nn
+
 
 class VarGT(nn.Module):
     def __init__(self, device, num_nodes, gt_adj_path=None):

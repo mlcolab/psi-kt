@@ -1,14 +1,16 @@
 import os, pickle, datetime, argparse
-import torch
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import networkx as nx
-import pickle
-from pathlib import Path
 from numpy.random import default_rng
 from scipy.special import expit
 
+import torch
+
 from knowledge_tracing.utils import visualize
+
 
 # a dict to store the activations
 activation = {}

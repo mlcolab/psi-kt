@@ -1,20 +1,20 @@
 from pathlib import Path
+import argparse
 
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
-
 
 import numpy as np
 import networkx as nx
 import pandas as pd
 import seaborn as sns
-import argparse
 
 
 ##########################################################################################
 # Compare different models, different tasks, single metrics (ideally f1 score)
 # Put all of the results in a single figure
 ##########################################################################################
+
 
 def compare_model_task(
     figsize=(12, 3), 

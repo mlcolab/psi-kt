@@ -82,4 +82,14 @@ def parse_args(parser):
     parser.add_argument("--lr_decay", type=int, default=5000, help="After how epochs to decay LR by a factor of gamma.",)
     parser.add_argument("--gamma", type=float, default=0.5, help="LR decay factor.")
     
+    parser.add_argument(
+        "--multi_node",
+        type=int,
+        default=0,
+        help="whether we train the model with graph; TODO: duplicate with the argument of learned_graph",
+    )
+    parser.add_argument('--vcl_predict_step', type=int, default=10)
+
+    parser.add_argument('--finetune', type=int, default=0)
+    parser.add_argument('--start_epoch', type=int, default=0)
     return parser 

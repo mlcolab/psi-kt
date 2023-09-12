@@ -27,12 +27,6 @@ if __name__ == "__main__":
         help="none: no graph is learner; b_gt: graph with binary edge; w_gt: graph with weighted graph",
     )
     parser.add_argument(
-        "--multi_node",
-        type=int,
-        default=0,
-        help="whether we train the model with graph; TODO: duplicate with the argument of learned_graph",
-    )
-    parser.add_argument(
         "--graph_path",
         type=str,
         default="/mnt/qb/work/mlcolab/hzhou52/kt/junyi15/adj.npy",

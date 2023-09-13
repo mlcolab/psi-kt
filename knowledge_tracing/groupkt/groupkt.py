@@ -26,21 +26,19 @@ class GroupKT(BaseModel):
     Args:
         mode (str): The training mode. Examples include 'train' and 'ls_split_time'.
         num_node (int): The number of nodes in the graph.
-        num_seq (int): The number of sequences in the dataset (used when mode is 'synthetic').
         nx_graph (nx.Graph or None): The graph adjacency matrix (None for synthetic mode).
         device (torch.device or None): The device for computations (None for default).
         args (argparse.Namespace or None): Command-line arguments (None for default).
         logs: Logs for the model.
 
     Usage:
-    >>> group_kt_model = GroupKT(mode, num_node, num_seq, nx_graph, device, args, logs)
+    >>> group_kt_model = GroupKT(mode, num_node, nx_graph, device, args, logs)
     """
 
     def __init__(
         self,
         mode: str = "train",
         num_node: int = 1,
-        num_seq: int = 1,
         nx_graph=None,
         device: torch.device = None,
         args: argparse.Namespace = None,
@@ -49,7 +47,6 @@ class GroupKT(BaseModel):
         self.logs = logs
         self.device = device
         self.args = args
-        self.num_seq = num_seq
         self.num_sample = args.num_sample
         self.var_log_max = torch.tensor(args.var_log_max)
 
@@ -340,7 +337,6 @@ class AmortizedGroupKT(GroupKT):
     Args:
         mode (str): The mode for initialization (default: "ls_split_time").
         num_node (int): The number of nodes (default: 1).
-        num_seq (int): The number of sequences (default: 1).
         args (argparse.Namespace): Command-line arguments (default: None).
         device (torch.device): The device to use (default: torch.device("cpu")).
         logs (Logger): Logger object for logging (default: None).
@@ -351,7 +347,6 @@ class AmortizedGroupKT(GroupKT):
         self,
         mode: str = "ls_split_time",
         num_node: int = 1,
-        num_seq: int = 1,
         args: argparse.Namespace = None,
         device: torch.device = torch.device("cpu"),
         logs: Logger = None,
@@ -379,7 +374,7 @@ class AmortizedGroupKT(GroupKT):
         self.qs_temperature = 1.0
         self.qs_hard = 0
 
-        super().__init__(mode, num_node, num_seq, args, device, logs, nx_graph)
+        super().__init__(mode, num_node, args, device, logs, nx_graph)
 
     def _init_weights(self) -> None:
         """

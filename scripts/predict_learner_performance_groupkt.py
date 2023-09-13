@@ -13,7 +13,7 @@ import torch
 from knowledge_tracing.data import data_loader
 from knowledge_tracing.runner import runner_groupkt, runner_vcl
 from knowledge_tracing.utils import utils, arg_parser, logger
-from knowledge_tracing.groupkt.groupkt import GroupKT, ContinualGroupKT
+from knowledge_tracing.groupkt.groupkt import GroupKT, ContinualGroupKT, AmortizedGroupKT
 
 def global_parse_args():
     """
@@ -101,9 +101,8 @@ if __name__ == "__main__":
     adj = np.load(global_args.graph_path)
 
     if global_args.vcl == 0:
-        model = GroupKT(
+        model = AmortizedGroupKT(
             mode=global_args.train_mode,
-            num_seq=num_seq,
             num_node=1 if not global_args.multi_node else corpus.n_skills,
             nx_graph=None if not global_args.multi_node else adj,
             device=global_args.device,
@@ -113,7 +112,6 @@ if __name__ == "__main__":
     else:
         model = ContinualGroupKT(
             mode=global_args.train_mode,
-            num_seq=num_seq,
             num_node=1 if not global_args.multi_node else corpus.n_skills,
             nx_graph=None if not global_args.multi_node else adj,
             device=global_args.device,

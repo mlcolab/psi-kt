@@ -78,14 +78,14 @@ class VarDistribution(nn.Module):
             for _ in range(num_graph)
         ]
         probs = torch.stack(probs)
-        probs = probs  # * off_diag_mask # [num_graphs, 2, num_nodes, num_nodes]
+        probs = probs * off_diag_mask
 
         sample = [
             F.gumbel_softmax(logits, tau=self.tau_gumbel, hard=True, dim=0)[1:]
             for _ in range(num_graph)
         ]
         sample = torch.stack(sample)
-        adj = sample  # * off_diag_mask  # Force zero diagonals
+        adj = sample * off_diag_mask  # Force zero diagonals
         return logits, probs, adj
 
 
@@ -534,12 +534,10 @@ class VarTransformation(VarDistribution):
         num_nodes,
         tau_gumbel,
         dense_init=False,
-        latent_prior_std=None,
         latent_dim=128,
     ):
         super().__init__(device, num_nodes, tau_gumbel)
         self.dense_init = dense_init 
-        self.latent_prior_std = latent_prior_std
         self.latent_dim = latent_dim
 
         alpha_linear = 0.05

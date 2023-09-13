@@ -21,9 +21,11 @@ def groupkt():
             self,
         ):
             self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-            self.num_seq = 10
             self.learned_graph = "w_gt"
             self.var_log_max = torch.tensor(1.0)
+            self.node_dim = 16
+            self.num_category = 5
+            self.time_dependent_s = 1
             
             self.overfit = 1
             self.epoch = 10
@@ -33,7 +35,12 @@ def groupkt():
             self.early_stop = 1
             self.create_logs = 0
 
+    nx_graph = torch.randn(10, 10)
+    num_node = 10
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    
     args = args_example()
     logs = Logger(args)
-    model = AmortizedGroupKT(args, logs)
+    model = AmortizedGroupKT(num_node=num_node, args=args, device=device, logs=logs, nx_graph=nx_graph)
+    
     return model

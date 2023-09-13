@@ -538,19 +538,15 @@ class VarTransformation(VarDistribution):
         latent_dim=128,
     ):
         super().__init__(device, num_nodes, tau_gumbel)
-        self.dense_init = dense_init  # start from all 1?
+        self.dense_init = dense_init 
         self.latent_prior_std = latent_prior_std
         self.latent_dim = latent_dim
 
         alpha_linear = 0.05
         self.alpha = lambda t: (alpha_linear * t)
 
-        self.u = self._initial_random_particles()
-
-        transformation_layer = torch.randn(size=(self.latent_dim, self.latent_dim))
-        self.transformation_layer = nn.Parameter(
-            transformation_layer, requires_grad=True
-        )
+        self.u, self.transformation_layer = self._initial_random_particles()
+        
 
     def _initial_random_particles(self) -> torch.Tensor:
         """
@@ -561,24 +557,24 @@ class VarTransformation(VarDistribution):
         Returns:
             batch of latent tensors ``[n_particles, d, k, 2]``
         """
+        transformation_layer = nn.Parameter(
+            torch.randn(size=(self.latent_dim, self.latent_dim)), requires_grad=True)
+        
         # sample points uniformly from a sphere surface
         if not self.dense_init:
             u = torch.randn(
                 size=(self.num_nodes, self.latent_dim)
-            )  # , device=self.device)
-            # u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
+            )  
         else:
-            u = torch.rand(
+            u = torch.ones(
                 size=(self.num_nodes, self.latent_dim)
-            )  # , device=self.device)
-            # u = u / (torch.norm(u, dim=1, keepdim=True) + EPS)
+            )/torch.sqrt(torch.tensor(self.latent_dim))
         u = nn.Parameter(u, requires_grad=True)
-        return u
+        return u, transformation_layer
 
     def _get_node_embedding(self) -> torch.Tensor:
         return self.u
-        # return self.u / (torch.norm(self.u, dim=1, keepdim=True) + EPS)
-
+    
     def edge_log_probs(self) -> torch.Tensor:
         """
         Returns:

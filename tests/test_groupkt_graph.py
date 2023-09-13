@@ -14,33 +14,21 @@ from knowledge_tracing.groupkt import groupkt_graph_representation as ktgraph
 
 
 @pytest.fixture
-def kt_runner():
-    class args_example(object):
-        def __init__(
-            self,
-        ):
-            self.overfit = 1
-            self.epoch = 10
-            self.batch_size_multiGPU = 32
-            self.eval_batch_size = 32
-            self.metric = "Accuracy, F1, Recall, Precision, AUC"
-            self.early_stop = 1
-            self.device = "cpu"
-            self.create_logs = 0
-
-    args = args_example()
-    logs = Logger(args)
-    kt_runner = KTRunner(args, logs)
-    return kt_runner
-
-
-@pytest.fixture
 def var_transformation_instance():
     device = "cpu"
     num_nodes = 10
     tau_gumbel = 0.1
     return ktgraph.VarTransformation(
         device, num_nodes, tau_gumbel, dense_init=False, latent_dim=16
+    )
+    
+@pytest.fixture
+def var_transformation_dense_instance():
+    device = "cpu"
+    num_nodes = 10
+    tau_gumbel = 0.1
+    return ktgraph.VarTransformation(
+        device, num_nodes, tau_gumbel, dense_init=True, latent_dim=16
     )
 
 
@@ -89,8 +77,7 @@ def test_sample_A(var_transformation_instance):
 
 
 def test_initial_random_particles(var_transformation_instance):
-    # Test when dense_init is False
-    var_transformation_instance.dense_init = False
+
     u, transformation_layer = var_transformation_instance._initial_random_particles()
 
     # Check the shapes of the output tensors
@@ -99,22 +86,36 @@ def test_initial_random_particles(var_transformation_instance):
         16,
         16,
     )  # Check the shape of transformation_layer
-
+    
     # Check that u is a parameter with requires_grad set to True
     assert isinstance(u, torch.nn.Parameter)
     assert u.requires_grad
-    _, _, adj = var_transformation_instance.sample_A(
-        1000
-    )  # Call the sample_A method to update the transformation_layer
 
 
 # Test the _get_node_embedding method
 def test_get_node_embedding(var_transformation_instance):
     u = var_transformation_instance._get_node_embedding()
     assert u.shape == (10, 16)  # Check the shape of the embedding tensor
-
+    assert torch.all(u == var_transformation_instance.u)  # Check if u is set correctly
+    
 
 # Test the edge_log_probs method
 def test_edge_log_probs(var_transformation_instance):
     log_probs = var_transformation_instance.edge_log_probs()
     assert log_probs.shape == (2, 10, 10)  # Check the shape of the log_probs tensor
+    assert torch.all(log_probs <= 0)
+    
+    
+    
+def test_dense_init(var_transformation_instance, var_transformation_dense_instance):
+    # Test when dense_init is False
+    _, _, adj = var_transformation_instance.sample_A(
+        1000
+    )  # Call the sample_A method to update the transformation_layer
+    assert(adj.sum()/1000 < 10*10)
+    
+    # Test when dense_init is True
+    _, probs, adj = var_transformation_dense_instance.sample_A(
+        1000
+    )  # Call the sample_A method to update the transformation_layer
+    assert((probs>=0.5).sum() == 10*10)

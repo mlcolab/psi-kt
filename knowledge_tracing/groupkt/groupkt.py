@@ -132,20 +132,20 @@ class GroupKT(BaseModel):
         return dist
 
     @staticmethod
-    def _initialize_normal_mean_log_var(
+    def _initialize_gaussian_mean_log_var(
         dim: int, use_trainable_cov: bool, num_sample: int = 1
     ) -> Tuple[nn.Parameter, nn.Parameter]:
         """
         Construct the initial mean and covariance matrix for the multivariate Gaussian distribution.
 
-        Parameters:
-        - dim: an integer representing the dimension of the Gaussian distribution
-        - use_trainable_cov: a boolean indicating whether to use a trainable covariance matrix
-        - num_sample: an integer representing the number of samples to generate
+        Args:
+            dim: an integer representing the dimension of the Gaussian distribution
+            use_trainable_cov: a boolean indicating whether to use a trainable covariance matrix
+            num_sample: an integer representing the number of samples to generate
 
         Returns:
-        - x0_mean: a PyTorch parameter representing the initial mean of the Gaussian distribution
-        - x0_scale: a PyTorch parameter representing the initial covariance matrix of the Gaussian distribution
+            x0_mean: a PyTorch parameter representing the initial mean of the Gaussian distribution
+            x0_scale: a PyTorch parameter representing the initial covariance matrix of the Gaussian distribution
         """
         x0_mean = nn.init.xavier_uniform_(
             torch.empty(num_sample, dim)
@@ -374,8 +374,8 @@ class AmortizedGroupKT(GroupKT):
         self.qs_temperature = 1.0
         self.qs_hard = 0
 
-        super().__init__(mode, num_node, args, device, logs, nx_graph)
-
+        super().__init__(mode, num_node, nx_graph, device, args, logs)
+        
     def _init_weights(self) -> None:
         """
         Initialize the weights of the model.
@@ -391,7 +391,6 @@ class AmortizedGroupKT(GroupKT):
             latent_dim=self.node_dim,
             tau_gumbel=1,
             dense_init=False,
-            latent_prior_std=None,
         )
 
         # --------------- for parameters Theta ---------------

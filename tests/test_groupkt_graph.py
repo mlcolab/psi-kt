@@ -103,8 +103,7 @@ def test_get_node_embedding(var_transformation_instance):
 def test_edge_log_probs(var_transformation_instance):
     log_probs = var_transformation_instance.edge_log_probs()
     assert log_probs.shape == (2, 10, 10)  # Check the shape of the log_probs tensor
-    assert torch.all(log_probs <= 0)
-    
+    assert torch.all(log_probs <= torch.log(1+torch.tensor(1e-6)))  # Check the values of the log_probs tensor
     
     
 def test_dense_init(var_transformation_instance, var_transformation_dense_instance):

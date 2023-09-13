@@ -8,6 +8,7 @@ sys.path.append("..")
 
 import torch
 
+from knowledge_tracing.groupkt import EPS
 from knowledge_tracing.runner.runner import KTRunner
 from knowledge_tracing.utils.logger import Logger
 from knowledge_tracing.groupkt import groupkt_graph_representation as ktgraph
@@ -107,14 +108,20 @@ def test_edge_log_probs(var_transformation_instance):
     
     
 def test_dense_init(var_transformation_instance, var_transformation_dense_instance):
+    num_sample = 1000
+    
     # Test when dense_init is False
     _, _, adj = var_transformation_instance.sample_A(
-        1000
+        num_sample
     )  # Call the sample_A method to update the transformation_layer
-    assert(adj.sum()/1000 < 10*10)
+    
+    # TODO: this may not be true because it comes from sampling. 
+    # There is very small chance that the graph is initialized as a full graph
+    assert adj.sum() < 10 * 10 * num_sample
+    
+    log_probs = var_transformation_instance.edge_log_probs()
+    assert log_probs[0].sum() < torch.log(1+torch.tensor(EPS)) * num_sample
     
     # Test when dense_init is True
-    _, probs, adj = var_transformation_dense_instance.sample_A(
-        1000
-    )  # Call the sample_A method to update the transformation_layer
-    assert((probs>=0.5).sum() == 10*10)
+    log_probs = var_transformation_dense_instance.edge_log_probs()
+    assert log_probs[0].sum() == torch.log(1+torch.tensor(EPS)) * num_sample * 2

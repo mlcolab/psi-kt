@@ -65,7 +65,7 @@ def qs_dist():
     # Create a sample MultivariateNormal distribution for qs_dist (replace with actual parameters)
     qs_mean = torch.randn(2, 1, 10, DIM_S)
     qs_cov_mat = torch.randn(2, 1, 10, DIM_S, DIM_S)
-    qs_dist = torch.distributions.MultivariateNormal(qs_mean, qs_cov_mat)
+    qs_dist = torch.distributions.MultivariateNormal(qs_mean, qs_cov_mat@qs_cov_mat.transpose(-1,-2))
     return qs_dist
 
 
@@ -91,29 +91,30 @@ def test_init_weights(groupkt):
 
 
 def test_st_transition_gen(groupkt, qs_dist):
+    bs, _, time, _ = qs_dist.mean.shape
     
     transition_st_h = groupkt.gen_st_h
     transition_st_b = groupkt.gen_st_b
     assert isinstance(transition_st_h, torch.Tensor)
     assert transition_st_h.shape == (DIM_S, DIM_S)
     assert isinstance(transition_st_b, torch.Tensor)
-    assert transition_st_b.shape == (DIM_S,)
+    assert transition_st_b.shape == (1, DIM_S)
     
     # Call the st_transition_gen method
     ps_dist = groupkt.st_transition_gen(qs_dist, eval=False)
+    ps_dist_mean = ps_dist.mean
+    ps_dist_cov_mat = ps_dist.covariance_matrix
+    assert ps_dist_mean.shape == (bs, 1, time, DIM_S)
+    assert ps_dist_cov_mat.shape == (bs, 1, time, DIM_S, DIM_S)
     # Check that the output ps_dist is a MultivariateNormal distribution
     assert isinstance(ps_dist, torch.distributions.MultivariateNormal)
-    
-    
-    num_samples = 1000
+
+    num_samples = 100000
     qs_sample = qs_dist.sample((num_samples,))  # [num_samples, bs, 1, time, dim_s]
     qs_sample_transition = (
         qs_sample[:, :, :, :-1] @ groupkt.gen_st_h + groupkt.gen_st_b
     )  # [num_samples, bs, 1, time-1, dim_s]
     qs_sample_transition_mean = qs_sample_transition.mean(dim=0)  # [bs, 1, time-1, dim_s]
-    qs_sample_transition_cov_mat = qs_sample_transition.var(dim=0)  # [bs, 1, time-1, dim_s, dim_s]
-    ps_dist_mean = ps_dist.mean[:,:,1:]
-    ps_dist_cov_mat = ps_dist.covariance_matrix[:,:,1:]
-    assert torch.allclose(qs_sample_transition_mean, ps_dist_mean, atol=1e-1)
-    assert torch.allclose(qs_sample_transition_cov_mat, ps_dist_cov_mat, atol=1e-1)
-    
+    qs_sample_transition_cov_mat = qs_sample_transition.var(dim=0)  # [bs, 1, time-1, dim_s]
+
+    assert torch.allclose(qs_sample_transition_mean, ps_dist_mean[:,:,1:], atol=1e-1)

@@ -36,7 +36,6 @@ def test_eva_termination_multiple_metrics(kt_runner):
     result = kt_runner._eva_termination(
         None, kt_runner.metrics, kt_runner.logs.val_results
     )
-    # unittest.TestCase.assertFalse(result)
     assert result == False
 
 
@@ -52,5 +51,4 @@ def test_eva_termination_multiple_metrics_all_decreasing(kt_runner):
         None, kt_runner.metrics, kt_runner.logs.val_results
     )
 
-    # unittest.TestCase.assertFalse(result)
     assert result == True

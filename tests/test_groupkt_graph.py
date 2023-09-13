@@ -1,7 +1,7 @@
 import pytest
 
 # I haven't figured out how to import the module from the root directory yet
-# I'll first use this as the hacky way to import the module...
+# I currently use this as the hacky way to import the module...
 import sys
 
 sys.path.append("..")
@@ -9,8 +9,6 @@ sys.path.append("..")
 import torch
 
 from knowledge_tracing.groupkt import EPS
-from knowledge_tracing.runner.runner import KTRunner
-from knowledge_tracing.utils.logger import Logger
 from knowledge_tracing.groupkt import groupkt_graph_representation as ktgraph
 
 

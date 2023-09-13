@@ -7,6 +7,8 @@ from torch import nn
 import torch.distributions as td
 import torch.nn.functional as F
 
+from knowledge_tracing.groupkt.GMVAE import EPS
+
 
 class VarGT(nn.Module):
     """
@@ -582,8 +584,6 @@ class VarTransformation(VarDistribution):
         Returns:
             tuple of tensors ``[..., d, d], [..., d, d]`` corresponding to ``log(p)`` and ``log(1-p)``
         """
-        # u = self._get_node_embedding().to(self.transformation_layer.device)
-        EPS = 1e-6
 
         u = self._get_node_embedding()
         trans_matrix = self.transformation_layer.to(u.device)

@@ -408,8 +408,6 @@ class AmortizedGroupKT(GroupKT):
         # TODO: more systematic way
         gen_st_h = nn.init.xavier_uniform_(torch.empty(1, self.dim_s))
         self.gen_st_h = nn.Parameter(torch.diag_embed(gen_st_h)[0], requires_grad=True)
-        gen_st_b = nn.init.xavier_uniform_(torch.empty(1, self.dim_s))
-        self.gen_st_b = nn.Parameter(gen_st_b, requires_grad=True)
         gen_st_log_r = nn.init.xavier_uniform_(torch.empty(1, self.dim_s))
         self.gen_st_log_r = nn.Parameter(gen_st_log_r, requires_grad=True)
 
@@ -478,11 +476,8 @@ class AmortizedGroupKT(GroupKT):
         # ps_var = out_gen['s_var'] # [bs, 1, dim_s]
 
         # -- 2. prior of single step of H, R --
-        # unit_test.test_one_step_and_multi_step_log_probability(
-        #     qs_dist, self.gen_st_h, self.gen_st_b, self.gen_st_log_r, self.gen_s0_mean, self.gen_s0_log_var
-        # )
         pst_mean = (
-            qs_mean[:, :, :-1] @ self.gen_st_h + self.gen_st_b
+            qs_mean[:, :, :-1] @ self.gen_st_h 
         )  # [bs, 1, time-1, dim_s]
         pst_transition_var = torch.exp(self.gen_st_log_r)
         pst_transition_cov_mat = torch.diag_embed(pst_transition_var + EPS)
@@ -930,7 +925,7 @@ class AmortizedGroupKT(GroupKT):
         for i in range(test_step):
             # p(st-1) = N(m, P), p(st|st-1) = N(st|H*st-1 + b, R)
             # p(st) = N(st|H*m + b, H*P*H' + R)
-            s_next_mean = s_last_mean @ self.gen_st_h + self.gen_st_b  # [bs, 1, dim_s]
+            s_next_mean = s_last_mean @ self.gen_st_h # [bs, 1, dim_s]
             s_next_cov_mat = (
                 self.gen_st_h @ s_last_cov_mat @ self.gen_st_h.transpose(-1, -2)
                 + st_tran_r

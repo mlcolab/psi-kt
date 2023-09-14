@@ -39,5 +39,9 @@ file = "LICENSE"
 "Bug Reports" = "https://github.com/mlcolab/knowledge_tracing/issues"
 "Source" = "https://github.com/mlcolab/knowledge_tracing"
 
-[tool.setuptools]
-py-modules = []
+[tool.setuptools.packages.find]
+exclude = [
+  "notebooks",
+  "scripts",
+  "tests",
+]

@@ -4,7 +4,6 @@ version = "0.1.0.dev0"
 description = ""
 readme = "readme.md"
 requires-python = ">=3.9"
-license = {file = "LICENSE"}
 keywords = []
 authors = [
   {name = "Hanqi Zhou", email = "hanqi.zhou@uni-tuebingen.de" },
@@ -30,6 +29,10 @@ dependencies = [
   "tqdm>=4.65",
   "torch>=1.9.0",
 ]
+
+[project.license]
+name = "GNU Affero General Public License v3"
+file = "LICENSE"
 
 [project.urls]
 "Homepage" = "https://github.com/mlcolab/knowledge_tracing"

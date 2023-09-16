@@ -455,7 +455,7 @@ class BaseLearnerModel(BaseModel):
         # Loop over time steps
         for i in range(1, num_step):
             cur_item = items[:, i]  # [num_seq, ]
-            cur_feat = all_feature[:, 0, i]  # [bs, 1, 3]
+            cur_feat = all_feature[:, 0, i-1]  # [bs, 1, 3]
 
             # Accumulate whole_stats
             whole_stats[:, :, i] = whole_stats[:, :, i - 1]  # whole_stats[:,:,i-1] #

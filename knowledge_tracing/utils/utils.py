@@ -12,18 +12,6 @@ import torch
 from knowledge_tracing.utils import visualize
 
 
-# a dict to store the activations
-activation = {}
-
-
-def getActivation(name):
-    # the hook signature
-    def hook(model, input, output):
-        activation[name] = output.detach()
-
-    return hook
-
-
 def get_theta_shape(num_seq: int, num_node: int, other) -> dict:
     """
     Get the shape of theta parameters based on the training mode.

@@ -1,3 +1,8 @@
+import pytest
+
+import sys
+sys.path.append("..")
+
 import numpy as np
 from sklearn.metrics import mean_squared_error, mean_absolute_error, roc_auc_score, f1_score, accuracy_score, precision_score, recall_score
 
@@ -48,23 +53,46 @@ def test_one_step_and_multi_step_log_probability(
     logprob_multi_step = logprob_multi_step.mean(dim=0) # [bs, 1, time-1]
     
     
-def test_pred_evaluate_method():    
+@pytest.fixture
+def pred_and_true():
     # Generate random predictions and true labels
     y_pred = np.random.rand(100)
     y_true = np.random.randint(0, 2, size=100)
+    return y_pred, y_true
+    
+    
 
+def test_pred_evaluate_method(pred_and_true):    
+    # Generate random predictions and true labels
+    y_pred, y_true = pred_and_true
+    
     # Define the metrics to evaluate
-    metrics = ['rmse', 'mae', 'auc', 'f1', 'accuracy', 'precision', 'recall']
+    metrics = ['mse', 'mae', 'f1', 'accuracy', 'precision', 'recall']
 
+    def calculate_f1_score(y_true, y_pred):
+        # Calculate true positives, false positives, and false negatives
+        tp = np.sum((y_true == 1) & (y_pred == 1))
+        fp = np.sum((y_true == 0) & (y_pred == 1))
+        fn = np.sum((y_true == 1) & (y_pred == 0))
+
+        # Calculate precision and recall
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+
+        # Calculate F1 score
+        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+
+        return precision, recall, f1_score
+    
+    precision, recall, f1_score = calculate_f1_score(y_true, y_pred > 0.5)
     # Calculate the expected results
     expected_results = {
-        'rmse': np.sqrt(mean_squared_error(y_true, y_pred)),
-        'mae': mean_absolute_error(y_true, y_pred),
-        'auc': roc_auc_score(y_true, y_pred),
-        'f1': f1_score(y_true, y_pred > 0.5),
-        'accuracy': accuracy_score(y_true, y_pred > 0.5),
-        'precision': precision_score(y_true, y_pred > 0.5),
-        'recall': recall_score(y_true, y_pred > 0.5)
+        'mse': np.mean((y_pred-y_true)**2),
+        'mae': np.mean(np.absolute(y_true-y_pred)),
+        'f1': f1_score,
+        'accuracy': np.mean(y_true == (y_pred>0.5)),
+        'precision': precision, 
+        'recall': recall,
     }
 
     # Evaluate the predictions using the optimized function

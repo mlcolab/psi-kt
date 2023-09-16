@@ -69,7 +69,7 @@ class BaseModel(torch.nn.Module):
         # Convert the predictions to binary values based on a threshold of 0.5
         y_pred_binary = (y_pred > 0.5).astype(int)
         evaluation_funcs = {
-            "rmse": mean_squared_error,
+            "mse": mean_squared_error,
             "mae": mean_absolute_error,
             "auc": roc_auc_score,
             "f1": f1_score,

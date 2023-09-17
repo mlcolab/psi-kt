@@ -9,7 +9,10 @@ sys.path.append("..")
 import torch
 
 from knowledge_tracing.groupkt import EPS
+from knowledge_tracing.groupkt.groupkt_graph_representation import VarTransformation
 from knowledge_tracing.groupkt.groupkt import AmortizedGroupKT
+from knowledge_tracing.groupkt.GMVAE.gmvae import InferenceNet
+from knowledge_tracing.groupkt.modules import VAEEncoder
 from knowledge_tracing.runner.runner import KTRunner
 from knowledge_tracing.utils.logger import Logger
 
@@ -23,7 +26,7 @@ def groupkt():
         ):
             self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
             self.learned_graph = "w_gt"
-            self.var_log_max = torch.tensor(1.0)
+            self.var_log_max = 1.0
             self.node_dim = 16
             self.num_category = 5
             self.time_dependent_s = 1
@@ -81,7 +84,6 @@ def test_init_weights(groupkt):
     assert isinstance(groupkt.gen_z0_mean, torch.Tensor)
     assert isinstance(groupkt.gen_z0_log_var, torch.Tensor)
     assert isinstance(groupkt.gen_st_h, torch.Tensor)
-    assert isinstance(groupkt.gen_st_b, torch.Tensor)
     assert isinstance(groupkt.gen_st_log_r, torch.Tensor)
     assert isinstance(groupkt.y_emit, torch.nn.Sigmoid)
     assert isinstance(groupkt.infer_network_emb, torch.nn.Module)
@@ -94,13 +96,9 @@ def test_st_transition_gen(groupkt, qs_dist):
     bs, _, time, _ = qs_dist.mean.shape
     
     transition_st_h = groupkt.gen_st_h
-    transition_st_b = groupkt.gen_st_b
     assert isinstance(transition_st_h, torch.Tensor)
     assert transition_st_h.shape == (DIM_S, DIM_S)
     assert transition_st_h.requires_grad
-    assert isinstance(transition_st_b, torch.Tensor)
-    assert transition_st_b.shape == (1, DIM_S)
-    assert transition_st_b.requires_grad
     
     # Call the st_transition_gen method
     ps_dist = groupkt.st_transition_gen(qs_dist, eval=False)

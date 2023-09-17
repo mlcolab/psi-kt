@@ -20,7 +20,8 @@ def var_transformation_instance():
     return ktgraph.VarTransformation(
         device, num_nodes, tau_gumbel, dense_init=False, latent_dim=16
     )
-    
+
+
 @pytest.fixture
 def var_transformation_dense_instance():
     device = "cpu"
@@ -44,9 +45,6 @@ def test_var_transformation_init(var_transformation_instance):
     assert (
         not var_transformation_instance.dense_init
     )  # Check if dense_init is set to False by default
-    assert (
-        var_transformation_instance.latent_prior_std is None
-    )  # Check if latent_prior_std is set to None by default
     assert (
         var_transformation_instance.latent_dim == 16
     )  # Check if latent_dim is set correctly
@@ -76,7 +74,6 @@ def test_sample_A(var_transformation_instance):
 
 
 def test_initial_random_particles(var_transformation_instance):
-
     u, transformation_layer = var_transformation_instance._initial_random_particles()
 
     # Check the shapes of the output tensors
@@ -85,7 +82,7 @@ def test_initial_random_particles(var_transformation_instance):
         16,
         16,
     )  # Check the shape of transformation_layer
-    
+
     # Check that u is a parameter with requires_grad set to True
     assert isinstance(u, torch.nn.Parameter)
     assert u.requires_grad
@@ -96,30 +93,36 @@ def test_get_node_embedding(var_transformation_instance):
     u = var_transformation_instance._get_node_embedding()
     assert u.shape == (10, 16)  # Check the shape of the embedding tensor
     assert torch.all(u == var_transformation_instance.u)  # Check if u is set correctly
-    
+
 
 # Test the edge_log_probs method
 def test_edge_log_probs(var_transformation_instance):
     log_probs = var_transformation_instance.edge_log_probs()
     assert log_probs.shape == (2, 10, 10)  # Check the shape of the log_probs tensor
-    assert torch.all(log_probs <= torch.log(1+torch.tensor(1e-6)))  # Check the values of the log_probs tensor
-    
-    
+    assert torch.all(
+        log_probs <= torch.log(1 + torch.tensor(1e-6))
+    )  # Check the values of the log_probs tensor
+
+
 def test_dense_init(var_transformation_instance, var_transformation_dense_instance):
     num_sample = 1000
-    
+
     # Test when dense_init is False
     _, _, adj = var_transformation_instance.sample_A(
         num_sample
     )  # Call the sample_A method to update the transformation_layer
-    
-    # TODO: this may not be true because it comes from sampling. 
+
+    # TODO: this may not be true because it comes from sampling.
     # There is very small chance that the graph is initialized as a full graph
     assert adj.sum() < 10 * 10 * num_sample
-    
+
     log_probs = var_transformation_instance.edge_log_probs()
-    assert log_probs[0].sum() < torch.log(1+torch.tensor(EPS)) * num_sample
-    
+    assert log_probs[0].sum() < torch.log(1 + torch.tensor(EPS)) * num_sample
+
     # Test when dense_init is True
     log_probs = var_transformation_dense_instance.edge_log_probs()
-    assert log_probs[0].sum() == torch.log(1+torch.tensor(EPS)) * num_sample * 2
+    for i in range(9):
+        for j in range(i + 1, 10):
+            edge1 = log_probs[0, i, j] >= torch.log(0.5 + torch.tensor(EPS))
+            edge2 = log_probs[0, j, i] >= torch.log(0.5 + torch.tensor(EPS))
+            assert not (edge1 and edge2)

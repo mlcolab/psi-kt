@@ -111,7 +111,7 @@ def test_st_transition_gen(groupkt, qs_dist):
     num_samples = int(1e6)
     qs_sample = qs_dist.sample((num_samples,))  # [num_samples, bs, 1, time, dim_s]
     qs_sample_transition = (
-        qs_sample[:, :, :, :-1] @ groupkt.gen_st_h + groupkt.gen_st_b
+        qs_sample[:, :, :, :-1] @ groupkt.gen_st_h 
     )  # [num_samples, bs, 1, time-1, dim_s]
     qs_new_dist = torch.distributions.MultivariateNormal(qs_sample_transition, torch.diag_embed(torch.exp(groupkt.gen_st_log_r)+EPS))
     # qs_sample_transition_mean = qs_sample_transition.mean(dim=0)  # [bs, 1, time-1, dim_s]
@@ -122,28 +122,3 @@ def test_st_transition_gen(groupkt, qs_dist):
     
     # new_dist = torch.distributions.MultivariateNormal(ps_dist_mean[:,:,1:], ps_dist_cov_mat[:,:,1:])
     # assert new_dist.log_prob(qs_sample_transition_mean).mean() > -1e-1
-
-
-
-# Test the zt_transition_gen method
-def test_zt_transition_gen(your_model_instance):
-    # Create sample input data and distributions (replace with actual parameters)
-    feed_dict = {
-        "time_seq": torch.tensor([[0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 2.0, 3.0]])
-    }
-    qs_dist = MultivariateNormal(
-        torch.randn(2, 1, 4, your_model_instance.dim_s),
-        torch.randn(2, 1, 4, your_model_instance.dim_s, your_model_instance.dim_s),
-    )
-    qz_dist = MultivariateNormal(
-        torch.randn(2, 4, your_model_instance.num_node),
-        torch.randn(2, 4, your_model_instance.num_node, your_model_instance.num_node),
-    )
-
-    # Call the zt_transition_gen method
-    pz_dist = your_model_instance.zt_transition_gen(
-        feed_dict, qs_dist=qs_dist, qz_dist=qz_dist, eval=False
-    )
-
-    # Check that the output pz_dist is a MultivariateNormal distribution
-    assert isinstance(pz_dist, torch.distributions.MultivariateNormal)

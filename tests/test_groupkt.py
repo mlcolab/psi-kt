@@ -6,6 +6,8 @@ import sys
 
 sys.path.append("..")
 
+import numpy as np
+
 import torch
 
 from knowledge_tracing.groupkt import EPS
@@ -90,6 +92,40 @@ def test_init_weights(groupkt):
     assert isinstance(groupkt.infer_network_posterior_s, InferenceNet)  # Replace with the actual class name
     assert isinstance(groupkt.infer_network_posterior_z, torch.nn.LSTM)
     assert isinstance(groupkt.infer_network_posterior_mean_var_z, VAEEncoder)  # Replace with the actual class name
+
+
+def test_construct_univariate_normal(groupkt):
+    mean = torch.tensor([2.0])
+    std = torch.tensor([[1.0]])
+    dist = groupkt._construct_normal_from_mean_std(mean, std)
+    
+    from torch.distributions import MultivariateNormal
+    # Check if the constructed distribution is a univariate normal
+    assert isinstance(dist, MultivariateNormal)
+    
+    # Check if the mean and covariance are correct
+    assert torch.allclose(dist.mean, mean, atol=EPS)
+    assert torch.allclose(dist.covariance_matrix, std.pow(2), atol=EPS)
+    
+
+def test_initialize_gaussian_mean_log_var(groupkt):
+    dim = 3
+    use_trainable_cov = True
+    num_sample = 2
+    cov_min = 0.05
+    
+    x0_mean, x0_log_var = groupkt._initialize_gaussian_mean_log_var(dim, use_trainable_cov, num_sample)
+    
+    # Check if the shapes of mean and log variance match the expected shapes
+    assert x0_mean.shape == (num_sample, dim)
+    assert x0_log_var.shape == (num_sample, dim)
+    
+    # Check if mean is initialized with Xavier uniform initialization
+    for i in range(num_sample):
+        assert torch.allclose(torch.mean(x0_mean[i]), torch.zeros(1), atol=np.sqrt(6/(dim+num_sample)))
+    
+    # Check if log variance is initialized to log(COV_MIN)
+    assert torch.allclose(x0_log_var, torch.log(torch.tensor(cov_min)), atol=1e-6)
 
 
 def test_st_transition_gen(groupkt, qs_dist):

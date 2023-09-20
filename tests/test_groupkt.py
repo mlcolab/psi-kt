@@ -6,6 +6,7 @@ import sys
 
 sys.path.append("..")
 
+import math
 import numpy as np
 
 import torch
@@ -128,6 +129,29 @@ def test_initialize_gaussian_mean_log_var(groupkt):
     assert torch.allclose(x0_log_var, torch.log(torch.tensor(cov_min)), atol=1e-6)
 
 
+def test_positional_encoding1d(groupkt):
+    d_model = 16
+    length = 4
+    
+    actual_time = torch.tensor([[1.0, 2.0, 3.0, 4.0]])
+    
+    # Call the method with actual_time
+    pe = groupkt._positional_encoding1d(d_model, length, actual_time)
+    assert pe.shape == (1, length, d_model)
+    assert torch.allclose(pe, torch.zeros_like(pe), atol=1)
+    
+    # Calculate the expected positional encoding values
+    expected_pe = torch.zeros(1, length, d_model)
+    for i in range(length):
+        for j in range(d_model // 2):
+            angle = i / math.pow(10000, 2 * j / d_model)
+            expected_pe[0, i, 2 * j] = math.sin(angle)
+            expected_pe[0, i, 2 * j + 1] = math.cos(angle)
+    
+    # Check if the positional encoding matrix values are close to the expected values
+    assert torch.allclose(pe, expected_pe, atol=1)
+    
+    
 def test_st_transition_gen(groupkt, qs_dist):
     bs, _, time, _ = qs_dist.mean.shape
     

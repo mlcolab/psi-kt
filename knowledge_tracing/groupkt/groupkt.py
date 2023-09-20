@@ -164,7 +164,7 @@ class GroupKT(BaseModel):
 
     @staticmethod
     def _positional_encoding1d(
-        d_model: int, length: int, actual_time=None
+        dim: int, length: int, actual_time=None
     ) -> torch.Tensor:
         """
         Modified based on https://github.com/wzlxjtu/PositionalEncoding2D
@@ -175,23 +175,24 @@ class GroupKT(BaseModel):
         Returns:
             length*d_model position matrix
         """
-        device = actual_time.device
-        if d_model % 2 != 0:
-            raise ValueError(
-                "Cannot use sin/cos positional encoding with "
-                "odd dim (got dim={:d})".format(d_model)
-            )
-        pe = torch.zeros(actual_time.shape[0], length, d_model, device=device)
-        if actual_time != None:
-            position = actual_time.unsqueeze(-1)  # [bs, times, 1]
-        else:
+        if actual_time == None:
             position = torch.arange(0, length).unsqueeze(1)
+            
+        else:
+            device = actual_time.device
+            if dim % 2 != 0:
+                raise ValueError(
+                    "Cannot use sin/cos positional encoding with "
+                    "odd dim (got dim={:d})".format(dim)
+                )
+            pe = torch.zeros(actual_time.shape[0], length, dim, device=device)
+            position = actual_time.unsqueeze(-1)  # [bs, times, 1]
 
         div_term = (
             torch.exp(
                 (
-                    torch.arange(0, d_model, 2, dtype=torch.float)
-                    * -(math.log(10000.0) / d_model)
+                    torch.arange(0, dim, 2, dtype=torch.float)
+                    * -(math.log(10000.0) / dim)
                 )
             )
             .reshape(1, 1, -1)

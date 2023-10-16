@@ -221,11 +221,6 @@ class Graph(object):
         return cls(graph_nodes_num, directed_graphs, undirected_graphs)
 
 
-## for debug use: use ass09-10
-# interaction data from hkt
-# graph data from skt
-
-
 class SKT(BaseModel):
     extra_log_args = ["graph_params"]
 

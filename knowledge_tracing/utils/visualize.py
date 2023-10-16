@@ -1,33 +1,20 @@
+from pathlib import Path
+import argparse
+
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
+
 import numpy as np
 import networkx as nx
-import os
-import imageio
-import ipdb
-import torch
-import torch.nn as nn
-import seaborn as sns
-import sys
-sys.path.append('..')
-
-import numpy as np
-from numpy.random import default_rng
-
 import pandas as pd
-import networkx as nx 
-import scipy
-from scipy import stats
+import seaborn as sns
 
-import os
-import argparse
-import datetime
-import torch
 
 ##########################################################################################
 # Compare different models, different tasks, single metrics (ideally f1 score)
 # Put all of the results in a single figure
 ##########################################################################################
+
 
 def compare_model_task(
     figsize=(12, 3), 
@@ -71,16 +58,6 @@ def compare_model_task(
     ax.legend(train_sizes, loc='lower left')
     plt.title(title)
     plt.savefig(save_path)
-
-
-##########################################################################################
-
-
-
-
-
-
-
 
 
 ##########################################################################################
@@ -129,7 +106,7 @@ def _create_heatmap(data, tasks, model_names, metrics, save_path, prefix):
 
     # Display the plot
     # plt.show()
-    plt.savefig(os.path.join(save_path, 'heatmap' + prefix +'.png'))
+    plt.savefig(Path(save_path, 'heatmap' + prefix +'.png'))
     
     
 def _create_bar(data, tasks, model_names, metrics, save_path, prefix):
@@ -174,7 +151,7 @@ def _create_bar(data, tasks, model_names, metrics, save_path, prefix):
 
         # Add legend
         ax.legend(loc='center left')
-    fig.savefig(os.path.join(save_path, 'bar' + prefix +'.png'))
+    fig.savefig(Path(save_path, 'bar' + prefix +'.png'))
 
 
 def _create_line(data, tasks, model_names, metrics, save_path, prefix):
@@ -208,7 +185,7 @@ def _create_line(data, tasks, model_names, metrics, save_path, prefix):
 
     # Adjust the layout to accommodate the legend
     plt.tight_layout(rect=[0, 0, 0.9, 1])
-    fig.savefig(os.path.join(save_path, 'line' + prefix +'.png'))
+    fig.savefig(Path(save_path, 'line' + prefix +'.png'))
     
     
 def compare_model_task_metric(data, tasks, model_names, metrics, save_path=None, fig_format='heatmap', prefix=''):
@@ -244,15 +221,6 @@ def compare_model_task_metric(data, tasks, model_names, metrics, save_path=None,
         _create_bar(data, tasks, model_names, metrics, save_path, prefix)
     elif fig_format == 'line':
         _create_line(data, tasks, model_names, metrics, save_path, prefix)
-
-
-
-
-
-
-
-
-
 
 
 def draw_path(path, args, times, items=None, prefix=None, scatter=False):
@@ -292,9 +260,8 @@ def draw_path(path, args, times, items=None, prefix=None, scatter=False):
                 colors = 'grey', linestyles='dashdot')
                 
     plt.legend()
-    if not os.path.exists(os.path.join(args.log_path, process)):
-        os.makedirs(os.path.join(args.log_path, process))
-    plt.savefig(os.path.join(args.log_path, process, prefix+'.png'))
+    Path(args.log_path, process).touch()
+    plt.savefig(Path(args.log_path, process, prefix+'.png'))
 
 
 
@@ -323,24 +290,42 @@ def draw_params(params, args, times, items=None, prefix=None, scatter=False):
             plt.scatter(times[seq, ind], values[seq, ind-1, i], marker='*')
 
         plt.legend()
-        plt.savefig(os.path.join(args.log_path, process, prefix+'_params_'+keys+'.png'))
+        plt.savefig(Path(args.log_path, process, prefix+'_params_'+keys+'.png'))
 
 
-
-
-def visualize_ground_truth(graph, args, adj, size=4.0):
+def visualize_ground_truth(
+    graph: nx.Graph, 
+    args: argparse.Namespace, 
+    adj: np.ndarray, 
+    size: int = 5
+):
+    """
+    Visualize the ground truth graph.
+    Args:
+        graph: the ground truth graph
+        args: the arguments
+        adj: the adjacency matrix of the ground truth graph
+        size: the size of the figure
+    """
+    # Clear the current figure
     plt.clf()
+
+    # Create the raw graph plot
+    plt.figure(figsize=(size, size))
     nx.draw(graph, with_labels=True)
-    plt.savefig(os.path.join(args.log_path, 'graph_raw.png'), dpi=300, bbox_inches='tight')
+    plt.savefig(Path(args.log_path, 'graph_raw.png'), dpi=300, bbox_inches='tight')
 
+    # Clear the current figure
     plt.clf()
-    plt.rcParams['figure.figsize'] = [size, size]
-    fig, ax = plt.subplots(1, 1)
-    ax.matshow(adj, vmin=0, vmax=1)
-    plt.setp(ax.get_xticklabels(), visible=False)
-    plt.setp(ax.get_yticklabels(), visible=False)
-    ax.tick_params(axis='both', which='both', length=0)
-    ax.set_title(r'Ground truth $G^*$', pad=10)
-    plt.savefig(os.path.join(args.log_path, 'graph_adj.png'))
+
+    # Create the adjacency matrix plot
+    plt.figure(figsize=(size, size))
+    plt.imshow(adj, vmin=0, vmax=1)
+    plt.axis('off')
+    plt.title(r'Ground truth $G^*$', pad=10)
+    plt.savefig(Path(args.log_path, 'graph_adj.png'))
+
+
+
     
     

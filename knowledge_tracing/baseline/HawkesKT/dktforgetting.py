@@ -1,30 +1,56 @@
-# @Date: 2023/07/29
-
-import sys
-
-sys.path.append("..")
-
-import os
-import numpy as np
-import pandas as pd
 import argparse
 from collections import defaultdict
+from pathlib import Path
+from typing import List, Dict, Tuple
+
+import numpy as np
+import pandas as pd
 
 import torch
 
-from typing import List, Dict, Tuple, Optional, Union, Any, Callable
-
-from knowledge_tracing.baseline.BaseModel import BaseModel
+from knowledge_tracing import *
+from knowledge_tracing.baseline.basemodel import BaseModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
 
-from baseline import * 
 
-class DKTForgetting(BaseModel):
-    extra_log_args = ["hidden_size", "num_layer"]
+class DKTFORGETTING(BaseModel):
+    """
+    This class defines the DKTForgetting model,
+    original paper: https://dl.acm.org/doi/10.1145/3308558.3313565
+
+    Args:
+        args (argparse.Namespace):
+            Namespace containing parsed command-line arguments.
+        corpus (DataReader):
+            An instance of the DataReader class containing corpus data.
+        logs (Logger):
+            An instance of the Logger class for logging purposes.
+
+    Attributes:
+        extra_log_args (List[str]): List of additional arguments to include in logs.
+            These are specific to the DKTForgetting model.
+
+    """
+
+    extra_log_args = ["hidden_size"]
 
     @staticmethod
-    def parse_model_args(parser, model_name="DKTForgetting"):
+    def parse_model_args(
+        parser: argparse.ArgumentParser,
+        model_name: str = "DKTForgetting",
+    ) -> argparse.Namespace:
+        """
+        Parse DKTForgetting-specific model arguments from the command line.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+            model_name (str, optional): Name of the model. Defaults to "DKTForgetting".
+
+        Returns:
+            argparse.Namespace: Parsed command-line arguments.
+
+        """
         parser.add_argument(
             "--emb_size", type=int, default=16, help="Size of embedding vectors."
         )
@@ -33,9 +59,6 @@ class DKTForgetting(BaseModel):
             type=int,
             default=16,
             help="Size of hidden vectors in LSTM.",
-        )
-        parser.add_argument(
-            "--num_layer", type=int, default=1, help="Number of GRU layers."
         )
         return BaseModel.parse_model_args(parser, model_name)
 
@@ -58,7 +81,6 @@ class DKTForgetting(BaseModel):
         self.skill_num = int(corpus.n_skills)
         self.emb_size = args.emb_size
         self.hidden_size = args.hidden_size
-        self.num_layer = args.num_layer
         self.dropout = args.dropout
 
         # Set the device to use for computations
@@ -70,7 +92,7 @@ class DKTForgetting(BaseModel):
 
         # Call the constructor of the superclass (BaseModel) with the specified model path
         BaseModel.__init__(
-            self, model_path=os.path.join(args.log_path, "Model/Model_{}.pt")
+            self, model_path=Path(args.log_path, "Model/Model_{}.pt")
         )
 
     @staticmethod
@@ -131,8 +153,8 @@ class DKTForgetting(BaseModel):
         repeated_time_gap_seq[repeated_time_gap_seq == 0] = 1e4
         sequence_time_gap_seq[sequence_time_gap_seq == 0] = 1e4
         past_trial_counts_seq += 1
-        sequence_time_gap_seq *= 1.0 / 60
-        repeated_time_gap_seq *= 1.0 / 60
+        sequence_time_gap_seq *= 1.0 / T_SCALE
+        repeated_time_gap_seq *= 1.0 / T_SCALE
 
         sequence_time_gap_seq = np.log(sequence_time_gap_seq)
         repeated_time_gap_seq = np.log(repeated_time_gap_seq)
@@ -154,7 +176,6 @@ class DKTForgetting(BaseModel):
             input_size=self.emb_size + 3,
             hidden_size=self.hidden_size,
             batch_first=True,
-            num_layers=self.num_layer,
         )
         self.fin = torch.nn.Linear(3, self.emb_size)
         self.fout = torch.nn.Linear(3, self.hidden_size)
@@ -457,20 +478,20 @@ class DKTForgetting(BaseModel):
             "user_id": torch.from_numpy(user_ids[indice]).to(device),
             "skill_seq": torch.from_numpy(utils.pad_lst(item_seqs[indice])).to(
                 device
-            ),  # [batch_size, max_step]
+            ),  # [bs, max_step]
             "label_seq": torch.from_numpy(utils.pad_lst(label_seqs[indice])).to(
                 device
-            ),  # [batch_size, max_step]
+            ),  # [bs, max_step]
             "repeated_time_gap_seq": torch.from_numpy(repeated_time_gap_seq[indice]).to(
                 device
-            ),  # [batch_size, max_step]
+            ),  # [bs, max_step]
             "sequence_time_gap_seq": torch.from_numpy(sequence_time_gap_seq[indice]).to(
                 device
-            ),  # [batch_size, max_step]
+            ),  # [bs, max_step]
             "past_trial_counts_seq": torch.from_numpy(past_trial_counts_seq[indice]).to(
                 device
-            ),  # [batch_size, max_step]
-            "length": torch.from_numpy(lengths[indice]).to(device),  # [batch_size]
+            ),  # [bs, max_step]
+            "length": torch.from_numpy(lengths[indice]).to(device),  # [bs]
             "inverse_indice": torch.from_numpy(inverse_indice).to(device),
             "indice": torch.from_numpy(indice).to(device),
         }
@@ -532,7 +553,6 @@ class DKTForgetting(BaseModel):
             dim=-1,
         )
 
-        embs = []
         for i in range(time_step - 1):
             if i == 0:
                 output_rnn, latent_states = self.rnn(
@@ -551,7 +571,6 @@ class DKTForgetting(BaseModel):
                     dim=-1,
                 )
             )  # [bs, 1, emb_size]
-            embs.append(output_rnn)
 
             output = torch.cat(
                 (
@@ -606,7 +625,6 @@ class DKTForgetting(BaseModel):
         out_dict = {
             "prediction": prediction,
             "label": label,
-            "emb": torch.cat(embs, 1),
         }
 
         return out_dict

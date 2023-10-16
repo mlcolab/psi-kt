@@ -1,9 +1,12 @@
-import os
 import math
+import pickle
+import argparse
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import ipdb
-import pickle
+
+from knowledge_tracing.utils import logger
 
 
 class DataReader(object):
@@ -11,18 +14,22 @@ class DataReader(object):
     A general data reader for different KT datasets.
     This contains the basic data features and aggregates the features according to different learners.
     For specific data features, it will be defined at get_feed_dict function in each KT model class.
+
+    Args:
+        prefix:    data folder path
+        dataset:   the name of KT dataset
+        sep:       the delimiter when loading a csv file
+        k_fold:    number of k folder to do cross-validation
+        max_step:  the maximum step considered during training; NOTE: sometimes it has also been defined during the pre-processing process
+        logs:      the log instance where defining the saving/loading information
+
     """
 
-    def __init__(self, args, logs):
-        """
-        Args:
-            prefix:    data folder path
-            dataset:   the name of KT dataset
-            sep:       the delimiter when loading a csv file
-            k_fold:    number of k folder to do cross-validation
-            max_step:  the maximum step considered during training; NOTE: sometimes it has also been defined during the pre-processing process
-            logs:      the log instance where defining the saving/loading information
-        """
+    def __init__(
+        self,
+        args: argparse.Namespace,
+        logs: logger.Logger,
+    ) -> None:
         self.data_dir = args.data_dir
         self.dataset = args.dataset
         self.k_fold = args.kfold
@@ -38,17 +45,26 @@ class DataReader(object):
         self.logs = logs
 
         self.inter_df = pd.read_csv(
-            os.path.join(
+            Path(
                 self.data_dir, self.dataset, "interactions_{}.csv".format(self.max_step)
             ),
             sep="\t",
         )
-        self.corpus_path = os.path.join(
+        self.corpus_path = Path(
             self.data_dir, self.dataset, "Corpus_{}.pkl".format(self.max_step)
         )
 
-    def create_corpus(self):
-        """"""
+    def create_corpus(self) -> None:
+        """
+        Create a corpus from the interaction data.
+
+        This method processes the interaction data to create a corpus. It aggregates data
+        by user, assigns problem IDs, and divides the data into train, validation, and test sets.
+
+        Note:
+            This method modifies the attributes of the class to create the corpus.
+
+        """
         if "problem_id" not in self.inter_df.columns:
             self.inter_df["problem_id"] = self.inter_df["skill_id"]
 
@@ -131,21 +147,21 @@ class DataReader(object):
         #  load the ground-truth graph if available
         self.adj = self.load_ground_truth_graph()
 
-    def load_ground_truth_graph(self):
+    def load_ground_truth_graph(self) -> np.ndarray:
         """
         Load the ground truth graph if available, otherwise create an empty graph.
 
         Returns:
-        - adj (ndarray): Adjacency matrix representing the ground truth graph.
+            adj (ndarray): Adjacency matrix representing the ground truth graph.
         """
-        graph_path = os.path.join(self.data_dir, self.dataset, "adj.npy")
-        if os.path.exists(graph_path):
+        graph_path = Path(self.data_dir, self.dataset, "adj.npy")
+        if graph_path.exists():
             adj = np.load(graph_path)
         else:
             adj = np.zeros((self.n_skills, self.n_skills))
         return adj
 
-    def gen_fold_data(self, k: int):
+    def gen_fold_data(self, k: int) -> None:
         """
         TODO: this function is not used in the current version
         Args:
@@ -165,7 +181,7 @@ class DataReader(object):
                 self.user_seq_df.iloc[fold_end:n_examples],
             ]
         )
-        val_size = int(0.1 * len(residual_df))  #
+        val_size = int(0.1 * len(residual_df))
         val_indices = np.random.choice(
             residual_df.index, val_size, replace=False
         )  # random
@@ -176,13 +192,21 @@ class DataReader(object):
 
     def gen_time_split_data(
         self, train_ratio: float, test_ratio: float, val_ratio: float = 0.2, id: int = 0
-    ):
+    ) -> None:
         """
-        Split the train/test/val based on time steps.
-        self.user_seq_df.keys(): ['user_id', 'skill_seq', 'correct_seq', 'time_seq', 'problem_seq',
-                                  'num_history', 'num_success', 'num_failure']
-        Args:
+        Generate train/test/validation splits based on time steps.
 
+        This method splits the user sequences into training, testing, and validation sets based on the provided
+        ratios of train, test, and validation data.
+
+        Args:
+            train_ratio (float): Ratio of data for training.
+            test_ratio (float): Ratio of data for testing.
+            val_ratio (float, optional): Ratio of data for validation. Defaults to 0.2.
+            id (int, optional): Identifier for the split operation. Defaults to 0.
+
+        Returns:
+            None
         """
         assert train_ratio + test_ratio + val_ratio <= 1
 
@@ -287,7 +311,7 @@ class DataReader(object):
                 self.data_df[key], orient="columns"
             )
 
-    def show_columns(self):
+    def show_columns(self) -> None:
         """
         Prints a random row of the user sequence DataFrame to show the available data columns.
         """
@@ -297,7 +321,7 @@ class DataReader(object):
             self.user_seq_df.iloc[np.random.randint(0, len(self.user_seq_df))]
         )
 
-    def load_corpus(self, args):
+    def load_corpus(self, args: argparse.Namespace) -> None:
         """
         Load corpus from the corpus path, and split the data into k folds.
 

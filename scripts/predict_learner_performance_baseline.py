@@ -1,51 +1,58 @@
-# @Date: 2023/07/25
-
 import sys
 sys.path.append('..')
 
 import os 
-import pickle
 import argparse
-import numpy as np
 import datetime
+from pathlib import Path
+
+import numpy as np
 
 import torch
 
 from knowledge_tracing.data import data_loader
 from knowledge_tracing.runner import runner_baseline
-# from VCLRunner_baseline import BaselineVCLRunner
-# from FTRunner_baseline import FTRunner
+from knowledge_tracing.runner import runner_vcl
 from knowledge_tracing.utils import utils, arg_parser, logger
-from knowledge_tracing.baseline import DKT, DKTForgetting, HKT, AKT, HLR, PPE
 
-# TODO: this is duplicate with the one in exp
+from knowledge_tracing.baseline import ppe
+from knowledge_tracing.baseline.HawkesKT import dktforgetting, hkt
+from knowledge_tracing.baseline.EduKTM import dkt, akt
+from knowledge_tracing.baseline.halflife_regression import hlr
+
+# TODO: this is duplicate with the groupkt one
+
+
+def global_parse_args():
+    """
+    Model-specific arguments are defined in corresponding files.
+    """
+    parser = argparse.ArgumentParser(description="Global")
+    
+    parser.add_argument('--model_name', type=str, default='CausalKT', help='Choose a model to run.')
+
+    return parser
 
 if __name__ == '__main__':
-
-    # ----- add aditional arguments for this exp. -----
-    parser = argparse.ArgumentParser(description='Global')
-
-    parser.add_argument('--finetune', type=int, default=0)
-    parser.add_argument('--vcl_predict_step', type=int, default=10)
-    parser.add_argument('--start_epoch', type=int, default=0)
-    parser.add_argument('--multi_node', type=int, default=1)
     
+    # read arguments
     # Define an argument parser for the model name.
-    init_parser = argparse.ArgumentParser(description='Model')
-    init_parser.add_argument('--model_name', type=str, default='CausalKT', help='Choose a model to run.')
-    init_args, init_extras = init_parser.parse_known_args()
+    parser = global_parse_args()
+    global_args, extras = parser.parse_known_args()
     
     # Get the model name from the command-line arguments.
     # Evaluate the model name string as a Python expression to get the corresponding model class.
-    model_name = init_args.model_name
-    model = eval('{0}.{0}'.format(model_name))
+    model_name = global_args.model_name
+    model = eval('{0}.{1}'.format(model_name.lower(), model_name.upper()))
+    parser = arg_parser.parse_args(parser)
+    parser = model.parse_model_args(parser)
+    global_args, extras = parser.parse_known_args() 
     
     # ----- args -----
     # reference:
     # # https://docs.python.org/3/library/argparse.html?highlight=parse_known_args#argparse.ArgumentParser.parse_known_args
-    parser = arg_parser.parse_args(parser)
-    parser = model.parse_model_args(parser)
-    global_args, extras = parser.parse_known_args() 
+
+    
     global_args.model_name = model_name
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -59,9 +66,9 @@ if __name__ == '__main__':
     logs = logger.Logger(global_args)
     
     # ----- data part -----
-    corpus_path = os.path.join(global_args.data_dir, global_args.dataset, 'Corpus_{}.pkl'.format(global_args.max_step))
+    corpus_path = Path(global_args.data_dir, global_args.dataset, 'Corpus_{}.pkl'.format(global_args.max_step))
     data = data_loader.DataReader(global_args, logs)
-    if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
+    if not corpus_path.exists() or global_args.regenerate_corpus:
         data.create_corpus()
         data.show_columns() 
     corpus = data.load_corpus(global_args) 
@@ -88,7 +95,6 @@ if __name__ == '__main__':
     else: num_seq = 1
     
     model = model(global_args, corpus, logs)
-        
     if global_args.load > 0:
         model.load_state_dict(torch.load(global_args.load_folder), strict=False)
     logs.write_to_log_file(model)
@@ -101,12 +107,9 @@ if __name__ == '__main__':
         else: 
             model = model.to(global_args.device)
             
-    # Running
     # TODO: modify the runner
     if global_args.vcl: 
-        runner = VCLRunner(global_args, logs)
-    elif global_args.finetune:
-        runner = FTRunner(global_args, logs)
+        runner = runner_vcl(global_args, logs)
     else:
         runner = runner_baseline.BaselineKTRunner(global_args, logs)
 

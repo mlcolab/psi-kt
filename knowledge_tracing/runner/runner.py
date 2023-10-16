@@ -1,16 +1,14 @@
-import gc, copy, os, argparse
-
+import gc, copy, os
 from time import time
-from tqdm import tqdm
-import numpy as np
-import matplotlib.pyplot as plt
 from collections import defaultdict
+
+from tqdm import tqdm
 
 import torch
 import torch.optim as optim
 from torch.optim import lr_scheduler
 
-from knowledge_tracing.utils import utils, logger
+from knowledge_tracing.utils import utils
 from knowledge_tracing.data.data_loader import DataReader
         
 OPTIMIZER_MAP = {

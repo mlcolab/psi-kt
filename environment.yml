@@ -1,12 +1,10 @@
-name: kt
+name: knowledge_tracing
 channels:
   - defaults
 dependencies:
   - pip=23.0
   - python=3.9
-  - readline=8.2
   - setuptools=65.6
-  - sqlite=3.41
   - pip:
       - configargparse==1.7
       - fonttools==4.39

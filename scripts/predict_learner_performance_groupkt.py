@@ -1,23 +1,24 @@
-# -*- coding: UTF-8 -*-
 import sys
-
 sys.path.append("..")
 
 import os
 import argparse
-import numpy as np
 import datetime
-import shutil
+from pathlib import Path
+
+import numpy as np
 
 import torch
-from data import data_loader
 
+from knowledge_tracing.data import data_loader
 from knowledge_tracing.runner import runner_groupkt, runner_vcl
-from utils import utils, arg_parser, logger
-from knowledge_tracing.groupkt.groupkt import GroupKT, ContinualGroupKT
+from knowledge_tracing.utils import utils, arg_parser, logger
+from knowledge_tracing.groupkt.groupkt import GroupKT, ContinualGroupKT, AmortizedGroupKT
 
-if __name__ == "__main__":
-    # ----- add aditional arguments for this exp. -----
+def global_parse_args():
+    """
+    Model-specific arguments are defined in corresponding files.
+    """
     parser = argparse.ArgumentParser(description="Global")
     parser.add_argument("--model_name", type=str, help="Choose a model to run.")
 
@@ -26,12 +27,6 @@ if __name__ == "__main__":
         type=str,
         default="w_gt",
         help="none: no graph is learner; b_gt: graph with binary edge; w_gt: graph with weighted graph",
-    )
-    parser.add_argument(
-        "--multi_node",
-        type=int,
-        default=0,
-        help="whether we train the model with graph; TODO: duplicate with the argument of learned_graph",
     )
     parser.add_argument(
         "--graph_path",
@@ -45,23 +40,29 @@ if __name__ == "__main__":
         default=10,
         help="number of samples when we use MC for non-analytical solution",
     )
+    parser.add_argument('--em_train', type=int, default=0)
 
+    return parser
+
+if __name__ == "__main__":
+    # ----- add aditional arguments for this exp. -----
+    parser = global_parse_args()
     parser = arg_parser.parse_args(parser)
-
     global_args, extras = parser.parse_known_args()
+    
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     logs = logger.Logger(global_args)
 
     # ----- data part -----
-    corpus_path = os.path.join(
+    corpus_path = Path(
         global_args.data_dir,
         global_args.dataset,
         "Corpus_{}.pkl".format(global_args.max_step),
     )
     data = data_loader.DataReader(global_args, logs)
-    if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
+    if not corpus_path.exists() or global_args.regenerate_corpus:
         data.create_corpus()
         data.show_columns()
     corpus = data.load_corpus()
@@ -90,7 +91,6 @@ if __name__ == "__main__":
         global_args.num_GPU = None
         global_args.batch_size_multiGPU = global_args.batch_size
     logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
-    # ipdb.set_trace()
 
     # ----- Model initialization -----
     if "ls_" or "ln_" in global_args.train_mode:
@@ -101,9 +101,8 @@ if __name__ == "__main__":
     adj = np.load(global_args.graph_path)
 
     if global_args.vcl == 0:
-        model = GroupKT(
+        model = AmortizedGroupKT(
             mode=global_args.train_mode,
-            num_seq=num_seq,
             num_node=1 if not global_args.multi_node else corpus.n_skills,
             nx_graph=None if not global_args.multi_node else adj,
             device=global_args.device,
@@ -113,7 +112,6 @@ if __name__ == "__main__":
     else:
         model = ContinualGroupKT(
             mode=global_args.train_mode,
-            num_seq=num_seq,
             num_node=1 if not global_args.multi_node else corpus.n_skills,
             nx_graph=None if not global_args.multi_node else adj,
             device=global_args.device,

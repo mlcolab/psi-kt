@@ -1,52 +1,62 @@
-import math, random, sys, os
-import numpy as np
 from collections import defaultdict
-from typing import List, Dict, Tuple, Optional, Union, Any, Callable
+from typing import List, Dict
 
-from tqdm import tqdm
-from enum import Enum
+import numpy as np
 
-import networkx as nx
-
-import ipdb
 import torch
 import torch.nn as nn
 
-from knowledge_tracing.baseline.BaseModel import BaseModel, BaseLearnerModel
+from knowledge_tracing.baseline import *
+from knowledge_tracing.baseline.basemodel import BaseModel, BaseLearnerModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
 
-from baseline import * 
-
-##########################################################################################
-# PPE Model
-##########################################################################################
-
 
 class PPE(BaseLearnerModel):
+    """
+    An implementation of the PPE model, extending the BaseLearnerModel,
+    original paper: https://pubmed.ncbi.nlm.nih.gov/29498437/
+
+    Args:
+        args (object): An object containing arguments related to the model.
+        corpus (DataReader): KT data loader.
+        logs (Logger): The clasee containing all of the logging methods. Defaults to None.
+        lr (float, optional): Learning rate for the model. Defaults to 0.1.
+        variable_x (float, optional): Steepness of weighting for weight each repetition decreases exponentially with time. Defaults to 0.6.
+        variable_b (float, optional): Base level of the decay. Defaults to 0.04.
+        variable_m (float, optional): Slope of the decay. Defaults to 0.08.
+        variable_tau (float, optional): Exponential . Defaults to 0.9.
+        variable_s (float, optional): Exponential temperature. Defaults to 0.04.
+        num_seq (int, optional): Number of sequences. Defaults to 1.
+        num_node (int, optional): Number of nodes. Defaults to 1.
+        mode (str, optional): Mode of operation. Defaults to "ls_split_time".
+        device (str, optional): Device to use (e.g., 'cpu', 'cuda'). Defaults to "cpu".
+
+    """
+
     def __init__(
         self,
         args,
-        corpus,
-        logs=None,
-        lr=0.1,
-        variable_x=0.6,
-        variable_b=0.04,
-        variable_m=0.08,
-        variable_tau=0.9,
-        variable_s=0.04,
-        num_seq=1,
-        num_node=1,
-        mode="ls_split_time",
-        nx_graph=None,
-        device="cpu",
+        corpus: DataReader,
+        logs: logger.Logger = None,
+        lr: float = 0.1,
+        variable_x: float = 0.6,
+        variable_b: float = 0.04,
+        variable_m: float = 0.08,
+        variable_tau: float = 0.9,
+        variable_s: float = 0.04,
+        num_seq: int = 1,
+        num_node: int = 1,
+        mode: str = "ls_split_time",
+        device: torch.device = torch.device("cpu"),
     ):
-        """
-        Args:
-            lr:
-        """
         super().__init__(mode=args.train_mode, device=args.device, logs=logs)
         self.args = args
+        self.logs = logs
+        self.num_node = num_node
+        self.mode = mode
+        self.device = device
+
         if args.multi_node:
             self.num_node = int(corpus.n_skills)
         else:
@@ -57,50 +67,57 @@ class PPE(BaseLearnerModel):
         else:
             self.num_seq = num_seq
 
-        if num_node > 1:
-            self.adj = torch.tensor(nx_graph, device=self.device)
-            # assert(self.adj.shape[-1] == num_node)
-        else:
-            self.adj = None
+        self.lr = torch.tensor(lr, device=device).float()
+        self.variable_x = torch.tensor(variable_x, device=device).float()
+        self.variable_b = torch.tensor(variable_b, device=device).float()
+        self.variable_m = torch.tensor(variable_m, device=device).float()
+        self.variable_tau = torch.tensor(variable_tau, device=device).float()
+        self.variable_s = torch.tensor(variable_s, device=device).float()
 
-        # Training mode choosing
-        class ThetaShape(Enum):
-            SIMPLE_SPLIT_TIME = (1, 1, 1)
-            SIMPLE_SPLIT_LEARNER = (1, 1, 1)
-            LS_SPLIT_TIME = (self.num_seq, 1, 1)
-            NS_SPLIT_TIME = (1, self.num_node, 1)
-            NS_SPLIT_LEARNER = (1, self.num_node, 1)
-            LN_SPLIT_TIME = (self.num_seq, self.num_node, 1)
+    def _init_weights(self) -> None:
+        """
+        Initialize the weights based on the chosen training mode.
 
-        if mode == "synthetic":
-            self.variable_x = torch.tensor(variable_x, device=device).float()
-            self.variable_b = torch.tensor(variable_b, device=device).float()
-            self.variable_m = torch.tensor(variable_m, device=device).float()
-            self.variable_tau = torch.tensor(variable_tau, device=device).float()
-            self.variable_s = torch.tensor(variable_s, device=device).float()
-            self.lr = torch.tensor(lr, device=device).float()
-        else:
+        This method initializes the model's weights based on the selected training mode. It assigns
+        appropriate values to the learning rate, variables related to the mode, and other parameters.
+
+        Note:
+            This method is intended for internal use within the PPE class.
+
+        Raises:
+            ValueError: If an invalid mode is specified.
+
+        """
+
+        if self.mode != "synthetic":
             try:
-                shape = ThetaShape[mode.upper()].value
+                shape = utils.get_theta_shape(self.num_seq, self.num_node, 1)[
+                    self.mode.lower()
+                ].value
             except KeyError:
-                raise ValueError(f"Invalid mode: {mode}")
-            self.lr = self._initialize_parameter(shape, device)
-            self.variable_x = self._initialize_parameter(shape, device)
-            self.variable_b = self._initialize_parameter(shape, device)
-            self.variable_m = self._initialize_parameter(shape, device)
+                raise ValueError(f"Invalid mode: {self.mode}")
+            self.lr = self._initialize_parameter(shape, self.device)
+            self.variable_x = self._initialize_parameter(shape, self.device)
+            self.variable_b = self._initialize_parameter(shape, self.device)
+            self.variable_m = self._initialize_parameter(shape, self.device)
 
-            tau = torch.ones_like(self.lr, device=device) * 0.9
-            s = torch.ones_like(self.lr, device=device) * 0.04
+            tau = torch.ones_like(self.lr, device=self.device) * 0.9
+            s = torch.ones_like(self.lr, device=self.device) * 0.04
             self.variable_tau = nn.Parameter(tau, requires_grad=False)
             self.variable_s = nn.Parameter(s, requires_grad=False)
 
-    def _init_weights(self):
-        pass
-
     def simulate_path(
-        self, x0, t, items=None, stats=None, user_id=None, stats_cal_on_fly=False
-    ):
+        self,
+        x0: torch.Tensor,
+        t: torch.Tensor,
+        items: torch.Tensor = None,
+        stats_cal_on_fly: bool = False,
+        stats: torch.Tensor = None,
+        user_id: int = None,
+    ) -> Dict[str, torch.Tensor]:
         """
+        Simulate the learner model's path over time.
+
         Args:
             x0: shape[num_seq/bs, num_node]; the initial state of the learner model
             t: shape[num_seq/bs, num_time_step]
@@ -142,7 +159,6 @@ class PPE(BaseLearnerModel):
 
         # ----- simulate the path -----
         t = torch.tile(t.unsqueeze(1), (1, num_node, 1))
-        drs = []
         x_pred = [x0.unsqueeze(-1)]
         x_item_pred = [x0[torch.arange(0, num_seq), items[:, 0]][:, None]]
 
@@ -160,7 +176,7 @@ class PPE(BaseLearnerModel):
             )  # [bs, num_node, i]
             lag_mask = lags > 0
             dn = ((1 / torch.log(abs(lags + EPS) + np.e)) * lag_mask).sum(dim=-1) / (
-                cur_repeat + 1 + EPS
+                cur_repeat - 1 + EPS
             )  # [bs, num_node]
             dn = batch_b + batch_m * dn.unsqueeze(-1)  # [bs, num_node, 1]
 
@@ -172,9 +188,9 @@ class PPE(BaseLearnerModel):
             # mask1 = (cur_item_times!=0)
             # small_t *= mask1
             small_t = torch.minimum(small_t, torch.tensor(1e2))
-            big_t = torch.nan_to_num(torch.pow(small_t + EPS, batch_x)) / (
+            big_t = torch.nan_to_num(torch.pow(small_t + EPS, -batch_x)) / (
                 torch.sum(
-                    torch.nan_to_num(torch.pow(small_t + EPS, batch_x)),
+                    torch.nan_to_num(torch.pow(small_t + EPS, -batch_x)),
                     1,
                     keepdims=True,
                 )
@@ -203,23 +219,17 @@ class PPE(BaseLearnerModel):
             # ----- update the stats -----
             if stats_cal_on_fly or self.mode == "synthetic":
                 success = (pn >= 0.5) * 1
-                fail = (pn < 0.5) * 1
 
                 all_feature[torch.arange(num_seq), cur_item, i:, 0] += 1
                 all_feature[torch.arange(num_seq), :, i:, 1] += success
                 all_feature[torch.arange(num_seq), :, i:, 2] += 1 - success
 
-            drs.append(dn)
             x_pred.append(pn)
             x_item_pred.append(pn[torch.arange(num_seq), cur_item])
 
-        # drs = torch.cat(drs, -1) # # [num_seq, num_node, time_step-1]
         x_pred = torch.cat(x_pred, -1)  # [num_seq, num_node, time_step]
         x_item_pred = torch.stack(x_item_pred, -1)
-        params = {
-            # 'decay_rate': drs,
-            "x_item_pred": x_item_pred
-        }
+        params = {"x_item_pred": x_item_pred}
 
         return params
 
@@ -227,7 +237,18 @@ class PPE(BaseLearnerModel):
         self,
         feed_dict: Dict[str, torch.Tensor],
         idx: int = None,
-    ):
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Perform a forward pass of the learner model with continual learning.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data tensors.
+            idx (int, optional): Index for clipping the input sequences. Defaults to None.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing output tensors from the forward pass.
+        """
+
         # Extract input tensors from feed_dict
         cur_feed_dict = {
             "skill_seq": feed_dict["skill_seq"][:, : idx + 1],
@@ -248,6 +269,17 @@ class PPE(BaseLearnerModel):
         feed_dict: Dict[str, torch.Tensor],
         single_step: bool = True,
     ) -> Dict[str, torch.Tensor]:
+        """
+        Perform predictive modeling using the learner model.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data tensors.
+            single_step (bool, optional): Whether to perform single-step prediction. Defaults to True.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing predicted outputs and related information.
+        """
+
         train_step = int(self.args.max_step * self.args.train_time_ratio)
 
         skills = feed_dict["skill_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
@@ -293,7 +325,23 @@ class PPE(BaseLearnerModel):
 
         return out_dict
 
-    def loss(self, feed_dict, out_dict, metrics=None):
+    def loss(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        out_dict: Dict[str, torch.Tensor],
+        metrics: List[str] = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Compute the loss and evaluation metrics for the learner model.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data tensors.
+            out_dict (Dict[str, torch.Tensor]): A dictionary containing output tensors from the model.
+            metrics (List[str], optional): List of evaluation metric names. Defaults to None.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing computed loss values and evaluation metrics.
+        """
         losses = defaultdict(lambda: torch.zeros((), device=self.device))
 
         pred = out_dict["x_item_pred"]

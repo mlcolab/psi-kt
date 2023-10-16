@@ -1,10 +1,4 @@
-# @Date: 2023/07/30
-
-import sys
-
-sys.path.append("..")
-
-import os
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import argparse
@@ -12,22 +6,63 @@ from collections import defaultdict
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from typing import List, Dict, Tuple, Optional, Union, Any, Callable
+from typing import List, Dict, Optional
 
-from knowledge_tracing.baseline.BaseModel import BaseModel
+from knowledge_tracing.baseline import *
+
+from knowledge_tracing.baseline.basemodel import BaseModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
 
-from baseline import * 
-
 
 class HKT(BaseModel):
+    """
+    An implementation of the HKT model, extending the BaseModel.
+
+    This class defines the HKT (Hawkes Knowledge Tracing) model,
+    original paper: https://dl.acm.org/doi/10.1145/3437963.3441802
+
+    Args:
+        args (argparse.Namespace):
+            Namespace containing parsed command-line arguments.
+        corpus (DataReader):
+            An instance of the DataReader class containing corpus data.
+        logs (Logger):
+            An instance of the Logger class for logging purposes.
+
+    Attributes:
+        extra_log_args (List[str]): List of additional arguments to include in logs.
+            These are specific to the HKT model.
+
+    Methods:
+        parse_model_args(parser, model_name="HKT"):
+            Parse HKT-specific model arguments from the command line.
+
+        __init__(args, corpus, logs):
+            Initialize an instance of the HKT class.
+
+    """
+
     extra_log_args = ["time_log"]
 
     @staticmethod
-    def parse_model_args(parser, model_name="HKT"):
+    def parse_model_args(
+        parser: argparse.ArgumentParser,
+        model_name: str = "HKT",
+    ) -> argparse.Namespace:
+        """
+        Parse HKT-specific model arguments from the command line.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+            model_name (str, optional): Name of the model. Defaults to "HKT".
+
+        Returns:
+            argparse.Namespace: Parsed command-line arguments.
+
+        """
+
         parser.add_argument(
             "--emb_size", type=int, default=16, help="Size of embedding vectors."
         )
@@ -55,7 +90,7 @@ class HKT(BaseModel):
         self.args = args
         self.logs = logs
 
-        super().__init__(model_path=os.path.join(args.log_path, "Model/Model_{}_{}.pt"))
+        super().__init__(model_path=Path(args.log_path, "Model/Model_{}_{}.pt"))
 
     def _init_weights(self) -> None:
         """
@@ -91,10 +126,10 @@ class HKT(BaseModel):
             A dictionary containing the output tensors for the model.
         """
 
-        items = feed_dict["skill_seq"]  # [batch_size, seq_len]
-        problems = feed_dict["problem_seq"]  # [batch_size, seq_len]
-        times = feed_dict["time_seq"]  # [batch_size, seq_len]
-        labels = feed_dict["label_seq"]  # [batch_size, seq_len]
+        items = feed_dict["skill_seq"]  # [bs, seq_len]
+        problems = feed_dict["problem_seq"]  # [bs, seq_len]
+        times = feed_dict["time_seq"]  # [bs, seq_len]
+        labels = feed_dict["label_seq"]  # [bs, seq_len]
 
         mask_labels = labels * (labels > -1).long()
         inters = items + mask_labels * self.skill_num  # (bs, seq_len)
@@ -220,33 +255,18 @@ class HKT(BaseModel):
         feed_dict = {
             "skill_seq": torch.from_numpy(
                 utils.pad_lst(skill_seqs)
-            ),  # [batch_size, seq_len] # TODO isn't this -1?
+            ),  
             "label_seq": torch.from_numpy(
                 utils.pad_lst(label_seqs, value=-1)
-            ),  # [batch_size, seq_len]
+            ),  # [bs, seq_len]
             "problem_seq": torch.from_numpy(
                 utils.pad_lst(problem_seqs)
-            ),  # [batch_size, seq_len]
+            ),  # [bs, seq_len]
             "time_seq": torch.from_numpy(
                 utils.pad_lst(time_seqs)
-            ),  # [batch_size, seq_len]
+            ),  # [bs, seq_len]
         }
         return feed_dict
-
-    # This is not used in the current version
-    # def actions_after_train(self):
-    #     joblib.dump(self.alpha_inter_embeddings.weight.data.cpu().numpy(),
-    #                 '../data/{}/alpha_inter_embeddings.npy'.format(self.dataset))
-    #     joblib.dump(self.alpha_skill_embeddings.weight.data.cpu().numpy(),
-    #                 '../data/{}/alpha_skill_embeddings.npy'.format(self.dataset))
-    #     joblib.dump(self.beta_inter_embeddings.weight.data.cpu().numpy(),
-    #                 '../data/{}/beta_inter_embeddings.npy'.format(self.dataset))
-    #     joblib.dump(self.beta_skill_embeddings.weight.data.cpu().numpy(),
-    #                 '../data/{}/beta_skill_embeddings.npy'.format(self.dataset))
-    #     joblib.dump(self.problem_base.weight.data.cpu().numpy(),
-    #                 '../data/{}/problem_base.npy'.format(self.dataset))
-    #     joblib.dump(self.skill_base.weight.data.cpu().numpy(),
-    #                 '../data/{}/skill_base.npy'.format(self.dataset))
 
     def predictive_model(
         self,
@@ -264,12 +284,12 @@ class HKT(BaseModel):
 
         train_step = int(self.args.max_step * self.args.train_time_ratio)
 
-        items = feed_dict["skill_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
+        items = feed_dict["skill_seq"][:, train_step - 1 :]  # [bs, seq_len]
         problems = feed_dict["problem_seq"][
             :, train_step - 1 :
-        ]  # [batch_size, seq_len]
-        times = feed_dict["time_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
-        labels = feed_dict["label_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
+        ]  # [bs, seq_len]
+        times = feed_dict["time_seq"][:, train_step - 1 :]  # [bs, seq_len]
+        labels = feed_dict["label_seq"][:, train_step - 1 :]  # [bs, seq_len]
 
         test_time = items.shape[-1]
         predictions = []

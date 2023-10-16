@@ -1,22 +1,18 @@
-from typing import List, Optional, Type
+from typing import List
 import math
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from torch.nn import Dropout, LayerNorm, Linear, Module, Sequential
+from torch.nn import Dropout, Linear, Module, Sequential
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
-import ipdb
 
-
-"""
-    A simple implementation of Gaussian MLP Encoder and Decoder
-"""
-# https://github.com/Jackson-Kang/Pytorch-VAE-tutorial/blob/master/01_Variational_AutoEncoder.ipynb
 class VAEEncoder(nn.Module):
-    
+    """
+        A simple implementation of Gaussian MLP Encoder and Decoder
+        Modified from https://github.com/Jackson-Kang/Pytorch-VAE-tutorial/blob/master/01_Variational_AutoEncoder.ipynb
+    """
     def __init__(self, input_dim, hidden_dim, latent_dim, tanh=False):
         super(VAEEncoder, self).__init__()
 

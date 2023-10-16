@@ -1,15 +1,13 @@
-# @Date: 2023/07/25
-
 import sys
-
 sys.path.append("..")
 
-import os
 import pickle
 import argparse
-import numpy as np
+from pathlib import Path
 import datetime
 import copy
+
+import numpy as np
 
 import torch
 
@@ -17,8 +15,10 @@ from knowledge_tracing.data import data_loader
 from knowledge_tracing.runner import runner_baseline
 
 from knowledge_tracing.utils import utils, arg_parser, logger
-from knowledge_tracing.baseline import DKT, DKTForgetting, HKT, AKT, HLR, PPE
+from knowledge_tracing.baseline import akt, dkt, hkt, hlr, ppe
 from knowledge_tracing.groupkt import groupkt
+from knowledge_tracing.baseline.HawkesKT import hkt, dktforgetting
+
 
 if __name__ == "__main__":
     # ----- add aditional arguments for this exp. -----
@@ -52,13 +52,13 @@ if __name__ == "__main__":
         logs = logger.Logger(global_args)
 
         # ----- data part -----
-        corpus_path = os.path.join(
+        corpus_path = Path(
             global_args.data_dir,
             global_args.dataset,
             "Corpus_{}.pkl".format(global_args.max_step),
         )
         data = data_loader.DataReader(global_args, logs)
-        if not os.path.exists(corpus_path) or global_args.regenerate_corpus:
+        if not corpus_path.exists() or global_args.regenerate_corpus:
             data.create_corpus()
             data.show_columns()
         corpus = data.load_corpus(global_args)
@@ -91,12 +91,10 @@ if __name__ == "__main__":
 
         # Folder containing the model parameter files
         folder = ""
-        model_folder = os.path.join(folder, "Model")
-        from pathlib import Path
+        model_folder = Path(folder, "Model")
+        Path(folder, "Obj").touch()
 
-        Path(os.path.join(folder, "Obj")).mkdir(parents=True, exist_ok=True)
-
-        for epoch_file in os.listdir(model_folder):
+        for epoch_file in list(model_folder.iterdir()):
             if epoch_file.endswith("90.pt"):
                 # Load model parameters
 
@@ -111,7 +109,7 @@ if __name__ == "__main__":
                     else:
                         cur_model = cur_model.to(global_args.device)
 
-                model_path = os.path.join(model_folder, epoch_file)
+                model_path = Path(model_folder, epoch_file)
                 checkpoint = torch.load(model_path)
                 cur_model.load_state_dict(
                     checkpoint, strict=False
@@ -142,7 +140,7 @@ if __name__ == "__main__":
 
                     save_path = f"predictions_{epoch_file[:-3]}.obj"
 
-                    save_path = os.path.join(folder, "Obj", save_path)
+                    save_path = Path(folder, "Obj", save_path)
                     filehandler = open(save_path, "wb")
                     pickle.dump(outputs, filehandler)
                     filehandler.close()

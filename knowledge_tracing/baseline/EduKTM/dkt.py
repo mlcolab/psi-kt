@@ -1,30 +1,58 @@
-# @Date: 2023/07/25
+import argparse
+from pathlib import Path
+from collections import defaultdict
+from typing import List, Dict, Optional
 
-import sys
-
-sys.path.append("..")
-
-import os
 import numpy as np
 import pandas as pd
-import argparse
-from collections import defaultdict
 
 import torch
 
-from typing import List, Dict, Tuple, Optional, Union, Any, Callable
-
-from knowledge_tracing.baseline.BaseModel import BaseModel
+from knowledge_tracing.baseline.basemodel import BaseModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
 
-from baseline import * 
 
 class DKT(BaseModel):
-    extra_log_args = ["hidden_size", "num_layer"]
+    """
+    An implementation of the DKT model, extending the BaseModel.
+
+    This class defines the DKT (Deep Knowledge Tracing) model,
+    originally proposed in [Piech et al., 2015](https://arxiv.org/abs/1506.05908).
+
+    Args:
+        args (argparse.Namespace):
+            Namespace containing parsed command-line arguments.
+        corpus (DataReader):
+            An instance of the DataReader class containing corpus data.
+        logs (Logger):
+            An instance of the Logger class for logging purposes.
+
+    Attributes:
+        extra_log_args (List[str]): List of additional arguments to include in logs.
+            These are specific to the DKT model.
+
+    """
+
+    extra_log_args = ["hidden_size"]
 
     @staticmethod
-    def parse_model_args(parser, model_name="DKT"):
+    def parse_model_args(
+        parser: argparse.ArgumentParser,
+        model_name: str = "DKT",
+    ) -> argparse.ArgumentParser:
+        """
+        Parse DKT-specific model arguments from the command line.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+            model_name (str, optional): Name of the model. Defaults to "DKT".
+
+        Returns:
+            argparse.Namespace: Parsed command-line arguments.
+
+        """
+
         parser.add_argument(
             "--emb_size", type=int, default=16, help="Size of embedding vectors."
         )
@@ -34,9 +62,6 @@ class DKT(BaseModel):
             default=16,
             help="Size of hidden vectors in LSTM.",
         )
-        parser.add_argument(
-            "--num_layer", type=int, default=1, help="Number of GRU layers."
-        )
         return BaseModel.parse_model_args(parser, model_name)
 
     def __init__(
@@ -45,25 +70,10 @@ class DKT(BaseModel):
         corpus: DataReader,
         logs: logger.Logger,
     ):
-        """
-        Initialize the model.
-
-        This function creates an instance of the model based on the provided arguments.
-
-        Args:
-            args: An object containing the arguments for the model.
-            corpus: An object containing the corpus of data for the model.
-            logs: An object containing the logs for the model.
-
-        Returns:
-            None
-        """
-
         # Set the size of the skill embedding, the hidden size of the LSTM layer, the number of LSTM layers, and the dropout rate
         self.skill_num = int(corpus.n_skills)
         self.emb_size = args.emb_size
         self.hidden_size = args.hidden_size
-        self.num_layer = args.num_layer
         self.dropout = args.dropout
 
         # Set the device to use for computations
@@ -73,14 +83,15 @@ class DKT(BaseModel):
         self.args = args
         self.logs = logs
         BaseModel.__init__(
-            self, model_path=os.path.join(args.log_path, "Model/Model_{}_{}.pt")
+            self, model_path=Path(args.log_path, "Model/Model_{}_{}.pt")
         )
 
     def _init_weights(self) -> None:
         """
         Initialize the weights of the model.
 
-        This function creates the necessary layers of the model and initializes their weights.
+        This function creates and initializes the layers and weights of the learner model,
+        including skill embeddings, an LSTM layer, and an output linear layer.
 
         Returns:
             None
@@ -95,7 +106,6 @@ class DKT(BaseModel):
             input_size=self.emb_size,
             hidden_size=self.hidden_size,
             batch_first=True,
-            num_layers=self.num_layer,
         )
 
         self.out = torch.nn.Linear(self.hidden_size, self.skill_num)
@@ -108,7 +118,7 @@ class DKT(BaseModel):
         idx: int = None,
     ) -> Dict[str, torch.Tensor]:
         """
-        Forward pass for the ontinual learning task, given the input feed_dict and the current time index.
+        Forward pass for the continual learning task, given the input feed_dict and the current time index.
 
         Args:
             feed_dict: A dictionary containing the input tensors for the model.
@@ -167,6 +177,17 @@ class DKT(BaseModel):
         feed_dict: Dict[str, torch.Tensor],
         idx: int = None,
     ) -> Dict[str, torch.Tensor]:
+        """
+        Evaluate the learner model's performance.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data tensors.
+            idx (int, optional): Index of the evaluation batch. Defaults to None.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing evaluation results.
+        """
+
         raise NotImplementedError
 
     def forward(
@@ -206,7 +227,6 @@ class DKT(BaseModel):
         output, _ = self.rnn(embed_history_i_packed, None)  # [bs, time, emb_size]
 
         # Unpack the output of the RNN and run it through the output layer
-        # output, _ = torch.nn.utils.rnn.pad_packed_sequence(output, batch_first=True) # output.data [bs, time-1, emb_size]
         pred_vector = self.out(output)  # [bs, time, skill_num]
 
         # Extract the prediction for the next item and the corresponding label
@@ -294,9 +314,7 @@ class DKT(BaseModel):
             "prediction": prediction,
             "label": label,
             "emb": hiddens,
-            "item": items,
-            "time": feed_dict["time_seq"],
-        }  # TODO
+        }
 
         return out_dict
 
@@ -327,8 +345,6 @@ class DKT(BaseModel):
 
         # Compute the loss for the main prediction task
         predictions, labels = out_dict["prediction"][indice], out_dict["label"][indice]
-        # predictions = torch.nn.utils.rnn.pack_padded_sequence(predictions, lengths, batch_first=True).data
-        # labels = torch.nn.utils.rnn.pack_padded_sequence(labels, lengths, batch_first=True).data
         loss = self.loss_function(predictions, labels.float())
         losses["loss_total"] = loss
 

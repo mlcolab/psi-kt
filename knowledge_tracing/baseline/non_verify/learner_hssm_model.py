@@ -1,10 +1,6 @@
-import sys
-
-sys.path.append("..")
-
 import math
 import argparse
-from typing import List, Dict, Tuple, Optional, Union, Any, Callable
+from typing import List, Dict, Tuple, Optional
 
 import torch
 from torch import nn, distributions
@@ -12,20 +8,11 @@ from torch.nn import functional as F
 
 from collections import defaultdict
 
-import ipdb
 
-from models.modules import build_rnn_cell
-from baseline.BaseModel import BaseModel
-from models.learner_model import BaseLearnerModel
-from models.new_learner_model import build_dense_network
-from models.modules import CausalTransformerModel, VAEEncoder
-from models.variational_distributions import VarTransformation
-
-
-torch.autograd.set_detect_anomaly(True)
-
-EPS = 1e-6
-T_SCALE = 60 * 60 * 24
+from knowledge_tracing import *
+from knowledge_tracing.groupkt.modules import *
+from knowledge_tracing.baseline.basemodel import BaseModel, BaseLearnerModel
+from knowledge_tracing.groupkt.groupkt_graph_representation import VarTransformation
 
 
 class HSSM(BaseLearnerModel):
@@ -41,14 +28,13 @@ class HSSM(BaseLearnerModel):
     ):
         super().__init__(mode=mode, device=device, logs=logs)
 
-        self.dim_y, self.dim_z, self.dim_s = 1, 1, 3
+        self.dim_y = 1
+        self.dim_z = 1
+        self.dim_s = 3
 
-        (
-            self.fit_vi_global_s,
-            self.fit_vi_transition_s,
-            self.infer_global_s,
-            self.infer_transition_s,
-        ) = (0, 0, 0, 1)
+        self.fit_vi_global_s = self.fit_vi_transition_s = self.infer_global_s = 0
+        self.infer_transition_s = 1
+        
         self.user_time_dependent_covariance = 1
         self.diagonal_std, self.lower_tri_std = 1, 0
 
@@ -1382,304 +1368,4 @@ class GraphHSSM(HSSM):
             losses["ou_gamma"] = outdict["sampled_s"][..., 3].mean()
         return losses
 
-    # def s_transition_fit(self, feed_dict, num_sample=1): # FLAG
-    #     '''
-    #     Args:
-    #         inputs: [y, t, user_id]
-    #         num_sample: number of samples for each time step
-    #     Return:
 
-    #     '''
-
-    #     user_id = feed_dict['user_id']
-    #     bs, time_step = feed_dict['time_seq'].shape
-    #     num_node = 1 # self.num_node
-
-    #     # ----- initial samples -----
-    #     self.s0_dist = self._construct_normal_from_mean_std(
-    #                 mean=self.gen_s0_mean,
-    #                 std=self.s0_scale
-    #             )
-    #     s0_sample = self.s0_dist.rsample((num_sample,)).unsqueeze(2) # [n, 1, dim_s]
-    #     s0_sample = torch.tile(s0_sample, (1, bs, num_node, 1)) # [n, bs, num_node, dim_s]
-
-    #     # ----- calculate time difference -----
-    #     input_t = feed_dict['time_seq'].unsqueeze(1)
-    #     dt = torch.diff(input_t, dim=-1)/T_SCALE + EPS  # [bs, 1, num_steps-1]
-    #     dt = torch.tile(dt, (1, num_node, 1))
-    #     if self.user_time_dependent_covariance:
-    #         cov_scale = dt / torch.min(dt,1,True)[0] # TODO
-    #     else:
-    #         cov_scale = torch.ones_like(dt)
-    #     cov_scale = cov_scale.unsqueeze(0) # [1, bs, num_node, num_steps-1]
-    #     cov_time_scale = 1/(cov_scale + EPS)
-
-    #     # ----- direcly fit -----
-    #     if self.fit_vi_transition_s:
-    #         # ----- adapt to different modes -----
-    #         if 'simple' in self.mode:
-    #             user_id = Ellipsis
-    #         elif 'ls_' in self.mode or 'ln_' in self.mode:
-    #             user_id = user_id
-
-    #         s_trans_mean_user_wise = self.s_trans_mean[user_id][None,...] # [1, bs, num_node, dim_s]
-    #         s_trans_std_user_wise = self.s_trans_scale[user_id][None,...]
-
-    #         # set the list to store the samples
-    #         samples = [s0_sample]
-    #         mus = [self.gen_s0_mean.reshape(1,1,1,self.dim_s).repeat(num_sample, bs, num_node, 1)]
-    #         stds = [self.s0_scale.reshape(1,1,1,self.dim_s,self.dim_s).repeat(num_sample, bs, num_node, 1, 1)]
-    #         entropies = [self.s0_dist.entropy()[None,...].repeat(num_sample, bs)] # what size should it be? for now [n, bs]
-    #         log_probs = [self.s0_dist.log_prob(s0_sample[:,:,0])] # [n, bs]
-
-    #         # sequentially sample from the multivariate Normal distribution
-    #         s_last = s0_sample
-    #         for step in range(time_step-1):
-    #             # ipdb.set_trace()
-    #             # mu is elementwise multiplication of self.s_trans_mean and s_last
-    #             mu = s_trans_mean_user_wise * s_last
-    #             std =  s_trans_std_user_wise * cov_time_scale[...,step:step+1,None] # TODO
-    #             std = torch.tile(std, (num_sample, 1,1,1,1)) # [n, bs, dim_s, dim_s]
-
-    #             dist = self._construct_normal_from_mean_std(mu, std)
-    #             sample = dist.rsample()
-
-    #             # append the sample, mean and covariance matrix to the list
-    #             s_last = sample
-    #             samples.append(sample)
-    #             mus.append(mu)
-    #             stds.append(std)
-    #             entropies.append(dist.entropy().mean(-1)) # [n, bs]
-    #             log_probs.append(dist.log_prob(sample).mean(-1)) # [n, bs]
-
-    #         # convert the list to the tensor
-    #         s_sampled = torch.stack(samples, -2) # [n, bs, num_node, times, dim_s]
-    #         mus = torch.stack(mus, -2) # [n, bs, num_node, times, dim_s]
-    #         stds = torch.stack(stds, -3) # [n, bs, num_node, times, dim_s, dim_s]
-    #         s_entropy = torch.stack(entropies, -1) # [n, bs, num_node, times]
-    #         s_log_prob_q = torch.stack(log_probs, -1) # [n, bs, num_node, times]
-
-    #         rnn_states = None
-
-    #     elif self.infer_global_s:
-    #         t_inputs = (inputs[1]-inputs[1][:,0:1])/(inputs[1][:,-1:]-inputs[1][:,0:1])
-    #         mc_t_inputs = torch.tile(t_inputs, (num_sample, 1,1)).float()
-    #         mc_y_inputs = torch.tile(inputs[0], (num_sample, 1,1)).float() # [bs, times, 1]
-    #         mc_yt_inputs = torch.cat([mc_y_inputs, mc_t_inputs], -1) # [bs, times, 1]
-
-    #         out1, out2 = self.infer_network_emb(mc_yt_inputs) # out1: [bs, time, rnn_hid_dim*2]
-    #         out1 = torch.reshape(out1, (bs*num_sample, 1, -1))
-
-    #         dist = self.network_posterior_mean_mlp_s(out1)
-    #         mus = dist[..., :3]
-    #         covs = torch.pow(dist[..., 3:], 2) + EPS
-
-    #         output_dist = distributions.multivariate_normal.MultivariateNormal(
-    #                 loc = mus, scale_tril=torch.tril(torch.diag_embed(covs)))
-
-    #         s_sampled = output_dist.rsample()
-    #         s_entropy = output_dist.entropy()
-    #         s_log_probs = output_dist.log_prob(s_sampled)
-
-    #         s_sampled = s_sampled.reshape(num_sample, bs, 1, self.dim_s)
-    #         s_entropy = s_entropy.reshape(num_sample, bs, -1)
-    #         s_log_probs = s_log_probs.reshape(num_sample, bs, -1)
-    #         rnn_states = out1.reshape(num_sample, bs, num_steps, -1)
-
-    #     num_s_steps= s_sampled.shape[-2]
-    #     s_sampled = torch.reshape(s_sampled, [self.num_sample * bs, num_node, num_s_steps, self.dim_s])
-    #     s_entropy = torch.reshape(s_entropy, [self.num_sample * bs, num_s_steps])
-    #     s_log_prob_q = torch.reshape(s_log_prob_q, [self.num_sample * bs, num_s_steps])
-    #     mus = torch.reshape(mus, [self.num_sample * bs, num_node, num_s_steps, self.dim_s])
-    #     stds = torch.reshape(stds, [self.num_sample * bs, num_node, num_s_steps, self.dim_s, self.dim_s])
-
-    #     return s_sampled, s_entropy, s_log_prob_q, rnn_states, mus, stds
-
-    # def s_transition_calc(self, inputs, num_sample=1):
-    #     '''
-    #     Args:
-    #         inputs: [t, s]
-    #         s_sampled: [num_sample * bs, num_steps, s_dim]
-    #         input_y, input_t: [bs, times, 1]
-    #     '''
-    #     # ipdb.set_trace()
-    #     feed_dict, s_sampled = inputs
-    #     input_t = feed_dict['time_seq']
-    #     items = feed_dict['skill_seq']
-    #     bs, num_steps = input_t.shape
-    #     num_seq = bs
-    #     bsn, num_node, num_s_steps, _ = s_sampled.shape
-    #     assert(num_sample == int(bsn // bs))
-
-    #     # ----- calculate time difference -----
-    #     input_t = input_t.unsqueeze(1)
-    #     dt = torch.diff(input_t, dim=-1)/T_SCALE + EPS
-
-    # def z_transition_calculate(self, inputs, num_sample=1): # FLAG
-    # '''
-    # Args:
-    #     inputs: [t, s]
-    #     s_sampled: [num_sample * bs, num_steps, s_dim]
-    #     input_y, input_t: [bs, times, 1]
-    # '''
-    # # ipdb.set_trace()
-    # feed_dict, s_sampled = inputs
-    # input_t = feed_dict['time_seq']
-    # items = feed_dict['skill_seq']
-    # bs, num_steps = input_t.shape
-    # num_seq = bs
-    # bsn, num_node, num_s_steps, _ = s_sampled.shape
-    # assert(num_sample == int(bsn // bs))
-
-    # # ----- calculate time difference -----
-    # input_t = input_t.unsqueeze(1)
-    # dt = torch.diff(input_t, dim=-1)/T_SCALE + EPS  # [bs, 1, num_steps-1]
-    # dt = torch.tile(dt, (num_sample, num_node, 1)).unsqueeze(-1)
-    # if self.user_time_dependent_covariance:
-    #     cov_scale = dt / torch.min(dt,1,True)[0] # TODO
-    # else:
-    #     cov_scale = torch.ones_like(dt)
-    # cov_scale = cov_scale.unsqueeze(0) # [1, bs, num_node, num_steps-1]
-    # cov_time_scale = 1/(cov_scale + EPS)
-
-    # # ----- calculate the mean and variance of z -----
-    # s_device = s_sampled.device
-    # dt = dt.to(s_device)
-    # s_sampled = s_sampled[:,:,1:] # [bsn, num_node, num_s_steps-1, dim_s]
-    # sampled_alpha = torch.relu(s_sampled[..., 0:1]) + EPS
-    # sampled_mean = s_sampled[..., 1:2]
-    # sampled_vola = s_sampled[..., 2:3]
-    # sampled_var = torch.pow(sampled_vola, 2) * torch.exp(- sampled_alpha * dt) + EPS
-    # sampled_gamma = torch.sigmoid(s_sampled[..., 3:4])
-    # omega = 0.5
-
-    # # ----- initial samples -----
-    # # ipdb.set_trace()
-    # self.z0_dist = self._construct_normal_from_mean_std(mean=self.gen_z0_mean, std=self.z0_scale)
-    # z0 = self.z0_dist.rsample((num_sample, )) # [n, num_node, 1]
-    # z0 = torch.tile(z0, (bs, num_node, 1)).to(s_device)
-    # z_mean = [torch.tile(z0, (1, self.num_node, 1))]
-    # z0_var = torch.tile(self.z0_dist.covariance_matrix, (bsn, num_node, 1)).to(s_device)
-    # z_var = torch.cat([z0_var.unsqueeze(-1), sampled_var], -2) # [bs*n, num_node, num_steps, 1]
-
-    # # ----- simulate path -----
-    # adj = self.adj.float()
-    # adj_t = torch.transpose(adj, -1, -2).to(s_device) # TODO test with multiple power of adj
-    # in_degree = adj_t.sum(dim=-1)
-    # ind = torch.where(in_degree == 0)[0] # [284,]
-
-    # z_last = z0.tile((1,self.num_node,1)) # [bs*n, num_node, 1]
-    # for i in range(0, num_steps-1):
-    #     empower = torch.einsum('ij, ajm->aim', adj_t, z_last) # [bs*n, num_node, 1]
-    #     empower = (1/(in_degree[None, :, None] + EPS)) * sampled_gamma[:,:,i] * empower # [bs*n, num_node, 1]
-    #     empower[:,ind] = 0
-    #     # stable = torch.pow((success_last/(num_last+eps)), self.rho)
-    #     stable = sampled_mean[:,:,i] # [bs*n, num_node, 1
-    #     tmp_mean_level = omega * empower + (1-omega) * stable
-    #     decay = torch.exp(- sampled_alpha[:,:,i] * dt[:,:,i])
-    #     mean = z_last * decay + (1.0 - decay) * tmp_mean_level
-    #     z_last = mean
-    #     z_mean.append(mean)
-
-    # z_mean = torch.stack(z_mean, -2) # [bs*n, num_node, num_steps, 1]
-    # # z_var = [bs*n, 1, num_steps, 1]
-    # output_dist = distributions.multivariate_normal.MultivariateNormal(loc=z_mean, scale_tril=torch.tril(torch.diag_embed(z_var)))
-    # z_sampled = output_dist.rsample() # [bs*n, num_node, num_steps, 1]
-    # z_entropy = output_dist.entropy().mean(-2) # [bs*n, num_steps]
-    # z_log_prob_q = output_dist.log_prob(z_sampled).mean(-2) # [bs*n, num_steps]
-
-    # return z_sampled, z_entropy, z_log_prob_q, z_mean, z_var
-
-    # def inference_model(self):
-    #     pass
-
-    # def generative_model(self, past_states, future_timestamps, steps, num_sample=1):
-    #     '''
-    #     Args:
-    #         past_states:
-
-    #     '''
-    #     outputs = []
-    #     s_last, z_last, y_last = past_states
-    #     for t in range(0, steps):
-    #         s_next = self.s_tran(s_last, [y_last], 'nonlinear_input').mean # or sample  # [bs, 1, 3]
-    #         z_next = self.z_tran(z_last, [s_next, future_timestamps[:, t:t+2]], 'OU_vola').mean
-
-    #         y_next = self.get_reconstruction(
-    #             z_next,
-    #             observation_shape=z_next.shape,
-    #             sample_for_reconstruction=True,
-    #             sample_hard=True,
-    #         )
-
-    #         y_last = y_next
-    #         z_last = z_next
-    #         s_last = s_next
-
-    #         outputs.append((s_next, z_next, y_next))
-
-    #     pred_y = torch.cat([outputs[i][2] for i in range(len(outputs))], 1) # [n, pred_step, 1]
-    #     pred_z = torch.cat([outputs[i][1] for i in range(len(outputs))], 1)
-    #     pred_s = torch.cat([outputs[i][0] for i in range(len(outputs))], 1)
-    #     # ipdb.set_trace()
-    #     return [pred_s, pred_z, pred_y]
-
-    # def _construct_initial_state_distribution(
-    #     self,
-    #     latent_dim,
-    #     z0_mean=None,
-    #     z0_scale=None,
-    #     config=None,
-    #     device='cpu'):
-    #     """
-    #     Construct the initial state distribution, `p(s_0) or p(z_0)`.
-    #     Args:
-    #         latent_dim:  an `int` scalar for dimension of continuous hidden states, `z`.
-    #         num_categ:   an `int` scalar for number of discrete states, `s`.
-
-    #         use_trainable_cov:  a `bool` scalar indicating whether the scale of `p(z[0])` is trainable. Default to False.
-    #         raw_sigma_bias:     a `float` scalar to be added to the raw sigma, which is standard deviation of the
-    #                                 distribution. Default to `0.`.
-    #         sigma_min:          a `float` scalar for minimal level of sigma to prevent underflow. Default to `1e-5`.
-    #         sigma_scale:        a `float` scalar for scaling the sigma. Default to `0.05`. The above three arguments
-    #                                 are used as `sigma_scale * max(softmax(raw_sigma + raw_sigma_bias), sigma_min))`.
-
-    #         dtype: data type for variables within the scope. Default to `torch.float32`.
-    #         name: a `str` to construct names of variables.
-
-    #     Returns:
-    #         return_dist: a `tfp.distributions` instance for the initial state
-    #         distribution, `p(z[0])`.
-    #     """
-    #     use_trainable_cov = False
-    #     raw_sigma_bias = 0.0
-    #     sigma_min = 1e-5
-    #     sigma_scale = 0.05
-
-    #     if z0_mean == None:
-    #         z0_mean = torch.empty(1, latent_dim, device=self.device)
-    #         z0_mean = torch.nn.init.xavier_uniform_(z0_mean)[0]
-    #         z0_mean = Parameter(z0_mean, requires_grad=True)
-
-    #     if z0_scale == None:
-    #         m = torch.empty(int(latent_dim * (latent_dim + 1) / 2), 1, device=self.device)
-    #         m = torch.nn.init.xavier_uniform_(m)
-    #         z0_scale = torch.zeros((latent_dim, latent_dim), device=self.device)
-    #         tril_indices = torch.tril_indices(row=latent_dim, col=latent_dim, offset=0)
-
-    #         z0_scale[tril_indices[0], tril_indices[1]] += m[:, 0]
-    #         z0_scale = Parameter(z0_scale, requires_grad=use_trainable_cov)
-
-    #     if latent_dim == 1:
-    #         z0_scale = (torch.maximum((z0_scale + raw_sigma_bias), # TODO is this correct?
-    #                             torch.tensor(sigma_min)) * sigma_scale)
-    #         dist = distributions.multivariate_normal.MultivariateNormal(
-    #             loc = z0_mean, covariance_matrix=z0_scale)
-    #     else:
-    #         z0_scale = (torch.maximum(F.softmax(z0_scale + raw_sigma_bias, dim=-1),
-    #                             torch.tensor(sigma_min)) * sigma_scale)
-    #         dist = distributions.multivariate_normal.MultivariateNormal(
-    #             loc = z0_mean, scale_tril=torch.tril(z0_scale)
-    #             )
-
-    #     return dist

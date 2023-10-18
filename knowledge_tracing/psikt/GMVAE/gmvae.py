@@ -14,7 +14,7 @@ import torch.nn.init as init
 from torch import nn
 from torch.nn import functional as F
 
-from knowledge_tracing.groupkt import *
+from knowledge_tracing.psikt import *
 
 DIM = 64
 

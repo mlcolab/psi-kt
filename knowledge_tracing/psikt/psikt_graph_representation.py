@@ -7,7 +7,7 @@ from torch import nn
 import torch.distributions as td
 import torch.nn.functional as F
 
-from knowledge_tracing.groupkt.GMVAE import EPS
+from knowledge_tracing.psikt.GMVAE import EPS
 
 
 class VarGT(nn.Module):

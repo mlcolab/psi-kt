@@ -9,19 +9,19 @@ from torch import nn, distributions
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.nn import functional as F
 
-from knowledge_tracing.groupkt import *
-from knowledge_tracing.groupkt.modules import build_dense_network, VAEEncoder
-from knowledge_tracing.groupkt.groupkt_graph_representation import VarTransformation
-from knowledge_tracing.groupkt.GMVAE.gmvae import *
+from knowledge_tracing.psikt import *
+from knowledge_tracing.psikt.modules import build_dense_network, VAEEncoder
+from knowledge_tracing.psikt.psikt_graph_representation import VarTransformation
+from knowledge_tracing.psikt.GMVAE.gmvae import *
 from knowledge_tracing.utils.logger import Logger
 from knowledge_tracing.baseline.basemodel import BaseModel
 
 
-class GroupKT(BaseModel):
+class PSIKT(BaseModel):
     """
-    Group Knowledge Tracing Model.
+    PSI Knowledge Tracing Model.
 
-    This class represents a Group Knowledge Tracing model used for training with different modes.
+    This class represents a PSI Knowledge Tracing model used for training with different modes.
 
     Args:
         mode (str): The training mode. Examples include 'train' and 'ls_split_time'.
@@ -32,7 +32,7 @@ class GroupKT(BaseModel):
         logs: Logs for the model.
 
     Usage:
-    >>> group_kt_model = GroupKT(mode, num_node, nx_graph, device, args, logs)
+    >>> psi_kt_model = PSIKT(mode, num_node, nx_graph, device, args, logs)
     """
 
     def __init__(
@@ -331,9 +331,9 @@ class GroupKT(BaseModel):
         pass
 
 
-class AmortizedGroupKT(GroupKT):
+class AmortizedPSIKT(PSIKT):
     """
-    An instance of AmortizedGroupKT.
+    An instance of AmortizedPSIKT.
 
     Args:
         mode (str): The mode for initialization (default: "ls_split_time").
@@ -1141,3 +1141,50 @@ class AmortizedGroupKT(GroupKT):
             label=label[:, None, :, None],  # [bs, 1, time, 1]
             sampled_s=qs_sampled,
         )
+
+
+class ContinualPSIKT(AmortizedPSIKT):
+    """
+    An instance of AmortizedPSIKT.
+
+    Args:
+        mode (str): The mode for initialization (default: "ls_split_time").
+        num_node (int): The number of nodes (default: 1).
+        args (argparse.Namespace): Command-line arguments (default: None).
+        device (torch.device): The device to use (default: torch.device("cpu")).
+        logs (Logger): Logger object for logging (default: None).
+        nx_graph (np.ndarray): NumPy array for the graph (default: None).
+    """
+
+    def __init__(
+        self,
+        mode: str = "ls_split_time",
+        num_node: int = 1,
+        args: argparse.Namespace = None,
+        device: torch.device = torch.device("cpu"),
+        logs: Logger = None,
+        nx_graph: numpy.ndarray = None,
+    ):
+        self.num_node = num_node
+
+        # specify dimensions of all latents
+        self.node_dim = args.node_dim
+        self.emb_mean_var_dim = 16
+
+        self.var_log_max = torch.tensor(args.var_log_max)
+        self.num_category = args.num_category
+        self.time_dependent_s = args.time_dependent_s
+        self.learned_graph = args.learned_graph
+
+        # initialize graph parameters
+        if self.learned_graph == "none" or self.num_node == 1:
+            self.dim_s, self.dim_z = 3, 1
+        else:
+            self.dim_s, self.dim_z = 4, 1
+            self.adj = torch.tensor(nx_graph)
+            assert self.adj.shape[-1] >= num_node
+
+        self.qs_temperature = 1.0
+        self.qs_hard = 0
+
+        super().__init__(mode, num_node, nx_graph, device, args, logs)

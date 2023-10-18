@@ -11,10 +11,10 @@ from knowledge_tracing.utils import utils
 from knowledge_tracing.runner import OPTIMIZER_MAP
 from knowledge_tracing.runner.runner import KTRunner
 from knowledge_tracing.data.data_loader import DataReader
-from knowledge_tracing.groupkt.groupkt import * 
+from knowledge_tracing.psikt.psikt import * 
 
 
-class GroupKTRunner(KTRunner):
+class PSIKTRunner(KTRunner):
     '''
     This implements the training loop, testing & validation, optimization etc. 
     '''

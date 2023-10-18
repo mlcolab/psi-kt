@@ -11,9 +11,9 @@ import numpy as np
 import torch
 
 from knowledge_tracing.data import data_loader
-from knowledge_tracing.runner import runner_groupkt, runner_vcl
+from knowledge_tracing.runner import runner_psikt, runner_vcl
 from knowledge_tracing.utils import utils, arg_parser, logger
-from knowledge_tracing.groupkt.groupkt import GroupKT, ContinualGroupKT, AmortizedGroupKT
+from knowledge_tracing.psikt.psikt import PSIKT, ContinualPSIKT, AmortizedPSIKT
 
 def global_parse_args():
     """
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     adj = np.load(global_args.graph_path)
 
     if global_args.vcl == 0:
-        model = AmortizedGroupKT(
+        model = AmortizedPSIKT(
             mode=global_args.train_mode,
             num_node=1 if not global_args.multi_node else corpus.n_skills,
             nx_graph=None if not global_args.multi_node else adj,
@@ -110,7 +110,7 @@ if __name__ == "__main__":
             logs=logs,
         )
     else:
-        model = ContinualGroupKT(
+        model = ContinualPSIKT(
             mode=global_args.train_mode,
             num_node=1 if not global_args.multi_node else corpus.n_skills,
             nx_graph=None if not global_args.multi_node else adj,
@@ -118,20 +118,6 @@ if __name__ == "__main__":
             args=global_args,
             logs=logs,
         )
-    # shutil.copy(
-    #     "/home/mlcolab/hzhou52/knowledge_tracing/models/HSSM.py",
-    #     global_args.log_path,
-    # )
-    # shutil.copy(
-    #     "/home/mlcolab/hzhou52/knowledge_tracing/models/learner_hssm_vcl_model.py",
-    #     global_args.log_path,
-    # )
-    # shutil.copy(
-    #     "/home/mlcolab/hzhou52/knowledge_tracing/VCLRunner.py", global_args.log_path
-    # )
-    # shutil.copy(
-    #     "/home/mlcolab/hzhou52/knowledge_tracing/KTRunner.py", global_args.log_path
-    # )
 
     if global_args.load > 0:
         model.load_model(model_path=global_args.load_folder)
@@ -151,7 +137,7 @@ if __name__ == "__main__":
     if global_args.vcl:
         runner = runner_vcl.VCLRunner(global_args, logs)
     else:
-        runner = runner_groupkt.GroupKTRunner(global_args, logs)
+        runner = runner_psikt.PSIKTRunner(global_args, logs)
 
 runner.train(model, corpus)
 logs.write_to_log_file(

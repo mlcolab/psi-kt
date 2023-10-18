@@ -74,7 +74,6 @@ def qs_dist():
     qs_dist = torch.distributions.MultivariateNormal(qs_mean, torch.diag_embed(qs_cov_mat))
     return qs_dist
 
-
 # Test the _init_weights method
 def test_init_weights(groupkt):
     # Call the _init_weights method
@@ -151,7 +150,7 @@ def test_positional_encoding1d(groupkt):
     # Check if the positional encoding matrix values are close to the expected values
     assert torch.allclose(pe, expected_pe, atol=1)
     
-    
+
 def test_st_transition_gen(groupkt, qs_dist):
     bs, _, time, _ = qs_dist.mean.shape
     
@@ -182,3 +181,15 @@ def test_st_transition_gen(groupkt, qs_dist):
     
     # new_dist = torch.distributions.MultivariateNormal(ps_dist_mean[:,:,1:], ps_dist_cov_mat[:,:,1:])
     # assert new_dist.log_prob(qs_sample_transition_mean).mean() > -1e-1
+    
+    
+def test_zt_transition_gen(groupkt):
+    # Prepare test data
+    feed_dict = {"time_seq": torch.tensor([[0.0, 1.0, 2.0], [0.0, 2.0, 4.0]])}  # Replace with appropriate data
+    # Prepare other required arguments if necessary
+
+    # Call the function
+    pz_dist = groupkt.zt_transition_gen(feed_dict)
+
+    # Add assertions to check if the output is as expected
+    assert isinstance(pz_dist, torch.distributions.MultivariateNormal)

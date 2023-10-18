@@ -63,7 +63,7 @@ class Logger:
         """
         args.log_path = Path(args.save_folder, add_path_var, args.model_name, args.dataset,
                                      f"{args.time}_{args.expername}_overfit_{args.overfit}")
-        args.log_path.touch()
+        args.log_path.mkdir(parents=True, exist_ok=True)
 
         self.log_file = Path(args.log_path, "log.txt")
         self.write_to_log_file(args)

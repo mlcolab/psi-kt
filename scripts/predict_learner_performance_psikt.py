@@ -40,6 +40,11 @@ def global_parse_args():
         default=10,
         help="number of samples when we use MC for non-analytical solution",
     )
+    parser.add_argument(
+        "--node_dim",
+        type=int,
+        default=16,
+    )
     parser.add_argument('--em_train', type=int, default=0)
 
     return parser
@@ -65,7 +70,7 @@ if __name__ == "__main__":
     if not corpus_path.exists() or global_args.regenerate_corpus:
         data.create_corpus()
         data.show_columns()
-    corpus = data.load_corpus()
+    corpus = data.load_corpus(global_args)
 
     # ----- logger information -----
     log_args = [

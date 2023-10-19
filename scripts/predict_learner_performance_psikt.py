@@ -46,6 +46,8 @@ def global_parse_args():
         default=16,
     )
     parser.add_argument('--em_train', type=int, default=0)
+    parser.add_argument('--var_log_max', type=int, default=10)
+    parser.add_argument('--num_category', type=int, default=10)
 
     return parser
 

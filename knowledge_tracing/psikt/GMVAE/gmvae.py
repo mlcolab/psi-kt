@@ -66,7 +66,7 @@ class InferenceNet(nn.Module):
             concat = layer(concat)
         return concat
   
-    def forward(self, inputs, temperature=1.0, hard=0, time_dependent_s=False):
+    def forward(self, inputs, temperature=1.0, hard=0, time_dependent_s=True):
         input_faltten = inputs.reshape(inputs.size(0), -1) 
 
         w_logits, w_prob, w_sample = self.qyx(input_faltten, temperature, hard) # [bs, num_categories]

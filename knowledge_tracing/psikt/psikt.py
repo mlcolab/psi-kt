@@ -361,7 +361,6 @@ class AmortizedPSIKT(PSIKT):
 
         self.var_log_max = torch.tensor(args.var_log_max)
         self.num_category = args.num_category
-        self.time_dependent_s = args.time_dependent_s
         self.learned_graph = args.learned_graph
 
         # initialize graph parameters
@@ -625,11 +624,6 @@ class AmortizedPSIKT(PSIKT):
         #     samples = qs_dist.rsample((self.num_sample,)) # [n, bs, time, dim_s]
         #     qs_sampled = samples.transpose(1,0).reshape(bsn, 1, num_steps, self.dim_s)
 
-        # if self.time_dependent_s:
-        #     qst_sampled = qs_sampled[:,:,1:] # [bsn, 1, num_steps-1, dim_s]
-        # else:
-        #     qst_sampled = qs_sampled # TODO should repeat time-1 times
-
         if not eval:
             self.register_buffer("pz_decay", pz_ou_decay.clone().detach())
             self.register_buffer("pz_empower", pz_empower.clone().detach())
@@ -664,7 +658,6 @@ class AmortizedPSIKT(PSIKT):
             emb_inputs,
             self.qs_temperature,
             self.qs_hard,
-            self.time_dependent_s,
         )
 
         s_category = qs_out_inf["categorical"]  # [bs, 1, num_cat]
@@ -774,7 +767,7 @@ class AmortizedPSIKT(PSIKT):
             node_emb = self.node_dist._get_node_embedding()[item]  # [bs, times, dim]
             emb_input = torch.cat([node_emb, y_emb], dim=-1)  # [bs, times, dim*2]
             emb_history = self.infer_network_emb(emb_input)
-
+        
         return emb_history
 
     def inference_process(
@@ -1173,7 +1166,6 @@ class ContinualPSIKT(AmortizedPSIKT):
 
         self.var_log_max = torch.tensor(args.var_log_max)
         self.num_category = args.num_category
-        self.time_dependent_s = args.time_dependent_s
         self.learned_graph = args.learned_graph
 
         # initialize graph parameters

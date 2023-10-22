@@ -25,15 +25,9 @@ class InferenceNet(nn.Module):
 
         # q(class|input)
         self.inference_qyx = torch.nn.ModuleList([
-            nn.LSTM(
-                input_size=in_dim,  
-                hidden_size=in_dim * 2,
-                bidirectional=False,
-                batch_first=True,
-            ),
-            nn.Linear(in_dim*2, in_dim),
+            nn.Linear(in_dim * time_step, DIM),
             nn.LeakyReLU(0.2),
-            nn.Linear(in_dim, DIM),
+            nn.Linear(DIM, DIM),
             nn.LeakyReLU(0.2),
             GumbelSoftmax(DIM, cate_dim)
         ])
@@ -68,7 +62,6 @@ class InferenceNet(nn.Module):
   
     def forward(self, inputs, temperature=1.0, hard=0, time_dependent_s=True):
         input_faltten = inputs.reshape(inputs.size(0), -1) 
-
         w_logits, w_prob, w_sample = self.qyx(input_faltten, temperature, hard) # [bs, num_categories]
 
         if time_dependent_s:
@@ -160,12 +153,8 @@ class GenerativeNet(nn.Module):
         """
         # p(z|y)
         y_mu, y_var = self.pzy(y)
-
-        # p(x|z)
-        # x_rec = self.pxz(z)
-        x_rec = None
-
-        output = {"y_mean": y_mu, "y_var": y_var, "x_rec": x_rec}
+        
+        output = {"y_mean": y_mu, "y_var": y_var}
         return output
 
 

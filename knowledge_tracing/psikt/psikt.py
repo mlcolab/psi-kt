@@ -767,7 +767,7 @@ class AmortizedPSIKT(PSIKT):
             node_emb = self.node_dist._get_node_embedding()[item]  # [bs, times, dim]
             emb_input = torch.cat([node_emb, y_emb], dim=-1)  # [bs, times, dim*2]
             emb_history = self.infer_network_emb(emb_input)
-        
+
         return emb_history
 
     def inference_process(

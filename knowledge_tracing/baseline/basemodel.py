@@ -28,7 +28,7 @@ class BaseModel(torch.nn.Module):
 
     def __init__(
         self,
-        model_path: str = "../model/Model/Model_{}_{}.pt",
+        model_path: str = "../model/Model",
     ):
         super(BaseModel, self).__init__()
         self.model_path = model_path
@@ -288,11 +288,11 @@ class BaseModel(torch.nn.Module):
         """
         if model_path is None:
             model_path = self.model_path
-        model_path = model_path.format(epoch, mini_epoch)
+        model_path = Path(model_path, 'Model_{}_{}.pt'.format(epoch, mini_epoch))
 
-        Path(model_path).parents[0].touch()
+        Path(model_path).parents[0].mkdir(exist_ok=True)
         torch.save(self.state_dict(), model_path)
-        self.logs.write_to_log_file("Save model to " + model_path)
+        self.logs.write_to_log_file("Save model to " + str(model_path))
 
     def load_model(
         self,
@@ -408,7 +408,7 @@ class BaseLearnerModel(BaseModel):
 
         # Set the model_path for saving the trained model
         if logs is not None:
-            self.model_path = Path(logs.args.log_path, "Model/Model_{}_{}.pt")
+            self.model_path = Path(logs.args.log_path, "Model")
         else:
             self.model_path = None
 

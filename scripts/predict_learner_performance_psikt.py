@@ -53,6 +53,8 @@ def global_parse_args():
     parser.add_argument('--s_log_weight', type=int, default=10)
     parser.add_argument('--z_log_weight', type=int, default=10)
     parser.add_argument('--y_log_weight', type=int, default=10)
+    parser.add_argument('--sparsity_loss_weight', type=float, default=1e-12)
+    parser.add_argument('--cat_weight', type=float, default=1)
 
     return parser
 

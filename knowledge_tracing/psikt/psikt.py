@@ -3,6 +3,7 @@ from typing import List, Dict, Tuple, Optional
 from pathlib import Path
 
 import numpy
+from collections import defaultdict
 
 import torch
 from torch import nn, distributions
@@ -58,7 +59,7 @@ class PSIKT(BaseModel):
         self.logs = logs
 
         BaseModel.__init__(
-            self, model_path=Path(args.log_path, "Model/Model_{}_{}.pt")
+            self, model_path=Path(args.log_path, "Model")
         )
 
     @staticmethod
@@ -1135,7 +1136,79 @@ class AmortizedPSIKT(PSIKT):
             sampled_s=qs_sampled,
         )
 
+    def loss(
+        self, 
+        feed_dict: Dict[str, torch.Tensor],
+        outdict: Dict[str, torch.Tensor],
+        metrics: List[str] = None
+    ):
+        """
+        """
+        losses = defaultdict(lambda: torch.zeros(()))#, device=self.device))
 
+        # Calculate binary cross-entropy loss -> not used for optimization only for visualization
+        gt = outdict["label"].repeat(1,self.num_sample,1,1) # .repeat(self.num_sample, 1) 
+        pred = outdict["prediction"]
+        
+        loss_fn = torch.nn.BCELoss()
+        bceloss = loss_fn(pred.flatten(), gt.float().flatten())
+        losses['loss_bce'] = bceloss
+        
+        for key in ['elbo', 'initial_likelihood', 'sequence_likelihood', 
+                    'st_entropy', 'zt_entropy',
+                    'yt_log_prob', 'zt_log_prob', 'st_log_prob']:
+            losses[key] = outdict[key].mean()
+        
+        # Still NOT for optimization
+        edge_log_probs = self.node_dist.edge_log_probs().to(pred.device)
+        pred_att = torch.exp(edge_log_probs[0]).to(pred.device)
+        pred_adj = torch.nn.functional.gumbel_softmax(edge_log_probs, hard=True, dim=0)[0].sum()
+
+        losses['sparsity'] = (pred_att >= 0.5).sum()
+        losses['loss_sparsity'] = pred_adj * self.args.sparsity_loss_weight
+        
+        if 'junyi15' in self.args.dataset:
+            gt_adj = self.adj.to(pred.device)
+            losses['adj_0_att_1'] = (1 * (pred_att >= 0.5) * (1-gt_adj)).sum()
+            losses['adj_1_att_0'] = (1 * (pred_att < 0.5) * gt_adj).sum()
+            self.register_buffer(name="output_gt_graph_weights", tensor=gt_adj.clone().detach())
+        
+        gmvae_loss = LossFunctions()
+        loss_cat = - gmvae_loss.entropy(self.logits, self.probs) - numpy.log(0.1)
+        losses['loss_cat'] = loss_cat * self.args.cat_weight
+        
+        # loss_cat_in_entropy = gmvae_loss.prior_entropy(self.num_category, self.gen_network_transition_s, self.device)
+        # losses['loss_cat_in_entropy'] = loss_cat_in_entropy * self.args.cat_in_entropy_weight        
+        # loss_f1 = gmvae_loss.f1_regularization(pred, gt)
+        # losses['loss_f1'] = loss_f1 * 0. # 1e-2
+
+        losses['loss_total'] = -outdict['elbo'].mean() + \
+                                losses['loss_sparsity'] + losses['loss_cat'] 
+        
+        # Register output predictions
+        self.register_buffer(name="output_predictions", tensor=pred.clone().detach())
+        self.register_buffer(name="output_gt", tensor=gt.clone().detach())
+        self.register_buffer(name="output_attention_weights", tensor=pred_att.clone().detach())
+        
+        # Evaluate metrics
+        if metrics != None:
+            pred = pred.detach().cpu().data.numpy()
+            gt = gt.detach().cpu().data.numpy()
+            evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
+            for key in evaluations.keys():
+                losses[key] = evaluations[key]
+            
+        # Calculate mean and variance of the Ornstein-Uhlenbeck process
+        losses['ou_speed'] = outdict["sampled_s"][...,0].mean()
+        losses['ou_mean'] = outdict["sampled_s"][...,1].mean()
+        losses['ou_vola'] = outdict["sampled_s"][...,2].mean()
+        if self.dim_s == 4:
+            losses['ou_gamma'] = outdict["sampled_s"][...,3].mean()
+        # print(losses)
+        
+        return losses
+    
+    
 class ContinualPSIKT(AmortizedPSIKT):
     """
     An instance of AmortizedPSIKT.

@@ -25,8 +25,8 @@ class PSIKTRunner(KTRunner):
 
     def _build_optimizer(
         self, 
-        model
-    ):
+        model: torch.nn.Module,
+    ) -> tuple:
         '''
         Choose the optimizer based on the optimizer name in the global arguments.
         The optimizer has the setting of weight decay, and learning rate decay which can be modified in global arguments.
@@ -34,6 +34,7 @@ class PSIKTRunner(KTRunner):
         Args:
             model: the training KT model
         '''
+        
         optimizer_name = self.args.optimizer.lower()
         lr = self.args.lr
         weight_decay = self.args.l2
@@ -151,9 +152,9 @@ class PSIKTRunner(KTRunner):
         valid_res_dict, test_res_dict = dict(), dict()
 
         if self.args.validate:
-            best_valid_epoch = self.logs.valid_results[self.metrics[0]].argmax()
+            best_valid_epoch = self.logs.val_results[self.metrics[0]].argmax()
             for metric in self.metrics:
-                valid_res_dict[metric] = self.logs.valid_results[metric][best_valid_epoch]
+                valid_res_dict[metric] = self.logs.val_results[metric][best_valid_epoch]
                 test_res_dict[metric] = self.logs.test_results[metric][best_valid_epoch]
             self.logs.write_to_log_file("\nBest Iter(val)=  %5d\t valid=(%s) test=(%s) [%.1f s] "
                         % (best_valid_epoch + 1,
@@ -206,7 +207,7 @@ class PSIKTRunner(KTRunner):
                     valid_result = self.evaluate(model, corpus, 'val', val_batches, epoch=epoch)
                     self.logs.append_epoch_losses(valid_result, 'val')
 
-                    if max(self.logs.valid_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
+                    if max(self.logs.val_results[self.metrics[0]]) == valid_result[self.metrics[0]]:
                         model.module.save_model(epoch=epoch)
                 else:
                     valid_result = test_result

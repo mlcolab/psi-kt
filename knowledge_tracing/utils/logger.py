@@ -69,9 +69,9 @@ class Logger:
         self.write_to_log_file(args)
 
         args.plotdir = Path(args.log_path, "plots")
-        args.plotdir.touch()
+        args.plotdir.mkdir(exist_ok=True)
         args.visdir = Path(args.log_path, "out_dict")
-        args.visdir.touch()
+        args.visdir.mkdir(exist_ok=True)
 
 
     def write_to_log_file(

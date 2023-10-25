@@ -37,7 +37,7 @@ def global_parse_args():
     parser.add_argument(
         "--num_sample",
         type=int,
-        default=10,
+        default=50,
         help="number of samples when we use MC for non-analytical solution",
     )
     parser.add_argument(
@@ -50,9 +50,9 @@ def global_parse_args():
     parser.add_argument('--num_category', type=int, default=10)
     parser.add_argument('--s_entropy_weight', type=int, default=1e-2)
     parser.add_argument('--z_entropy_weight', type=int, default=1e-2)
-    parser.add_argument('--s_log_weight', type=int, default=10)
-    parser.add_argument('--z_log_weight', type=int, default=10)
-    parser.add_argument('--y_log_weight', type=int, default=10)
+    parser.add_argument('--s_log_weight', type=int, default=1)
+    parser.add_argument('--z_log_weight', type=int, default=1)
+    parser.add_argument('--y_log_weight', type=int, default=1)
     parser.add_argument('--sparsity_loss_weight', type=float, default=1e-12)
     parser.add_argument('--cat_weight', type=float, default=1)
 

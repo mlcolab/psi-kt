@@ -58,9 +58,7 @@ class PSIKT(BaseModel):
         self.args = args
         self.logs = logs
 
-        BaseModel.__init__(
-            self, model_path=Path(args.log_path, "Model")
-        )
+        BaseModel.__init__(self, model_path=Path(args.log_path, "Model"))
 
     @staticmethod
     def _normalize_timestamps(
@@ -133,9 +131,7 @@ class PSIKT(BaseModel):
         return dist
 
     @staticmethod
-    def _positional_encoding1d(
-        dim: int, length: int, actual_time=None
-    ) -> torch.Tensor:
+    def _positional_encoding1d(dim: int, length: int, actual_time=None) -> torch.Tensor:
         """
         Modified based on https://github.com/wzlxjtu/PositionalEncoding2D
         Args:
@@ -147,7 +143,7 @@ class PSIKT(BaseModel):
         """
         if actual_time == None:
             position = torch.arange(0, length).unsqueeze(1)
-            
+
         else:
             device = actual_time.device
             if dim % 2 != 0:
@@ -345,7 +341,7 @@ class AmortizedPSIKT(PSIKT):
         self.qs_hard = 0
 
         super().__init__(mode, num_node, nx_graph, device, args, logs)
-        
+
     def _init_params(self, shape) -> None:
         """
         Initialize the parameters of the model.
@@ -384,33 +380,32 @@ class AmortizedPSIKT(PSIKT):
         self.gen_z0_mean, self.gen_z0_log_var = self._initialize_gaussian_mean_log_var(
             self.dim_z, True
         )
-        
+
         # ----- 2. transition distribution p(s|s') or p(s|s',y',c'); p(z|s,z') (OU) -----
-        time_step = int(self.args.max_step * self.args.train_time_ratio)
         gen_st_h = nn.init.xavier_uniform_(torch.empty(1, self.dim_s))
         self.gen_st_h = nn.Parameter(torch.diag_embed(gen_st_h)[0], requires_grad=True)
-        gen_st_log_r = self._init_params((1, self.dim_s))
+        self.gen_st_log_r = self._init_params((1, self.dim_s))
 
         # ----- 3. emission distribution p(y|z) -----
         self.y_emit = torch.nn.Sigmoid()
 
         # --------------- for parameters Phi ---------------
         # the embedding network at each time step emb_t = f(y_t, c_t, t)
-        # the variational posterior distribution q(s_1:t | y_1:t, c_1:t) and q(z_1:t | y_1:t, c_1:t) TODO could add structure later q(z_1:t | y_1:t, s_1:t)
+        # the variational posterior distribution q(s_1:t | y_1:t, c_1:t) and q(z_1:t | y_1:t, c_1:t)
         # ----- 1. embedding network -----
         self.infer_network_emb = build_dense_network(
             self.node_dim * 2, [self.node_dim, self.node_dim], [nn.LeakyReLU(0.2), None]
         )
 
         # ----- 2. variational posterior distribution q(s_1:t | y_1:t, c_1:t) = q(s_1:t | emb_1:t) -----
+        time_step = int(self.args.max_step * self.args.train_time_ratio)
         self.infer_network_posterior_s = InferenceNet(
             self.node_dim, self.dim_s, self.num_category, time_step
         )
 
-        # self.st_transition_infer
-        # 3. variational posterior distribution q(z_1:t | y_1:t, c_1:t)
+        # ----- 3. variational posterior distribution q(z_1:t | y_1:t, c_1:t) -----
         self.infer_network_posterior_z = nn.LSTM(
-            input_size=self.node_dim,  # self.infer_network_emb.hidden_size*2 if self.infer_network_emb.bidirectional else self.infer_network_emb.hidden_size,
+            input_size=self.node_dim,
             hidden_size=self.node_dim * 2,
             bidirectional=False,
             batch_first=True,
@@ -478,9 +473,7 @@ class AmortizedPSIKT(PSIKT):
         # ps_var = out_gen['s_var'] # [bs, 1, dim_s]
 
         # -- 2. prior of single step of H, R --
-        pst_mean = (
-            qs_mean[:, :, :-1] @ self.gen_st_h 
-        )  # [bs, 1, time-1, dim_s]
+        pst_mean = qs_mean[:, :, :-1] @ self.gen_st_h  # [bs, 1, time-1, dim_s]
         pst_transition_var = torch.exp(self.gen_st_log_r)
         pst_transition_cov_mat = torch.diag_embed(pst_transition_var + EPS)
         pst_cov_mat = (
@@ -921,7 +914,7 @@ class AmortizedPSIKT(PSIKT):
         for i in range(test_step):
             # p(st-1) = N(m, P), p(st|st-1) = N(st|H*st-1 + b, R)
             # p(st) = N(st|H*m + b, H*P*H' + R)
-            s_next_mean = s_last_mean @ self.gen_st_h # [bs, 1, dim_s]
+            s_next_mean = s_last_mean @ self.gen_st_h  # [bs, 1, dim_s]
             s_next_cov_mat = (
                 self.gen_st_h @ s_last_cov_mat @ self.gen_st_h.transpose(-1, -2)
                 + st_tran_r
@@ -1138,59 +1131,74 @@ class AmortizedPSIKT(PSIKT):
         )
 
     def loss(
-        self, 
+        self,
         feed_dict: Dict[str, torch.Tensor],
         outdict: Dict[str, torch.Tensor],
-        metrics: List[str] = None
+        metrics: List[str] = None,
     ):
-        """
-        """
-        losses = defaultdict(lambda: torch.zeros(()))#, device=self.device))
+        """ """
+        losses = defaultdict(lambda: torch.zeros(()))  # , device=self.device))
 
         # Calculate binary cross-entropy loss -> not used for optimization only for visualization
-        gt = outdict["label"].repeat(1,self.num_sample,1,1) # .repeat(self.num_sample, 1) 
+        gt = outdict["label"].repeat(
+            1, self.num_sample, 1, 1
+        )  # .repeat(self.num_sample, 1)
         pred = outdict["prediction"]
-        
+
         loss_fn = torch.nn.BCELoss()
         bceloss = loss_fn(pred.flatten(), gt.float().flatten())
-        losses['loss_bce'] = bceloss
-        
-        for key in ['elbo', 'initial_likelihood', 'sequence_likelihood', 
-                    'st_entropy', 'zt_entropy',
-                    'yt_log_prob', 'zt_log_prob', 'st_log_prob']:
+        losses["loss_bce"] = bceloss
+
+        for key in [
+            "elbo",
+            "initial_likelihood",
+            "sequence_likelihood",
+            "st_entropy",
+            "zt_entropy",
+            "yt_log_prob",
+            "zt_log_prob",
+            "st_log_prob",
+        ]:
             losses[key] = outdict[key].mean()
-        
+
         # Still NOT for optimization
         edge_log_probs = self.node_dist.edge_log_probs().to(pred.device)
         pred_att = torch.exp(edge_log_probs[0]).to(pred.device)
-        pred_adj = torch.nn.functional.gumbel_softmax(edge_log_probs, hard=True, dim=0)[0].sum()
+        pred_adj = torch.nn.functional.gumbel_softmax(edge_log_probs, hard=True, dim=0)[
+            0
+        ].sum()
 
-        losses['sparsity'] = (pred_att >= 0.5).sum()
-        losses['loss_sparsity'] = pred_adj * self.args.sparsity_loss_weight
-        
-        if 'junyi15' in self.args.dataset:
+        losses["sparsity"] = (pred_att >= 0.5).sum()
+        losses["loss_sparsity"] = pred_adj * self.args.sparsity_loss_weight
+
+        if "junyi15" in self.args.dataset:
             gt_adj = self.adj.to(pred.device)
-            losses['adj_0_att_1'] = (1 * (pred_att >= 0.5) * (1-gt_adj)).sum()
-            losses['adj_1_att_0'] = (1 * (pred_att < 0.5) * gt_adj).sum()
-            self.register_buffer(name="output_gt_graph_weights", tensor=gt_adj.clone().detach())
-        
+            losses["adj_0_att_1"] = (1 * (pred_att >= 0.5) * (1 - gt_adj)).sum()
+            losses["adj_1_att_0"] = (1 * (pred_att < 0.5) * gt_adj).sum()
+            self.register_buffer(
+                name="output_gt_graph_weights", tensor=gt_adj.clone().detach()
+            )
+
         gmvae_loss = LossFunctions()
-        loss_cat = - gmvae_loss.entropy(self.logits, self.probs) - numpy.log(0.1)
-        losses['loss_cat'] = loss_cat * self.args.cat_weight
-        
+        loss_cat = -gmvae_loss.entropy(self.logits, self.probs) - numpy.log(0.1)
+        losses["loss_cat"] = loss_cat * self.args.cat_weight
+
         # loss_cat_in_entropy = gmvae_loss.prior_entropy(self.num_category, self.gen_network_transition_s, self.device)
-        # losses['loss_cat_in_entropy'] = loss_cat_in_entropy * self.args.cat_in_entropy_weight        
+        # losses['loss_cat_in_entropy'] = loss_cat_in_entropy * self.args.cat_in_entropy_weight
         # loss_f1 = gmvae_loss.f1_regularization(pred, gt)
         # losses['loss_f1'] = loss_f1 * 0. # 1e-2
 
-        losses['loss_total'] = -outdict['elbo'].mean() + \
-                                losses['loss_sparsity'] + losses['loss_cat'] 
-        
+        losses["loss_total"] = (
+            -outdict["elbo"].mean() + losses["loss_sparsity"] + losses["loss_cat"]
+        )
+
         # Register output predictions
         self.register_buffer(name="output_predictions", tensor=pred.clone().detach())
         self.register_buffer(name="output_gt", tensor=gt.clone().detach())
-        self.register_buffer(name="output_attention_weights", tensor=pred_att.clone().detach())
-        
+        self.register_buffer(
+            name="output_attention_weights", tensor=pred_att.clone().detach()
+        )
+
         # Evaluate metrics
         if metrics != None:
             pred = pred.detach().cpu().data.numpy()
@@ -1198,18 +1206,18 @@ class AmortizedPSIKT(PSIKT):
             evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
             for key in evaluations.keys():
                 losses[key] = evaluations[key]
-            
+
         # Calculate mean and variance of the Ornstein-Uhlenbeck process
-        losses['ou_speed'] = outdict["sampled_s"][...,0].mean()
-        losses['ou_mean'] = outdict["sampled_s"][...,1].mean()
-        losses['ou_vola'] = outdict["sampled_s"][...,2].mean()
+        losses["ou_speed"] = outdict["sampled_s"][..., 0].mean()
+        losses["ou_mean"] = outdict["sampled_s"][..., 1].mean()
+        losses["ou_vola"] = outdict["sampled_s"][..., 2].mean()
         if self.dim_s == 4:
-            losses['ou_gamma'] = outdict["sampled_s"][...,3].mean()
+            losses["ou_gamma"] = outdict["sampled_s"][..., 3].mean()
         # print(losses)
-        
+
         return losses
-    
-    
+
+
 class ContinualPSIKT(AmortizedPSIKT):
     """
     An instance of AmortizedPSIKT.

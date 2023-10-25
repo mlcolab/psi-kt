@@ -133,37 +133,6 @@ class PSIKT(BaseModel):
         return dist
 
     @staticmethod
-    def _initialize_gaussian_mean_log_var(
-        dim: int, use_trainable_cov: bool, num_sample: int = 1
-    ) -> Tuple[nn.Parameter, nn.Parameter]:
-        """
-        Construct the initial mean and covariance matrix for the multivariate Gaussian distribution.
-
-        Args:
-            dim: an integer representing the dimension of the Gaussian distribution
-            use_trainable_cov: a boolean indicating whether to use a trainable covariance matrix
-            num_sample: an integer representing the number of samples to generate
-
-        Returns:
-            x0_mean: a PyTorch parameter representing the initial mean of the Gaussian distribution
-            x0_scale: a PyTorch parameter representing the initial covariance matrix of the Gaussian distribution
-        """
-        x0_mean = nn.init.xavier_uniform_(
-            torch.empty(num_sample, dim)
-        )  # , device=self.device))
-        x0_mean = nn.Parameter(x0_mean, requires_grad=True)
-
-        # m = nn.init.xavier_uniform_(torch.empty(num_sample, int(dim * (dim + 1) / 2), device=self.device))
-        # x0_scale = torch.zeros((num_sample, dim, dim), device=self.device)
-        # tril_indices = torch.tril_indices(row=dim, col=dim, offset=0)
-        # x0_scale[:, tril_indices[0], tril_indices[1]] += m
-        # x0_scale = nn.Parameter(x0_scale, requires_grad=use_trainable_cov)
-        x0_log_var = torch.ones((num_sample, dim)) * torch.log(torch.tensor(COV_MIN))
-        x0_log_var = nn.Parameter(x0_log_var, requires_grad=use_trainable_cov)
-
-        return x0_mean, x0_log_var
-
-    @staticmethod
     def _positional_encoding1d(
         dim: int, length: int, actual_time=None
     ) -> torch.Tensor:
@@ -377,6 +346,18 @@ class AmortizedPSIKT(PSIKT):
 
         super().__init__(mode, num_node, nx_graph, device, args, logs)
         
+    def _init_params(self, shape) -> None:
+        """
+        Initialize the parameters of the model.
+
+        This function creates the necessary layers of the model and initializes their parameters.
+
+        Returns:
+            None
+        """
+        param = nn.init.xavier_uniform_(torch.empty(shape))
+        return nn.Parameter(param, requires_grad=True)
+
     def _init_weights(self) -> None:
         """
         Initialize the weights of the model.
@@ -403,14 +384,12 @@ class AmortizedPSIKT(PSIKT):
         self.gen_z0_mean, self.gen_z0_log_var = self._initialize_gaussian_mean_log_var(
             self.dim_z, True
         )
-
+        
         # ----- 2. transition distribution p(s|s') or p(s|s',y',c'); p(z|s,z') (OU) -----
         time_step = int(self.args.max_step * self.args.train_time_ratio)
-        # TODO: more systematic way
         gen_st_h = nn.init.xavier_uniform_(torch.empty(1, self.dim_s))
         self.gen_st_h = nn.Parameter(torch.diag_embed(gen_st_h)[0], requires_grad=True)
-        gen_st_log_r = nn.init.xavier_uniform_(torch.empty(1, self.dim_s))
-        self.gen_st_log_r = nn.Parameter(gen_st_log_r, requires_grad=True)
+        gen_st_log_r = self._init_params((1, self.dim_s))
 
         # ----- 3. emission distribution p(y|z) -----
         self.y_emit = torch.nn.Sigmoid()
@@ -439,6 +418,28 @@ class AmortizedPSIKT(PSIKT):
         self.infer_network_posterior_mean_var_z = VAEEncoder(
             self.node_dim * 2, self.node_dim, self.num_node
         )
+
+    def _initialize_gaussian_mean_log_var(
+        self, dim: int, use_trainable_cov: bool, num_sample: int = 1
+    ) -> Tuple[nn.Parameter, nn.Parameter]:
+        """
+        Construct the initial mean and covariance matrix for the multivariate Gaussian distribution.
+
+        Args:
+            dim: an integer representing the dimension of the Gaussian distribution
+            use_trainable_cov: a boolean indicating whether to use a trainable covariance matrix
+            num_sample: an integer representing the number of samples to generate
+
+        Returns:
+            x0_mean: a PyTorch parameter representing the initial mean of the Gaussian distribution
+            x0_scale: a PyTorch parameter representing the initial covariance matrix of the Gaussian distribution
+        """
+        x0_mean = self._init_params((num_sample, dim))
+
+        x0_log_var = torch.ones((num_sample, dim)) * torch.log(torch.tensor(COV_MIN))
+        x0_log_var = nn.Parameter(x0_log_var, requires_grad=use_trainable_cov)
+
+        return x0_mean, x0_log_var
 
     def st_transition_gen(
         self,

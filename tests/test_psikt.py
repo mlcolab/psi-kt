@@ -163,12 +163,18 @@ def test_positional_encoding1d(psikt):
     
 
 def test_st_transition_gen(psikt, qs_dist):
+    # Make sure the shape of qs_dist is correct
     bs, _, time, _ = qs_dist.mean.shape
+    assert qs_dist.mean.shape == (1, 1, 2, 4)
+    assert qs_dist.covariance_matrix.shape == (1, 1, 2, 4, 4)
     
+    # Assess the shape of the transition matrix initialized by psikt
     transition_st_h = psikt.gen_st_h
-    assert isinstance(transition_st_h, torch.Tensor)
+    transition_st_r = torch.exp(psikt.gen_st_log_r)
     assert transition_st_h.shape == (DIM_S, DIM_S)
     assert transition_st_h.requires_grad
+    assert transition_st_r.shape == (1, DIM_S)
+    assert transition_st_r.requires_grad
     
     # Call the st_transition_gen method
     ps_dist = psikt.st_transition_gen(qs_dist, eval=False)
@@ -183,11 +189,17 @@ def test_st_transition_gen(psikt, qs_dist):
     qs_sample_transition = (
         qs_sample[:, :, :, :-1] @ psikt.gen_st_h 
     )  # [num_samples, bs, 1, time-1, dim_s]
-    qs_new_dist = torch.distributions.MultivariateNormal(qs_sample_transition, torch.diag_embed(torch.exp(psikt.gen_st_log_r)+EPS))
-    # qs_sample_transition_mean = qs_sample_transition.mean(dim=0)  # [bs, 1, time-1, dim_s]
-    # qs_sample_transition_cov_mat = qs_sample_transition.var(dim=0)  # [bs, 1, time-1, dim_s]
+    qs_new_dist = torch.distributions.MultivariateNormal(qs_sample_transition, torch.diag_embed(transition_st_r+EPS))
+    qs_new_sample = qs_new_dist.sample()  # [num_samples, bs, 1, time-1, dim_s]
 
-    # assert torch.allclose(qs_sample_transition_mean, ps_dist_mean[:,:,1:], atol=1e-1)
+    qs_sample_transition_mean = qs_new_sample.mean(dim=0)  # [bs, 1, time-1, dim_s]
+    qs_sample_transition_cov_mat = qs_new_sample.var(dim=0)  # [bs, 1, time-1, dim_s]
+    assert qs_sample_transition.shape == (num_samples, 1, 1, 1, DIM_S)
+    assert qs_sample_transition_mean.shape == (1, 1, 1, DIM_S)
+
+    error = torch.sqrt(transition_st_r).detach().numpy()/num_samples
+    for i in range(DIM_S):
+        assert torch.allclose(qs_sample_transition_mean[..., i], ps_dist_mean[:,:,1:,i], atol=error[0,i])
     # assert torch.allclose(qs_sample_transition_cov_mat, ps_dist_cov_mat[:,:,1:], atol=1e-1)
     
     # new_dist = torch.distributions.MultivariateNormal(ps_dist_mean[:,:,1:], ps_dist_cov_mat[:,:,1:])

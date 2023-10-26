@@ -11,9 +11,11 @@ import numpy as np
 import torch
 
 from knowledge_tracing.data import data_loader
-from knowledge_tracing.runner import runner_psikt, runner_vcl
+from knowledge_tracing.runner import runner_psikt# , runner_vcl
+import knowledge_tracing.runner.runner_test as runner_vcl
 from knowledge_tracing.utils import utils, arg_parser, logger
-from knowledge_tracing.psikt.psikt import PSIKT, ContinualPSIKT, AmortizedPSIKT
+from knowledge_tracing.psikt.psikt import PSIKT, AmortizedPSIKT
+from knowledge_tracing.psikt.test import ContinualPSIKT
 
 def global_parse_args():
     """
@@ -48,13 +50,13 @@ def global_parse_args():
     parser.add_argument('--em_train', type=int, default=0)
     parser.add_argument('--var_log_max', type=int, default=10)
     parser.add_argument('--num_category', type=int, default=10)
-    parser.add_argument('--s_entropy_weight', type=int, default=1e-2)
-    parser.add_argument('--z_entropy_weight', type=int, default=1e-2)
+    parser.add_argument('--s_entropy_weight', type=float, default=1e-1)
+    parser.add_argument('--z_entropy_weight', type=float, default=1e-1)
     parser.add_argument('--s_log_weight', type=int, default=1)
     parser.add_argument('--z_log_weight', type=int, default=1)
     parser.add_argument('--y_log_weight', type=int, default=1)
     parser.add_argument('--sparsity_loss_weight', type=float, default=1e-12)
-    parser.add_argument('--cat_weight', type=float, default=1)
+    parser.add_argument('--cat_weight', type=float, default=10)
 
     return parser
 
@@ -107,10 +109,9 @@ if __name__ == "__main__":
     logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
 
     # ----- Model initialization -----
-    if "ls_" or "ln_" in global_args.train_mode:
-        num_seq = corpus.n_users
-    else:
-        num_seq = 1
+    if 'ls_' or 'ln_' in global_args.train_mode:
+        num_seq = corpus.n_users if not global_args.overfit else global_args.overfit
+    else: num_seq = 1
 
     adj = np.load(global_args.graph_path)
 
@@ -131,6 +132,7 @@ if __name__ == "__main__":
             device=global_args.device,
             args=global_args,
             logs=logs,
+            num_seq = num_seq,
         )
 
     if global_args.load > 0:

@@ -189,7 +189,6 @@ class PSIKT(BaseModel):
             time steps. The 'absolute' option uses the original time values as time embeddings.
 
         """
-
         if type == "dt":
             dt = torch.diff(time, dim=1)
             t_pe = self._positional_encoding1d(

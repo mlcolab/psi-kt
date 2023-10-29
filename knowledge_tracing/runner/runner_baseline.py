@@ -361,3 +361,164 @@ class BaselineKTRunner(KTRunner):
         return model.module.pred_evaluate_method(
             concat_pred, concat_label, self.metrics
         )
+        
+
+class BaselineContinualRunner(BaselineKTRunner):
+    """
+    This implements the training loop, testing & validation, optimization etc.
+    """
+
+    def __init__(
+        self,
+        args: argparse.Namespace,
+        logs: logger.Logger,
+    ):
+        """
+        Initialize the BaselineKTRunner instance.
+
+        Args:
+            args (argparse.Namespace): Global arguments provided as a namespace.
+            logs (logger.Logger): The Logger instance for logging information.
+        """
+
+        self.time = None
+
+        # number of data to train
+        self.overfit = args.overfit
+
+        # training options
+        self.epoch = args.epoch
+        self.batch_size = args.batch_size_multiGPU
+        self.eval_batch_size = args.eval_batch_size
+
+        # list of evaluation metrics to use during training
+        self.metrics = args.metric.strip().lower().split(",")
+        for i in range(len(self.metrics)):
+            self.metrics[i] = self.metrics[i].strip()
+
+        self.args = args
+        self.early_stop = args.early_stop
+        self.logs = logs
+        self.device = args.device
+
+    def train(
+        self,
+        model: torch.nn.Module,
+        corpus: DataReader,
+    ):
+        """
+        Trains the KT model instance with parameters.
+
+        Args:
+            model: the KT model instance with parameters to train
+            corpus: data
+        """
+        # Build the optimizer if it hasn't been built already.
+        if model.module.optimizer is None:
+            model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
+            
+        assert(corpus.data_df['train'] is not None)
+        self._check_time(start=True)
+        
+        if self.overfit > 0:
+            epoch_whole_data = copy.deepcopy(corpus.data_df['whole'][:self.overfit])
+            epoch_whole_data['user_id'] = np.arange(self.overfit)
+        else:
+            epoch_whole_data = copy.deepcopy(corpus.data_df['whole'])
+            
+        # Return a random sample of items from an axis of object.
+        epoch_whole_data = epoch_whole_data.sample(frac=1).reset_index(drop=True) 
+        whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
+        
+        try:
+            for time in range(100):
+                gc.collect()
+                model.train()
+                
+                self._check_time()
+                self.fit(model, whole_batches, epoch=time, time_step=time)
+                self.test(model, whole_batches, epoch=time, time_step=time)
+                training_time = self._check_time()
+
+        except KeyboardInterrupt:
+            self.logs.write_to_log_file("Early stop manually")
+            exit_here = input("Exit completely without evaluation? (y/n) (default n):")
+            if exit_here.lower().startswith('y'):
+                self.logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)
+                exit(1)
+
+
+    def fit(
+        self, 
+        model, 
+        batches, 
+        epoch: int = 0, 
+        time_step: int = 0,
+    ): 
+        """
+        Trains the given model on the given batches of data.
+
+        Args:
+            model: The model to train.
+            batches: A list of data, where each element is a batch to train.
+            epoch_train_data: A pandas DataFrame containing the training data.
+            epoch: The current epoch number.
+
+        Returns:
+            A dictionary containing the training losses.
+        """
+         
+        model.module.train()
+        train_losses = defaultdict(list)
+        
+        
+        for mini_epoch in range(0, 10): # self.epoch): 
+            
+            # Iterate through each batch.
+            for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch + ' Time %5d' % mini_epoch):
+                # Move the batch to the GPU.
+                batch = model.module.batch_to_gpu(batch, self.device)
+                
+                # Reset gradients.
+                model.module.optimizer.zero_grad(set_to_none=True)
+                
+                output_dict = model.module.forward_cl(batch, idx=time_step)
+                loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
+                loss_dict['loss_total'].backward()
+                
+                # Update parameters.
+                torch.nn.utils.clip_grad_norm(model.module.parameters(),100)
+                model.module.optimizer.step()
+                
+                train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
+            
+            if mini_epoch % 10 == 0:
+                model.module.save_model(epoch=epoch, mini_epoch=mini_epoch)
+            self.logs.draw_loss_curves()
+                        
+            string = self.logs.result_string("train", epoch, train_losses, t=epoch, mini_epoch=mini_epoch) # TODO
+            self.logs.write_to_log_file(string)
+            self.logs.append_epoch_losses(train_losses, 'train')
+        
+        return self.logs.train_results['loss_total'][-1]
+
+    def test(
+        self, 
+        model: torch.nn.Module,
+        test_batches: list = None,
+        epoch: int = 0, 
+        time_step: int = 0,
+    ):
+        test_losses = defaultdict(list)
+        model.module.eval()
+        
+        if (self.args.test) & (epoch % self.args.test_every == 0):
+            with torch.no_grad():
+                for batch in test_batches:
+                    batch = model.module.batch_to_gpu(batch, self.device)
+                    loss_dict = model.module.evaluate_cl(batch, time_step, self.metrics)
+                    test_losses = self.logs.append_batch_losses(test_losses, loss_dict)
+
+            string = self.logs.result_string("test", epoch, test_losses, t=epoch)
+            self.logs.write_to_log_file(string)
+            self.logs.append_epoch_losses(test_losses, 'test')

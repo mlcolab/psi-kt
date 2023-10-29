@@ -52,9 +52,9 @@ def global_parse_args():
     parser.add_argument('--num_category', type=int, default=10)
     parser.add_argument('--s_entropy_weight', type=float, default=1e-1)
     parser.add_argument('--z_entropy_weight', type=float, default=1e-1)
-    parser.add_argument('--s_log_weight', type=int, default=1)
-    parser.add_argument('--z_log_weight', type=int, default=1)
-    parser.add_argument('--y_log_weight', type=int, default=1)
+    parser.add_argument('--s_log_weight', type=float, default=1)
+    parser.add_argument('--z_log_weight', type=float, default=1)
+    parser.add_argument('--y_log_weight', type=int, default=10)
     parser.add_argument('--sparsity_loss_weight', type=float, default=1e-12)
     parser.add_argument('--cat_weight', type=float, default=10)
 
@@ -134,9 +134,14 @@ if __name__ == "__main__":
             logs=logs,
             num_seq = num_seq,
         )
-
+    
     if global_args.load > 0:
-        model.load_model(model_path=global_args.load_folder)
+        # model.load_state_dict(torch.load(path), strict=False)
+        model.load_state_dict(torch.load(global_args.load_folder), strict=False)
+        if global_args.vcl:
+            for name, param in model.named_parameters():
+                if 'gen' in name: param.requires_grad = False
+    
     logs.write_to_log_file(model)
     model.actions_before_train()
 

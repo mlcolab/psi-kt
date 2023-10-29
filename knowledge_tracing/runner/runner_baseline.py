@@ -49,31 +49,6 @@ class BaselineKTRunner(KTRunner):
         self.logs = logs
         self.device = args.device
 
-    def _eva_termination(
-        self,
-        model: torch.nn.Module,
-        metrics_list: list = None,
-        metrics_log: dict = None,
-    ) -> bool:
-        """
-        Determine whether the training should be terminated based on the validation results.
-
-        Returns:
-        - True if the training should be terminated, False otherwise
-        """
-
-        for m in metrics_list:
-            valid = list(metrics_log[m])
-
-            # Check if the last 10 validation results have not improved
-            if not (len(valid) > 10 and utils.non_increasing(valid[-10:])):
-                return False
-            # Check if the maximum validation result has not improved for the past 10 epochs
-            elif not (len(valid) - valid.index(max(valid)) > 10):
-                return False
-
-        return True
-
     def train(
         self,
         model: torch.nn.Module,

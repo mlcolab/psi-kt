@@ -109,7 +109,7 @@ if __name__ == '__main__':
             
     # TODO: modify the runner
     if global_args.vcl: 
-        runner = runner_vcl(global_args, logs)
+        runner = runner_baseline.BaselineContinualRunner(global_args, logs)
     else:
         runner = runner_baseline.BaselineKTRunner(global_args, logs)
 

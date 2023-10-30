@@ -10,6 +10,7 @@ from knowledge_tracing.baseline import *
 from knowledge_tracing.baseline.basemodel import BaseModel, BaseLearnerModel
 from knowledge_tracing.utils import logger, utils
 from knowledge_tracing.data.data_loader import DataReader
+from knowledge_tracing.baseline.halflife_regression import T_SCALE, EPS
 
 
 class HLR(BaseLearnerModel):

@@ -10,7 +10,7 @@ from torch import nn, distributions
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.nn import functional as F
 
-from knowledge_tracing.psikt import *
+from knowledge_tracing.psikt import T_SCALE, EPS, COV_MIN
 from knowledge_tracing.psikt.modules import build_dense_network, VAEEncoder
 from knowledge_tracing.psikt.psikt_graph_representation import VarTransformation
 from knowledge_tracing.psikt.GMVAE.gmvae import *

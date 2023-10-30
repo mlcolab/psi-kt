@@ -90,7 +90,8 @@ class HKT(BaseModel):
         self.args = args
         self.logs = logs
 
-        super().__init__(model_path=Path(args.log_path, "Model/Model_{}_{}.pt"))
+        BaseModel.__init__(self, model_path=Path(args.log_path, "Model"))
+
 
     def _init_weights(self) -> None:
         """
@@ -167,7 +168,11 @@ class HKT(BaseModel):
         prediction = (problem_bias + skill_bias + sum_t).sigmoid()
 
         # Return predictions and labels from the second position in the sequence
-        out_dict = {"prediction": prediction[:, 1:], "label": labels[:, 1:].double()}
+        time_step = items.shape[1]
+        out_dict = {
+            "prediction": prediction[:, 1:] if time_step > 1 else prediction,
+            "label": labels[:, 1:].double() if time_step > 1 else labels.double(),
+        }
 
         return out_dict
 
@@ -372,3 +377,78 @@ class HKT(BaseModel):
         out_dict = self.forward(cur_feed_dict)
 
         return out_dict
+
+    def evaluate_cl(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+        metrics=None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Evaluate the learner model's performance.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data tensors.
+            idx (int, optional): Index of the evaluation batch. Defaults to None.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing evaluation results.
+        """
+        test_step = 10
+        
+        items = feed_dict["skill_seq"][:, idx : idx + test_step + 1]
+        problems = feed_dict["problem_seq"][
+            :, idx : idx + test_step + 1]
+        times = feed_dict["time_seq"][:, idx : idx + test_step + 1]
+        labels = feed_dict["label_seq"][:, idx : idx + test_step + 1]
+
+        predictions = []
+        for i in range(0, test_step):
+            if i == 0:
+                inters = items[:, 0:1] + labels[:, 0:1] * self.skill_num
+                delta_t = times[:, :1].unsqueeze(dim=-1)
+            else:
+                pred_labels = torch.cat(
+                    [labels[:, 0:1], (torch.cat(predictions, -1) >= 0.5) * 1], dim=-1
+                )
+                inters = items[:, : i + 1] + pred_labels * self.skill_num
+
+                cur_time = times[:, : i + 1]
+                delta_t = (
+                    (cur_time[:, :, None] - cur_time[:, None, :]).abs().double()
+                )  # [bs, seq_len, seq_len]
+                delta_t = torch.log(delta_t + 1e-10) / np.log(self.time_log)
+
+            alpha_src_emb = self.alpha_inter_embeddings(inters)  # [bs, seq_len, emb]
+            alpha_target_emb = self.alpha_skill_embeddings(
+                items[:, i + 1 : i + 2]
+            )  # [bs, seq_len, emb]
+            alphas = torch.matmul(
+                alpha_src_emb, alpha_target_emb.transpose(-2, -1)
+            )  # [bs, seq_len, seq_len]
+
+            beta_src_emb = self.beta_inter_embeddings(inters)  # [bs, seq_len, emb]
+            beta_target_emb = self.beta_skill_embeddings(items[:, i + 1 : i + 2])
+            betas = torch.matmul(
+                beta_src_emb, beta_target_emb.transpose(-2, -1)
+            )  # [bs, seq_len, seq_len]
+            betas = torch.clamp(betas + 1, min=0, max=10)
+
+            cross_effects = alphas * torch.exp(
+                -betas * delta_t
+            )  # [bs, seq_len, seq_len]
+
+            sum_t = cross_effects.sum(-2)  # [bs, seq_len]
+
+            problem_bias = self.problem_base(problems[:, i + 1 : i + 2]).squeeze(dim=-1)
+            skill_bias = self.skill_base(items[:, i + 1 : i + 2]).squeeze(dim=-1)
+
+            prediction = (problem_bias + skill_bias + sum_t).sigmoid()[:, -1:]
+            predictions.append(prediction)
+
+        labels = labels[:, 1:].float()
+        prediction = torch.cat(predictions, -1)
+
+        return self.pred_evaluate_method(
+            prediction.flatten().cpu(), labels.flatten().cpu(), metrics
+        )

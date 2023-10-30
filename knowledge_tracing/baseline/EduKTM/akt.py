@@ -92,7 +92,7 @@ class AKT(BaseModel):
         # Store the arguments and logs for later use
         self.args = args
         self.logs = logs
-        super().__init__(model_path=Path(args.log_path, "Model/Model_{}_{}.pt"))
+        BaseModel.__init__(self, model_path=Path(args.log_path, "Model"))
 
     def _init_weights(
         self,
@@ -181,6 +181,72 @@ class AKT(BaseModel):
         out_dict = self.forward(cur_feed_dict)
 
         return out_dict
+
+    def evaluate_cl(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+        metrics=None,
+    ) -> Dict[str, torch.Tensor]:
+        test_time = 10
+
+        skills = feed_dict["skill_seq"]  # [batch_size, real_max_step]
+        questions = feed_dict["quest_seq"]  # [batch_size, real_max_step]
+        labels = feed_dict["label_seq"]  # [batch_size, real_max_step]
+
+        predictions = []
+
+        for i in range(0, test_time):
+            if i == 0:
+                inters = (
+                    skills[:, idx : idx + 1] + labels[:, idx : idx + 1] * self.skill_num
+                )
+
+            else:
+                pred_labels = torch.cat(
+                    [
+                        labels[:, idx : idx + 1],
+                        (torch.cat(predictions, -1) >= 0.5) * 1,
+                        labels[:, idx + i : idx + i + 1],
+                    ],
+                    dim=-1,
+                )  # [batch_size, i+2]
+
+                inters = skills[:, idx : idx + i + 2] + pred_labels * self.skill_num
+
+            skill_data = self.skill_embeddings(skills[:, idx : idx + i + 2])
+            inter_data = self.inter_embeddings(inters)
+
+            skill_diff_data = self.skill_diff(skills[:, idx : idx + i + 2])
+            inter_diff_data = self.inter_diff(inters)
+
+            q_diff = self.difficult_param(questions[:, idx : idx + i + 2])
+            skill_data = skill_data + q_diff * skill_diff_data
+            inter_data = inter_data + q_diff * inter_diff_data
+
+            x, y = skill_data, inter_data
+            for block in self.blocks_1:  # encode
+                y = block(mask=1, query=y, key=y, values=y)
+            flag_first = True
+            for block in self.blocks_2:
+                if flag_first:  # peek current question
+                    x = block(mask=1, query=x, key=x, values=x, apply_pos=False)
+                    flag_first = False
+                else:  # don't peek current response
+                    x = block(mask=0, query=x, key=x, values=y, apply_pos=True)
+                    flag_first = True
+
+            concat_q = torch.cat([x, skill_data], dim=-1)
+            prediction = self.out(concat_q).squeeze(-1).sigmoid()[:, -1:]
+
+            predictions.append(prediction)
+
+        prediction = torch.cat(predictions, dim=-1)
+        labels = feed_dict["label_seq"][:, idx + 1 : idx + test_time + 1].float()
+
+        return self.pred_evaluate_method(
+            prediction.flatten().cpu(), labels.flatten().cpu(), metrics
+        )
 
     def forward(
         self,

@@ -397,7 +397,6 @@ class BaseLearnerModel(BaseModel):
         device: torch.device,
         logs: logger.Logger,
     ) -> None:
-        super(BaseLearnerModel, self).__init__()
         # Store the mode, device, and logs
         self.mode = mode
         self.device = device
@@ -411,6 +410,7 @@ class BaseLearnerModel(BaseModel):
             self.model_path = Path(logs.args.log_path, "Model")
         else:
             self.model_path = None
+        super(BaseLearnerModel, self).__init__(model_path=self.model_path)
 
     @staticmethod
     def _find_whole_stats(

@@ -77,7 +77,7 @@ class HLR(BaseLearnerModel):
             try:
                 shape = utils.get_theta_shape(self.num_seq, self.num_node, 3)[
                     self.mode.lower()
-                ].value
+                ]
             except KeyError:
                 raise ValueError(f"Invalid mode: {self.mode}")
             self.theta = self._initialize_parameter(shape, self.device)
@@ -259,6 +259,65 @@ class HLR(BaseLearnerModel):
 
         return out_dict
 
+    def evaluate_cl(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+        metrics=None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Evaluate the learner model's performance.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data tensors.
+            idx (int, optional): Index of the evaluation batch. Defaults to None.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing evaluation results.
+        """
+        test_step = 10
+
+        skills_test = feed_dict["skill_seq"][:, idx : idx + test_step + 1]
+        labels_test = feed_dict["label_seq"][:, idx : idx + test_step + 1]
+        times_test = feed_dict["time_seq"][:, idx : idx + test_step + 1]
+
+        bs, _ = labels_test.shape
+        self.num_seq = bs
+
+        x0 = torch.zeros((bs, self.num_node)).to(labels_test.device)
+        if self.num_node > 1:
+            x0[torch.arange(bs), skills_test[:, 0]] += labels_test[:, 0]
+            items = skills_test
+        else:
+            x0[:, 0] += labels_test[:, 0]
+            items = None
+
+        stats = torch.stack(
+            [
+                feed_dict["num_history"],
+                feed_dict["num_success"],
+                feed_dict["num_failure"],
+            ],
+            dim=-1,
+        )
+        stats = stats.unsqueeze(1)
+
+        out_dict = self.simulate_path(
+            x0=x0,
+            t=times_test,
+            items=items,
+            user_id=feed_dict["user_id"],
+            stats=stats,
+            stats_cal_on_fly=True,
+        )
+
+        labels = labels_test.unsqueeze(1)[..., 1:].float()
+        prediction = out_dict["x_item_pred"][..., 1:]
+
+        return self.pred_evaluate_method(
+            prediction.flatten().cpu(), labels.flatten().cpu(), metrics
+        )
+        
     def loss(
         self,
         feed_dict: Dict[str, torch.Tensor],

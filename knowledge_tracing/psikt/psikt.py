@@ -1190,43 +1190,75 @@ class AmortizedPSIKT(PSIKT):
 class ContinualPSIKT(AmortizedPSIKT):
     def __init__(
         self,
-        mode='train', 
+        mode="train",
         num_node=1,
         num_seq=1,
         args=None,
-        device='cpu',
+        device="cpu",
         logs=None,
         nx_graph=None,
     ) -> None:
         super().__init__(mode, num_node, args, device, logs, nx_graph)
-        
+
         time_step_save = args.max_step
         self.num_seq_save = num_seq
 
         s_shape = (num_seq, 1, time_step_save, self.dim_s)
         z_shape = (num_seq, 1, time_step_save, self.num_node)
         z_shape_pred = (num_seq, 1, time_step_save, self.num_node)
-        
-        self.pred_s_means = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
-        self.pred_s_vars = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
-        self.infer_s_means = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
-        self.infer_s_vars = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
-        
-        self.pred_s_means_update = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
-        self.pred_s_vars_update = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
-        self.infer_s_means_update = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
-        self.infer_s_vars_update = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
-        
-        self.pred_z_means = Parameter(torch.zeros(z_shape_pred, device=self.device), requires_grad=False)
-        self.pred_z_vars = Parameter(torch.zeros(z_shape_pred, device=self.device), requires_grad=False)
-        self.infer_z_means = Parameter(torch.zeros(z_shape, device=self.device), requires_grad=False)
-        self.infer_z_vars = Parameter(torch.zeros(z_shape, device=self.device), requires_grad=False)
-        
-        self.pred_z_means_update = Parameter(torch.zeros(z_shape_pred, device=self.device), requires_grad=False)
-        self.pred_z_vars_update = Parameter(torch.zeros(z_shape_pred, device=self.device), requires_grad=False)
-        self.infer_z_means_update = Parameter(torch.zeros(z_shape, device=self.device), requires_grad=False)
-        self.infer_z_vars_update = Parameter(torch.zeros(z_shape, device=self.device), requires_grad=False)
-        
+
+        self.pred_s_means = Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.pred_s_vars = Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.infer_s_means = Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.infer_s_vars = Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+
+        self.pred_s_means_update = Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.pred_s_vars_update = Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.infer_s_means_update = Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.infer_s_vars_update = Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+
+        self.pred_z_means = Parameter(
+            torch.zeros(z_shape_pred, device=self.device), requires_grad=False
+        )
+        self.pred_z_vars = Parameter(
+            torch.zeros(z_shape_pred, device=self.device), requires_grad=False
+        )
+        self.infer_z_means = Parameter(
+            torch.zeros(z_shape, device=self.device), requires_grad=False
+        )
+        self.infer_z_vars = Parameter(
+            torch.zeros(z_shape, device=self.device), requires_grad=False
+        )
+
+        self.pred_z_means_update = Parameter(
+            torch.zeros(z_shape_pred, device=self.device), requires_grad=False
+        )
+        self.pred_z_vars_update = Parameter(
+            torch.zeros(z_shape_pred, device=self.device), requires_grad=False
+        )
+        self.infer_z_means_update = Parameter(
+            torch.zeros(z_shape, device=self.device), requires_grad=False
+        )
+        self.infer_z_vars_update = Parameter(
+            torch.zeros(z_shape, device=self.device), requires_grad=False
+        )
+
         self.var_minimum = torch.log(torch.tensor(1).to(self.device))
 
         self.infer_network_emb = build_dense_network(
@@ -1234,17 +1266,17 @@ class ContinualPSIKT(AmortizedPSIKT):
         )
 
         self.infer_network_posterior_s = nn.LSTM(
-                        input_size=self.node_dim, 
-                        hidden_size=self.node_dim * 2,  
-                        bidirectional = False, 
-                        batch_first = True,
-                    )
+            input_size=self.node_dim,
+            hidden_size=self.node_dim * 2,
+            bidirectional=False,
+            batch_first=True,
+        )
         self.infer_network_posterior_z = nn.LSTM(
-                        input_size=self.node_dim, 
-                        hidden_size=self.node_dim * 2, 
-                        bidirectional = False, 
-                        batch_first = True,
-                    )
+            input_size=self.node_dim,
+            hidden_size=self.node_dim * 2,
+            bidirectional=False,
+            batch_first=True,
+        )
         self.infer_network_posterior_mean_var_s = VAEEncoder(
             self.node_dim * 2, self.node_dim, self.dim_s
         )
@@ -1256,35 +1288,36 @@ class ContinualPSIKT(AmortizedPSIKT):
         # )
 
     def st_transition_infer(
-        self, 
+        self,
         feed_dict: Dict[str, torch.Tensor] = None,
-        emb_inputs: torch.Tensor = None, 
+        emb_inputs: torch.Tensor = None,
         idx: int = None,
     ) -> torch.distributions.MultivariateNormal:
-        '''
+        """
         Compute the posterior distribution of the latent variable `s_t` given the input and output sequences.
-        '''
+        """
         output, _ = self.infer_network_posterior_s(emb_inputs)
-        output = output[:, -1:] 
-        mean, log_var = self.infer_network_posterior_mean_var_s(output)  # [bs, time_step, dim_s]
-        
+        output = output[:, -1:]
+        mean, log_var = self.infer_network_posterior_mean_var_s(
+            output
+        )  # [bs, time_step, dim_s]
+
         # mean, log_var = self.infer_network_posterior_mean_var_s(emb_inputs)
         log_var = torch.minimum(log_var, self.var_minimum)
         cov_mat = torch.diag_embed(torch.exp(log_var) + EPS)
         dist_s = distributions.multivariate_normal.MultivariateNormal(
-            loc=mean, 
-            scale_tril=torch.tril(cov_mat)
+            loc=mean, scale_tril=torch.tril(cov_mat)
         )
-            
+
         return dist_s
 
     def zt_transition_infer(
-        self, 
+        self,
         feed_dict: Dict[str, torch.Tensor] = None,
         emb_inputs: torch.Tensor = None,
         idx: int = None,
     ):
-        '''
+        """
         Compute the posterior distribution of the latent variable `z_t` given the input and output sequences.
 
         Args:
@@ -1299,113 +1332,135 @@ class ContinualPSIKT(AmortizedPSIKT):
             rnn_states (torch.Tensor): Output states of the posterior network.
             z_mean (torch.Tensor): Mean of the posterior distribution of `z_t`.
             z_log_var (torch.Tensor): Log variance of the posterior distribution of `z_t`.
-        '''
-        
+        """
+
         output, _ = self.infer_network_posterior_z(emb_inputs)
         output = output[:, -1:]
         mean, log_var = self.infer_network_posterior_mean_var_z(output)
-        
+
         # mean, log_var = self.infer_network_posterior_mean_var_z(emb_inputs)  # [batch_size, time_step, dim_s]
         log_var = torch.minimum(log_var, self.var_minimum)
         cov_mat = torch.diag_embed(torch.exp(log_var) + EPS)
-        
+
         dist_z = distributions.multivariate_normal.MultivariateNormal(
-            loc=mean, 
-            scale_tril=torch.tril(cov_mat)
+            loc=mean, scale_tril=torch.tril(cov_mat)
         )
-            
+
         return dist_z
-    
 
     def predictive_model(
-        self, 
+        self,
         feed_dict: Dict[str, torch.Tensor] = None,
         idx: int = None,
         eval: bool = False,
         update: bool = False,
         s_prior: torch.distributions.MultivariateNormal = None,
         z_prior: torch.distributions.MultivariateNormal = None,
-    ) -> Tuple[torch.distributions.MultivariateNormal, torch.distributions.MultivariateNormal]:
-        '''
-        '''
-        user = feed_dict['user_id']
-        y_idx = feed_dict['label_seq'][:, idx:idx+1] # [bs, 1]
+    ) -> Tuple[
+        torch.distributions.MultivariateNormal, torch.distributions.MultivariateNormal
+    ]:
+        """"""
+        user = feed_dict["user_id"]
+        y_idx = feed_dict["label_seq"][:, idx : idx + 1]  # [bs, 1]
         device = y_idx.device
         bs = y_idx.shape[0]
-        
+
         if idx == 0:
-            
-            t_idx = feed_dict['time_seq'][:, :idx+1] # [bs, 2]
-            dt = t_idx/T_SCALE + EPS 
+
+            t_idx = feed_dict["time_seq"][:, : idx + 1]  # [bs, 2]
+            dt = t_idx / T_SCALE + EPS
             s_tilde_dist = distributions.MultivariateNormal(
-                self.gen_s0_mean.unsqueeze(0).repeat(self.num_seq_save, 1, 1),  
-                scale_tril=torch.tril(torch.diag_embed(torch.exp(self.gen_s0_log_var) + EPS))
+                self.gen_s0_mean.unsqueeze(0).repeat(self.num_seq_save, 1, 1),
+                scale_tril=torch.tril(
+                    torch.diag_embed(torch.exp(self.gen_s0_log_var) + EPS)
+                ),
             )
-            s_tilde_dist_mean = s_tilde_dist.mean # [num_seq, 1, dim_s]
+            s_tilde_dist_mean = s_tilde_dist.mean  # [num_seq, 1, dim_s]
             s_tilde_dist_var = torch.diagonal(s_tilde_dist.scale_tril, dim1=-2, dim2=-1)
-            
+
             # p_theta(z_0)
             z_tilde_dist = distributions.MultivariateNormal(
-                self.gen_z0_mean.unsqueeze(0).repeat(self.num_seq_save, 1, self.num_node),  
-                scale_tril=torch.tril(torch.diag_embed(torch.exp(self.gen_z0_log_var.repeat(1, self.num_node)) + EPS)).unsqueeze(0)
+                self.gen_z0_mean.unsqueeze(0).repeat(
+                    self.num_seq_save, 1, self.num_node
+                ),
+                scale_tril=torch.tril(
+                    torch.diag_embed(
+                        torch.exp(self.gen_z0_log_var.repeat(1, self.num_node)) + EPS
+                    )
+                ).unsqueeze(0),
             )
-            z_tilde_dist_mean = z_tilde_dist.mean # [1, 1, dim_z]
+            z_tilde_dist_mean = z_tilde_dist.mean  # [1, 1, dim_z]
             z_tilde_dist_var = torch.diagonal(z_tilde_dist.scale_tril, dim1=-2, dim2=-1)
 
         else:
-            
-            t_idx = feed_dict['time_seq'][:, idx-1: idx+1] # [bs, 2]
-            dt = torch.diff(t_idx, dim=-1)/T_SCALE + EPS 
-            
+
+            t_idx = feed_dict["time_seq"][:, idx - 1 : idx + 1]  # [bs, 2]
+            dt = torch.diff(t_idx, dim=-1) / T_SCALE + EPS
+
             if s_prior != None:
                 s_prior_mean = s_prior.mean
                 s_prior_cov = torch.diagonal(s_prior.scale_tril, dim1=1, dim2=2)
-                
+
             else:
-                s_prior_mean = self.infer_s_means_update[user, :, idx-1]
-                s_prior_cov =  self.infer_s_vars_update[user, :, idx-1]
-    
-            s_tilde_dist_mean = s_prior_mean @ self.gen_st_h # [bs, 1, dim_s]
-            s_prior_cov_mat = torch.diag_embed(s_prior_cov) # [bs, 1, dim_s, dim_s]
+                s_prior_mean = self.infer_s_means_update[user, :, idx - 1]
+                s_prior_cov = self.infer_s_vars_update[user, :, idx - 1]
+
+            s_tilde_dist_mean = s_prior_mean @ self.gen_st_h  # [bs, 1, dim_s]
+            s_prior_cov_mat = torch.diag_embed(s_prior_cov)  # [bs, 1, dim_s, dim_s]
             pst_transition_var = torch.exp(self.gen_st_log_r)
-            pst_transition_cov_mat = torch.diag_embed(pst_transition_var + EPS) # [1, dim_s, dim_s]
+            pst_transition_cov_mat = torch.diag_embed(
+                pst_transition_var + EPS
+            )  # [1, dim_s, dim_s]
             s_tilde_dist_var_mat = (
                 self.gen_st_h @ s_prior_cov_mat @ self.gen_st_h.transpose(-1, -2)
                 + pst_transition_cov_mat
             )  # [bs, 1, dim_s, dim_s]
-            s_tilde_dist_var = torch.diagonal(s_tilde_dist_var_mat, dim1=-2, dim2=-1) # [bs, 1, dim_s]
+            s_tilde_dist_var = torch.diagonal(
+                s_tilde_dist_var_mat, dim1=-2, dim2=-1
+            )  # [bs, 1, dim_s]
             s_tilde_dist = distributions.multivariate_normal.MultivariateNormal(
-                loc=s_tilde_dist_mean, 
-                scale_tril=torch.tril(torch.diag_embed(s_tilde_dist_var))
+                loc=s_tilde_dist_mean,
+                scale_tril=torch.tril(torch.diag_embed(s_tilde_dist_var)),
             )
 
             # q_phi(z_t-1) the posterior of last time step is the prior of this time step
             if z_prior != None:
                 z_prior_mean = z_prior.mean
-                z_prior_cov = torch.diagonal(z_prior.scale_tril, dim1=1, dim2=2) # TODO
+                z_prior_cov = torch.diagonal(z_prior.scale_tril, dim1=1, dim2=2)  # TODO
             else:
-                z_prior_mean = self.infer_z_means_update[user,:,idx-1] # [bs, 1, dim_z]
-                z_prior_cov = self.infer_z_vars_update[user,:,idx-1]
-             
-            sampled_alpha = torch.relu(s_next_sample[...,0:1]) + EPS # TODO change # [bs, 1, 1]
+                z_prior_mean = self.infer_z_means_update[
+                    user, :, idx - 1
+                ]  # [bs, 1, dim_z]
+                z_prior_cov = self.infer_z_vars_update[user, :, idx - 1]
+
+            sampled_alpha = (
+                torch.relu(s_next_sample[..., 0:1]) + EPS
+            )  # TODO change # [bs, 1, 1]
             sampled_mu = s_next_sample[..., 1:2]
             sampled_sigma = s_next_sample[..., 2:3]
             sampled_gamma = torch.sigmoid(s_next_sample[..., 3:4])
-            
-            ou_decay = torch.exp(-sampled_alpha * dt.reshape(bs, 1, 1)) # [bs, 1, 1]
+
+            ou_decay = torch.exp(-sampled_alpha * dt.reshape(bs, 1, 1))  # [bs, 1, 1]
             graph_adj = (
                 self.node_dist.sample_A(self.num_sample)[-1][:, 0].mean(0).to(device)
-            ) 
-            empower = sampled_gamma * (z_last_sample @ graph_adj) / self.num_node # [bs, 1, num_node]
-            empowered_mu = sampled_mu + empower
-            
-            z_tilde_dist_mean = ou_decay * z_prior_mean + (1 - ou_decay) * empowered_mu
-            z_tilde_dist_var = sampled_gamma**2 * (1 - ou_decay**2) / (2 * sampled_alpha + EPS) + EPS
-            z_tilde_dist = distributions.multivariate_normal.MultivariateNormal(
-                loc=z_tilde_dist_mean, 
-                scale_tril=torch.tril(torch.diag_embed(z_tilde_dist_var.repeat(1,1,self.num_node)))
             )
-            
+            empower = (
+                sampled_gamma * (z_last_sample @ graph_adj) / self.num_node
+            )  # [bs, 1, num_node]
+            empowered_mu = sampled_mu + empower
+
+            z_tilde_dist_mean = ou_decay * z_prior_mean + (1 - ou_decay) * empowered_mu
+            z_tilde_dist_var = (
+                sampled_gamma ** 2 * (1 - ou_decay ** 2) / (2 * sampled_alpha + EPS)
+                + EPS
+            )
+            z_tilde_dist = distributions.multivariate_normal.MultivariateNormal(
+                loc=z_tilde_dist_mean,
+                scale_tril=torch.tril(
+                    torch.diag_embed(z_tilde_dist_var.repeat(1, 1, self.num_node))
+                ),
+            )
+
         if not eval:
             if not update:
                 self.pred_s_means[user, :, idx] = s_tilde_dist_mean.detach().clone()
@@ -1413,11 +1468,17 @@ class ContinualPSIKT(AmortizedPSIKT):
                 self.pred_z_means[user, :, idx] = z_tilde_dist_mean.detach().clone()
                 self.pred_z_vars[user, :, idx] = z_tilde_dist_var.detach().clone()
             else:
-                self.pred_s_means_update[user, :, idx] = s_tilde_dist_mean.detach().clone()
-                self.pred_s_vars_update[user, :, idx] = s_tilde_dist_var.detach().clone()
-                self.pred_z_means_update[user, :, idx] = z_tilde_dist_mean.detach().clone()
-                self.pred_z_vars_update[user, :, idx] = z_tilde_dist_var.detach().clone()
-                
+                self.pred_s_means_update[
+                    user, :, idx
+                ] = s_tilde_dist_mean.detach().clone()
+                self.pred_s_vars_update[
+                    user, :, idx
+                ] = s_tilde_dist_var.detach().clone()
+                self.pred_z_means_update[
+                    user, :, idx
+                ] = z_tilde_dist_mean.detach().clone()
+                self.pred_z_vars_update[
+                    user, :, idx
+                ] = z_tilde_dist_var.detach().clone()
+
         return s_tilde_dist, z_tilde_dist
-    
-    

@@ -1188,46 +1188,69 @@ class AmortizedPSIKT(PSIKT):
 
 
 class ContinualPSIKT(AmortizedPSIKT):
-    """
-    An instance of AmortizedPSIKT.
-
-    Args:
-        mode (str): The mode for initialization (default: "ls_split_time").
-        num_node (int): The number of nodes (default: 1).
-        args (argparse.Namespace): Command-line arguments (default: None).
-        device (torch.device): The device to use (default: torch.device("cpu")).
-        logs (Logger): Logger object for logging (default: None).
-        nx_graph (np.ndarray): NumPy array for the graph (default: None).
-    """
-
     def __init__(
         self,
-        mode: str = "ls_split_time",
-        num_node: int = 1,
-        args: argparse.Namespace = None,
-        device: torch.device = torch.device("cpu"),
-        logs: Logger = None,
-        nx_graph: numpy.ndarray = None,
+        mode='train', 
+        num_node=1,
+        num_seq=1,
+        args=None,
+        device='cpu',
+        logs=None,
+        nx_graph=None,
     ):
-        self.num_node = num_node
+        super().__init__(mode, num_node, args, device, logs, nx_graph)
+        
+        time_step_save = args.max_step
+        self.num_seq_save = num_seq
 
-        # specify dimensions of all latents
-        self.node_dim = args.node_dim
-        self.emb_mean_var_dim = 16
+        s_shape = (num_seq, 1, time_step_save, self.dim_s)
+        z_shape = (num_seq, 1, time_step_save, self.num_node)
+        z_shape_pred = (num_seq, 1, time_step_save, self.num_node)
+        
+        self.pred_s_means = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        self.pred_s_vars = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        self.infer_s_means = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        self.infer_s_vars = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        
+        self.pred_s_means_update = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        self.pred_s_vars_update = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        self.infer_s_means_update = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        self.infer_s_vars_update = Parameter(torch.zeros(s_shape, device=self.device), requires_grad=False)
+        
+        self.pred_z_means = Parameter(torch.zeros(z_shape_pred, device=self.device), requires_grad=False)
+        self.pred_z_vars = Parameter(torch.zeros(z_shape_pred, device=self.device), requires_grad=False)
+        self.infer_z_means = Parameter(torch.zeros(z_shape, device=self.device), requires_grad=False)
+        self.infer_z_vars = Parameter(torch.zeros(z_shape, device=self.device), requires_grad=False)
+        
+        self.pred_z_means_update = Parameter(torch.zeros(z_shape_pred, device=self.device), requires_grad=False)
+        self.pred_z_vars_update = Parameter(torch.zeros(z_shape_pred, device=self.device), requires_grad=False)
+        self.infer_z_means_update = Parameter(torch.zeros(z_shape, device=self.device), requires_grad=False)
+        self.infer_z_vars_update = Parameter(torch.zeros(z_shape, device=self.device), requires_grad=False)
+        
+        self.var_minimum = torch.log(torch.tensor(1).to(self.device))
 
-        self.var_log_max = torch.tensor(args.var_log_max)
-        self.num_category = args.num_category
-        self.learned_graph = args.learned_graph
+        self.infer_network_emb = build_dense_network(
+            self.node_dim * 2, [self.node_dim, self.node_dim], [nn.LeakyReLU(0.2), None]
+        )
 
-        # initialize graph parameters
-        if self.learned_graph == "none" or self.num_node == 1:
-            self.dim_s, self.dim_z = 3, 1
-        else:
-            self.dim_s, self.dim_z = 4, 1
-            self.adj = torch.tensor(nx_graph)
-            assert self.adj.shape[-1] >= num_node
-
-        self.qs_temperature = 1.0
-        self.qs_hard = 0
-
-        super().__init__(mode, num_node, nx_graph, device, args, logs)
+        self.infer_network_posterior_s = nn.LSTM(
+                        input_size=self.node_dim, 
+                        hidden_size=self.node_dim * 2,  
+                        bidirectional = False, 
+                        batch_first = True,
+                    )
+        self.infer_network_posterior_z = nn.LSTM(
+                        input_size=self.node_dim, 
+                        hidden_size=self.node_dim * 2, 
+                        bidirectional = False, 
+                        batch_first = True,
+                    )
+        self.infer_network_posterior_mean_var_s = VAEEncoder(
+            self.node_dim * 2, self.node_dim, self.dim_s
+        )
+        # self.infer_network_posterior_mean_var_s = VAEEncoder(
+        #     self.node_dim, self.node_dim, self.dim_s
+        # )
+        # self.infer_network_posterior_mean_var_z = VAEEncoder(
+        #     self.node_dim, self.node_dim, self.num_node
+        # )

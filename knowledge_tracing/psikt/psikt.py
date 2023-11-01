@@ -1278,7 +1278,7 @@ class ContinualPSIKT(AmortizedPSIKT):
             
         return dist_s
 
-    def z_transition_infer(
+    def zt_transition_infer(
         self, 
         feed_dict: Dict[str, torch.Tensor] = None,
         emb_inputs: torch.Tensor = None,
@@ -1315,3 +1315,109 @@ class ContinualPSIKT(AmortizedPSIKT):
         )
             
         return dist_z
+    
+
+    def predictive_model(
+        self, 
+        feed_dict: Dict[str, torch.Tensor] = None,
+        idx: int = None,
+        eval: bool = False,
+        update: bool = False,
+        s_prior: torch.distributions.MultivariateNormal = None,
+        z_prior: torch.distributions.MultivariateNormal = None,
+    ) -> Tuple[torch.distributions.MultivariateNormal, torch.distributions.MultivariateNormal]:
+        '''
+        '''
+        user = feed_dict['user_id']
+        y_idx = feed_dict['label_seq'][:, idx:idx+1] # [bs, 1]
+        device = y_idx.device
+        bs = y_idx.shape[0]
+        
+        if idx == 0:
+            
+            t_idx = feed_dict['time_seq'][:, :idx+1] # [bs, 2]
+            dt = t_idx/T_SCALE + EPS 
+            s_tilde_dist = distributions.MultivariateNormal(
+                self.gen_s0_mean.unsqueeze(0).repeat(self.num_seq_save, 1, 1),  
+                scale_tril=torch.tril(torch.diag_embed(torch.exp(self.gen_s0_log_var) + EPS))
+            )
+            s_tilde_dist_mean = s_tilde_dist.mean # [num_seq, 1, dim_s]
+            s_tilde_dist_var = torch.diagonal(s_tilde_dist.scale_tril, dim1=-2, dim2=-1)
+            
+            # p_theta(z_0)
+            z_tilde_dist = distributions.MultivariateNormal(
+                self.gen_z0_mean.unsqueeze(0).repeat(self.num_seq_save, 1, self.num_node),  
+                scale_tril=torch.tril(torch.diag_embed(torch.exp(self.gen_z0_log_var.repeat(1, self.num_node)) + EPS)).unsqueeze(0)
+            )
+            z_tilde_dist_mean = z_tilde_dist.mean # [1, 1, dim_z]
+            z_tilde_dist_var = torch.diagonal(z_tilde_dist.scale_tril, dim1=-2, dim2=-1)
+
+        else:
+            
+            t_idx = feed_dict['time_seq'][:, idx-1: idx+1] # [bs, 2]
+            dt = torch.diff(t_idx, dim=-1)/T_SCALE + EPS 
+            
+            if s_prior != None:
+                s_prior_mean = s_prior.mean
+                s_prior_cov = torch.diagonal(s_prior.scale_tril, dim1=1, dim2=2)
+                
+            else:
+                s_prior_mean = self.infer_s_means_update[user, :, idx-1]
+                s_prior_cov =  self.infer_s_vars_update[user, :, idx-1]
+    
+            s_tilde_dist_mean = s_prior_mean @ self.gen_st_h # [bs, 1, dim_s]
+            s_prior_cov_mat = torch.diag_embed(s_prior_cov) # [bs, 1, dim_s, dim_s]
+            pst_transition_var = torch.exp(self.gen_st_log_r)
+            pst_transition_cov_mat = torch.diag_embed(pst_transition_var + EPS) # [1, dim_s, dim_s]
+            s_tilde_dist_var_mat = (
+                self.gen_st_h @ s_prior_cov_mat @ self.gen_st_h.transpose(-1, -2)
+                + pst_transition_cov_mat
+            )  # [bs, 1, dim_s, dim_s]
+            s_tilde_dist_var = torch.diagonal(s_tilde_dist_var_mat, dim1=-2, dim2=-1) # [bs, 1, dim_s]
+            s_tilde_dist = distributions.multivariate_normal.MultivariateNormal(
+                loc=s_tilde_dist_mean, 
+                scale_tril=torch.tril(torch.diag_embed(s_tilde_dist_var))
+            )
+
+            # q_phi(z_t-1) the posterior of last time step is the prior of this time step
+            if z_prior != None:
+                z_prior_mean = z_prior.mean
+                z_prior_cov = torch.diagonal(z_prior.scale_tril, dim1=1, dim2=2) # TODO
+            else:
+                z_prior_mean = self.infer_z_means_update[user,:,idx-1] # [bs, 1, dim_z]
+                z_prior_cov = self.infer_z_vars_update[user,:,idx-1]
+             
+            sampled_alpha = torch.relu(s_next_sample[...,0:1]) + EPS # TODO change # [bs, 1, 1]
+            sampled_mu = s_next_sample[..., 1:2]
+            sampled_sigma = s_next_sample[..., 2:3]
+            sampled_gamma = torch.sigmoid(s_next_sample[..., 3:4])
+            
+            ou_decay = torch.exp(-sampled_alpha * dt.reshape(bs, 1, 1)) # [bs, 1, 1]
+            graph_adj = (
+                self.node_dist.sample_A(self.num_sample)[-1][:, 0].mean(0).to(device)
+            ) 
+            empower = sampled_gamma * (z_last_sample @ graph_adj) / self.num_node # [bs, 1, num_node]
+            empowered_mu = sampled_mu + empower
+            
+            z_tilde_dist_mean = ou_decay * z_prior_mean + (1 - ou_decay) * empowered_mu
+            z_tilde_dist_var = sampled_gamma**2 * (1 - ou_decay**2) / (2 * sampled_alpha + EPS) + EPS
+            z_tilde_dist = distributions.multivariate_normal.MultivariateNormal(
+                loc=z_tilde_dist_mean, 
+                scale_tril=torch.tril(torch.diag_embed(z_tilde_dist_var.repeat(1,1,self.num_node)))
+            )
+            
+        if not eval:
+            if not update:
+                self.pred_s_means[user, :, idx] = s_tilde_dist_mean.detach().clone()
+                self.pred_s_vars[user, :, idx] = s_tilde_dist_var.detach().clone()
+                self.pred_z_means[user, :, idx] = z_tilde_dist_mean.detach().clone()
+                self.pred_z_vars[user, :, idx] = z_tilde_dist_var.detach().clone()
+            else:
+                self.pred_s_means_update[user, :, idx] = s_tilde_dist_mean.detach().clone()
+                self.pred_s_vars_update[user, :, idx] = s_tilde_dist_var.detach().clone()
+                self.pred_z_means_update[user, :, idx] = z_tilde_dist_mean.detach().clone()
+                self.pred_z_vars_update[user, :, idx] = z_tilde_dist_var.detach().clone()
+                
+        return s_tilde_dist, z_tilde_dist
+    
+    

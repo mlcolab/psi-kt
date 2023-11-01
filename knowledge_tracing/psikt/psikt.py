@@ -1197,7 +1197,7 @@ class ContinualPSIKT(AmortizedPSIKT):
         device='cpu',
         logs=None,
         nx_graph=None,
-    ):
+    ) -> None:
         super().__init__(mode, num_node, args, device, logs, nx_graph)
         
         time_step_save = args.max_step
@@ -1254,3 +1254,26 @@ class ContinualPSIKT(AmortizedPSIKT):
         # self.infer_network_posterior_mean_var_z = VAEEncoder(
         #     self.node_dim, self.node_dim, self.num_node
         # )
+
+    def st_transition_infer(
+        self, 
+        feed_dict: Dict[str, torch.Tensor] = None,
+        emb_inputs: torch.Tensor = None, 
+        idx: int = None,
+    ) -> torch.distributions.MultivariateNormal:
+        '''
+        Compute the posterior distribution of the latent variable `s_t` given the input and output sequences.
+        '''
+        output, _ = self.infer_network_posterior_s(emb_inputs)
+        output = output[:, -1:] 
+        mean, log_var = self.infer_network_posterior_mean_var_s(output)  # [bs, time_step, dim_s]
+        
+        # mean, log_var = self.infer_network_posterior_mean_var_s(emb_inputs)
+        log_var = torch.minimum(log_var, self.var_minimum)
+        cov_mat = torch.diag_embed(torch.exp(log_var) + EPS)
+        dist_s = distributions.multivariate_normal.MultivariateNormal(
+            loc=mean, 
+            scale_tril=torch.tril(cov_mat)
+        )
+            
+        return dist_s

@@ -53,16 +53,15 @@ class VCLRunner(KTRunner):
         
         if self.overfit > 0:
             epoch_whole_data = copy.deepcopy(corpus.data_df['whole'][:self.overfit])
+            epoch_whole_data['user_id'] = np.arange(self.overfit)
         else:
             epoch_whole_data = copy.deepcopy(corpus.data_df['whole'])
 
         # Return a random sample of items from an axis of object.
         epoch_whole_data = epoch_whole_data.sample(frac=1).reset_index(drop=True) 
         whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
-        # Move the batch to the GPU.
-        whole_batches = [model.module.batch_to_gpu(batch, model.module.device) for batch in whole_batches]
                 
-        max_time_step = 50 # time_step
+        max_time_step = 100 # time_step
         
         try:
             for time in range(max_time_step):
@@ -71,6 +70,7 @@ class VCLRunner(KTRunner):
                 
                 self._check_time()
                 self.fit(model, whole_batches, epoch=time, time_step=time)
+                self.test(model, whole_batches, epoch=time, time_step=time)
                 training_time = self._check_time()
 
         except KeyboardInterrupt:
@@ -79,31 +79,6 @@ class VCLRunner(KTRunner):
             if exit_here.lower().startswith('y'):
                 self.logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)
                 exit(1)
-
-        # Find the best validation result across iterations
-        best_valid_epoch = self.logs.valid_results[self.metrics[0]].argmax()
-        valid_res_dict, test_res_dict = dict(), dict()
-        
-        for metric in self.metrics:
-            valid_res_dict[metric] = self.logs.valid_results[metric][best_valid_epoch]
-            test_res_dict[metric] = self.logs.test_results[metric][best_valid_epoch]
-        self.logs.write_to_log_file("\nBest Iter(val)=  %5d\t valid=(%s) test=(%s) [%.1f s] "
-                     % (best_valid_epoch + 1,
-                        utils.format_metric(valid_res_dict),
-                        utils.format_metric(test_res_dict),
-                        self.time[1] - self.time[0]))
-
-        best_test_epoch = self.logs.test_results[self.metrics[0]].argmax()
-        for metric in self.metrics:
-            valid_res_dict[metric] = self.logs.valid_results[metric][best_test_epoch]
-            test_res_dict[metric] = self.logs.test_results[metric][best_test_epoch]
-        self.logs.write_to_log_file("Best Iter(test)= %5d\t valid=(%s) test=(%s) [%.1f s] \n"
-                     % (best_test_epoch + 1,
-                        utils.format_metric(valid_res_dict),
-                        utils.format_metric(test_res_dict),
-                        self.time[1] - self.time[0]))
-                        
-        # model.load_model() #???
 
 
     def fit(

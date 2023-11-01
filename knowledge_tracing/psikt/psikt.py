@@ -1277,3 +1277,41 @@ class ContinualPSIKT(AmortizedPSIKT):
         )
             
         return dist_s
+
+    def z_transition_infer(
+        self, 
+        feed_dict: Dict[str, torch.Tensor] = None,
+        emb_inputs: torch.Tensor = None,
+        idx: int = None,
+    ):
+        '''
+        Compute the posterior distribution of the latent variable `z_t` given the input and output sequences.
+
+        Args:
+            inputs (tuple): A tuple containing the feed dictionary and the sampled skills `s_t`.
+            num_sample (int): Number of samples for Monte Carlo estimation of the posterior distribution.
+            emb_inputs (torch.Tensor): Optional embedded input sequence of shape [batch_size, time_step, dim_item+dim_time].
+
+        Returns:
+            z_sampled (torch.Tensor): Sampled latent variable `z_t` of shape [batch_size*num_sample, 1, time_step, out_dim].
+            z_entropy (torch.Tensor): Entropy of the posterior distribution of `z_t`.
+            z_log_prob_q (torch.Tensor): Log probability of the posterior distribution of `z_t`.
+            rnn_states (torch.Tensor): Output states of the posterior network.
+            z_mean (torch.Tensor): Mean of the posterior distribution of `z_t`.
+            z_log_var (torch.Tensor): Log variance of the posterior distribution of `z_t`.
+        '''
+        
+        output, _ = self.infer_network_posterior_z(emb_inputs)
+        output = output[:, -1:]
+        mean, log_var = self.infer_network_posterior_mean_var_z(output)
+        
+        # mean, log_var = self.infer_network_posterior_mean_var_z(emb_inputs)  # [batch_size, time_step, dim_s]
+        log_var = torch.minimum(log_var, self.var_minimum)
+        cov_mat = torch.diag_embed(torch.exp(log_var) + EPS)
+        
+        dist_z = distributions.multivariate_normal.MultivariateNormal(
+            loc=mean, 
+            scale_tril=torch.tril(cov_mat)
+        )
+            
+        return dist_z

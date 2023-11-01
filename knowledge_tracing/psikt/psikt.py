@@ -1547,3 +1547,115 @@ class ContinualPSIKT(AmortizedPSIKT):
                 )
 
         return s_dist, z_dist
+
+    def objective_function(
+        self,
+        feed_dict_idx: Dict[str, torch.Tensor],
+        idx: int,
+        pred_dist=None,
+        post_dist=None,
+    ):
+
+        y_idx = feed_dict_idx["label_seq"][:, idx : idx + 1]
+        item_idx = feed_dict_idx["skill_seq"][:, idx : idx + 1]
+
+        # p_tilde_theta(s_t) = \int p_theta(s_t | s_t-1) q_phi(s_t-1 | y_1:t-1) ds_t
+        # p_tilde_theta(z_t) = \int p_theta(z_t | s_t, z_t-1) q_phi(z_t-1 | y_1:t-1) dz_t
+        s_tilde_dist, z_tilde_dist = pred_dist
+        # q_phi(s_t | y_1:t), q_phi(z_t | y_1:t)
+        s_infer_dist, z_infer_dist = post_dist
+
+        # log tilde_p_theta(s_t)
+        s_vp_sample = s_infer_dist.rsample(
+            (self.num_sample,)
+        )  # [num_sample, bs, 1, dim_s]
+        log_prob_st = s_tilde_dist.log_prob(s_vp_sample)  # [num_sample, bs, 1, dim_s]
+        log_prob_st = log_prob_st.mean() / self.dim_s
+
+        z_vp_sample = z_infer_dist.rsample(
+            (self.num_sample,)
+        )  # [num_sample, bs, 1, dim_z]
+        log_prob_zt = z_tilde_dist.log_prob(z_vp_sample)  # [num_sample, bs, 1, dim_z]
+        log_prob_zt = log_prob_zt.mean() / self.dim_z
+
+        item_idx_mc = item_idx.unsqueeze(0).repeat(self.num_sample, 1, 1)  # [n, bs, 1]
+        sampled_scalar_z = torch.gather(z_vp_sample[:, :, 0], dim=2, index=item_idx_mc)
+
+        emission_prob = self.y_emit(sampled_scalar_z)  # [n, bs, 1]
+        emission_dist = torch.distributions.bernoulli.Bernoulli(probs=emission_prob)
+        prediction = emission_dist.sample()  # NOTE: only for evaluation; no gradient
+        label = y_idx.unsqueeze(0).repeat(self.num_sample, 1, 1).float()
+        log_prob_yt = emission_dist.log_prob(label).mean()
+
+        st_entropy = s_infer_dist.entropy().mean()
+        zt_entropy = z_infer_dist.entropy().mean()
+
+        elbo = (
+            log_prob_st
+            + log_prob_zt
+            + self.args.y_log_weight * log_prob_yt
+            + self.args.s_entropy_weight * st_entropy
+            + self.args.z_entropy_weight * zt_entropy
+        )
+
+        return dict(
+            elbo=elbo,
+            sequence_likelihood=log_prob_yt + log_prob_zt + log_prob_st,
+            log_prob_yt=log_prob_yt,
+            log_prob_zt=log_prob_zt,
+            log_prob_st=log_prob_st,
+            st_entropy=st_entropy,
+            zt_entropy=zt_entropy,
+            prediction=prediction,
+            label=label,
+            sampled_s=s_vp_sample,
+        )
+
+    def comparison_function(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+    ):
+        loss_fn = torch.nn.BCELoss()
+
+        comparison = defaultdict(lambda: torch.zeros(()))  # , device=self.device))
+        users = feed_dict["user_id"]
+        labels = feed_dict["label_seq"][:, idx].float()  # [bs, times]
+        items = feed_dict["skill_seq"][:, idx]  # [bs, times]
+
+        # ------ comparison 1: check if optimization works ------
+        old_z_tilde_dist = torch.distributions.MultivariateNormal(
+            loc=self.pred_z_means[users, :, idx],
+            scale_tril=torch.diag_embed(self.pred_z_vars[users, :, idx]),
+        )
+        new_z_tilde_dist = torch.distributions.MultivariateNormal(
+            loc=self.pred_z_means_update[users, :, idx],
+            scale_tril=torch.diag_embed(self.pred_z_vars_update[users, :, idx]),
+        )
+        old_y = self.y_emit(old_z_tilde_dist.sample((self.num_sample,))).mean(0)
+        new_y = self.y_emit(new_z_tilde_dist.sample((self.num_sample,))).mean(0)
+        old_y = torch.gather(old_y, dim=2, index=items.reshape(-1, 1, 1))
+        new_y = torch.gather(new_y, dim=2, index=items.reshape(-1, 1, 1))
+
+        comparison["comp_1_tilde"] = loss_fn(
+            new_y.flatten(), labels.flatten()
+        ) - loss_fn(old_y.flatten(), labels.flatten())
+
+        old_z_infer_dist = torch.distributions.MultivariateNormal(
+            loc=self.infer_z_means[users, :, idx],
+            scale_tril=torch.diag_embed(self.infer_z_vars[users, :, idx]),
+        )
+        new_z_infer_dist = torch.distributions.MultivariateNormal(
+            loc=self.infer_z_means_update[users, :, idx],
+            scale_tril=torch.diag_embed(self.infer_z_vars_update[users, :, idx]),
+        )
+        old_y = self.y_emit(old_z_infer_dist.sample((self.num_sample,))).mean(0)
+        new_y = self.y_emit(new_z_infer_dist.sample((self.num_sample,))).mean(0)
+        old_y = torch.gather(old_y, dim=2, index=items.reshape(-1, 1, 1))
+        new_y = torch.gather(new_y, dim=2, index=items.reshape(-1, 1, 1))
+
+        comparison["comp_1_infer"] = loss_fn(
+            new_y.flatten(), labels.flatten()
+        ) - loss_fn(old_y.flatten(), labels.flatten())
+
+        return comparison

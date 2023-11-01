@@ -1482,3 +1482,68 @@ class ContinualPSIKT(AmortizedPSIKT):
                 ] = z_tilde_dist_var.detach().clone()
 
         return s_tilde_dist, z_tilde_dist
+
+    def inference_model(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+        eval: bool = False,
+        update: bool = False,
+    ):
+        """
+        Args:
+            eval: if True, it will not update the parameters.
+                    Usually this happens during evaluation or comparison when there is no gradient.
+            update: if True, it means the network is optimized by the update loss.
+                    We should save the interested parameters in the updated list.
+        """
+        # y_idx = feed_dict['label_seq'][:, :idx+1] # [bs, times]
+        # t_idx = feed_dict['time_seq'][:, :idx+1]
+        # item = feed_dict['skill_seq'][:, :idx+1] # [bs, times]
+        y_idx = feed_dict["label_seq"][:, idx : idx + 1]  # [bs, times]
+        t_idx = feed_dict["time_seq"][:, idx : idx + 1]
+        item = feed_dict["skill_seq"][:, idx : idx + 1]  # [bs, times]
+
+        # ----- embedding -----
+        t_emb = self.get_time_embedding(t_idx, "absolute")  # [bs, times, node_dim]
+        y_emb = torch.tile(
+            y_idx.unsqueeze(-1), (1, 1, self.node_dim)
+        )  # [bs, times, node_dim]
+        node_emb = self.node_dist._get_node_embedding()[item]  # [bs, times, dim]
+        emb_input = torch.cat([node_emb, y_emb], dim=-1)  # [bs, times, dim*2]
+        emb_history = self.infer_network_emb(emb_input)
+
+        emb_rnn_inputs = emb_history + t_emb
+
+        # -----  `q(s[t] | y[1:t])' -----
+        s_dist = self.st_transition_infer(feed_dict, emb_inputs=emb_rnn_inputs, idx=idx)
+
+        # ----- `q(z[t] | y[1:t])' -----
+        z_dist = self.zt_transition_infer(
+            feed_dict,
+            emb_inputs=emb_rnn_inputs,
+            idx=idx,
+        )
+
+        if not eval:
+            users = feed_dict["user_id"]
+            if not update:
+                self.infer_s_means[users, :, idx] = s_dist.mean.detach().clone()
+                self.infer_s_vars[users, :, idx] = (
+                    torch.diagonal(s_dist.scale_tril, dim1=-2, dim2=-1).detach().clone()
+                )
+                self.infer_z_means[users, :, idx] = z_dist.mean.detach().clone()
+                self.infer_z_vars[users, :, idx] = (
+                    torch.diagonal(z_dist.scale_tril, dim1=-2, dim2=-1).detach().clone()
+                )
+            else:
+                self.infer_s_means_update[users, :, idx] = s_dist.mean.detach().clone()
+                self.infer_s_vars_update[users, :, idx] = (
+                    torch.diagonal(s_dist.scale_tril, dim1=-2, dim2=-1).detach().clone()
+                )
+                self.infer_z_means_update[users, :, idx] = z_dist.mean.detach().clone()
+                self.infer_z_vars_update[users, :, idx] = (
+                    torch.diagonal(z_dist.scale_tril, dim1=-2, dim2=-1).detach().clone()
+                )
+
+        return s_dist, z_dist

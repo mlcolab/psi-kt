@@ -3,8 +3,9 @@ import copy
 import os
 from time import time
 from collections import defaultdict
-
 from tqdm import tqdm
+
+import numpy as np
 
 import torch
 

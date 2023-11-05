@@ -12,10 +12,10 @@ import torch
 
 from knowledge_tracing.data import data_loader
 from knowledge_tracing.runner import runner_psikt# , runner_vcl
-import knowledge_tracing.runner.runner_test as runner_vcl
+import knowledge_tracing.runner.runner_vcl as runner_vcl
 from knowledge_tracing.utils import utils, arg_parser, logger
-from knowledge_tracing.psikt.psikt import PSIKT, AmortizedPSIKT
-from knowledge_tracing.psikt.test import ContinualPSIKT
+from knowledge_tracing.psikt.psikt import PSIKT, AmortizedPSIKT, ContinualPSIKT
+# from knowledge_tracing.psikt.test import 
 
 def global_parse_args():
     """

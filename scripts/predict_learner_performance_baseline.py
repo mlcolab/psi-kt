@@ -12,16 +12,12 @@ import torch
 
 from knowledge_tracing.data import data_loader
 from knowledge_tracing.runner import runner_baseline
-from knowledge_tracing.runner import runner_vcl
 from knowledge_tracing.utils import utils, arg_parser, logger
 
 from knowledge_tracing.baseline import ppe
 from knowledge_tracing.baseline.HawkesKT import dktforgetting, hkt
 from knowledge_tracing.baseline.EduKTM import dkt, akt
 from knowledge_tracing.baseline.halflife_regression import hlr
-
-# TODO: this is duplicate with the groupkt one
-
 
 def global_parse_args():
     """

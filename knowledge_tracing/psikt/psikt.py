@@ -1106,6 +1106,7 @@ class AmortizedPSIKT(PSIKT):
         metrics: List[str] = None,
     ):
         """ """
+        
         losses = defaultdict(lambda: torch.zeros(()))  # , device=self.device))
 
         # Calculate binary cross-entropy loss -> not used for optimization only for visualization
@@ -1207,55 +1208,55 @@ class ContinualPSIKT(AmortizedPSIKT):
         z_shape = (num_seq, 1, time_step_save, self.num_node)
         z_shape_pred = (num_seq, 1, time_step_save, self.num_node)
 
-        self.pred_s_means = Parameter(
+        self.pred_s_means = nn.Parameter(
             torch.zeros(s_shape, device=self.device), requires_grad=False
         )
-        self.pred_s_vars = Parameter(
+        self.pred_s_vars = nn.Parameter(
             torch.zeros(s_shape, device=self.device), requires_grad=False
         )
-        self.infer_s_means = Parameter(
+        self.infer_s_means = nn.Parameter(
             torch.zeros(s_shape, device=self.device), requires_grad=False
         )
-        self.infer_s_vars = Parameter(
-            torch.zeros(s_shape, device=self.device), requires_grad=False
-        )
-
-        self.pred_s_means_update = Parameter(
-            torch.zeros(s_shape, device=self.device), requires_grad=False
-        )
-        self.pred_s_vars_update = Parameter(
-            torch.zeros(s_shape, device=self.device), requires_grad=False
-        )
-        self.infer_s_means_update = Parameter(
-            torch.zeros(s_shape, device=self.device), requires_grad=False
-        )
-        self.infer_s_vars_update = Parameter(
+        self.infer_s_vars = nn.Parameter(
             torch.zeros(s_shape, device=self.device), requires_grad=False
         )
 
-        self.pred_z_means = Parameter(
+        self.pred_s_means_update = nn.Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.pred_s_vars_update = nn.Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.infer_s_means_update = nn.Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.infer_s_vars_update = nn.Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+
+        self.pred_z_means = nn.Parameter(
             torch.zeros(z_shape_pred, device=self.device), requires_grad=False
         )
-        self.pred_z_vars = Parameter(
+        self.pred_z_vars = nn.Parameter(
             torch.zeros(z_shape_pred, device=self.device), requires_grad=False
         )
-        self.infer_z_means = Parameter(
+        self.infer_z_means = nn.Parameter(
             torch.zeros(z_shape, device=self.device), requires_grad=False
         )
-        self.infer_z_vars = Parameter(
+        self.infer_z_vars = nn.Parameter(
             torch.zeros(z_shape, device=self.device), requires_grad=False
         )
 
-        self.pred_z_means_update = Parameter(
+        self.pred_z_means_update = nn.Parameter(
             torch.zeros(z_shape_pred, device=self.device), requires_grad=False
         )
-        self.pred_z_vars_update = Parameter(
+        self.pred_z_vars_update = nn.Parameter(
             torch.zeros(z_shape_pred, device=self.device), requires_grad=False
         )
-        self.infer_z_means_update = Parameter(
+        self.infer_z_means_update = nn.Parameter(
             torch.zeros(z_shape, device=self.device), requires_grad=False
         )
-        self.infer_z_vars_update = Parameter(
+        self.infer_z_vars_update = nn.Parameter(
             torch.zeros(z_shape, device=self.device), requires_grad=False
         )
 
@@ -1370,18 +1371,19 @@ class ContinualPSIKT(AmortizedPSIKT):
             t_idx = feed_dict["time_seq"][:, : idx + 1]  # [bs, 2]
             dt = t_idx / T_SCALE + EPS
             s_tilde_dist = distributions.MultivariateNormal(
-                self.gen_s0_mean.unsqueeze(0).repeat(self.num_seq_save, 1, 1),
+                self.gen_s0_mean.unsqueeze(0).repeat(bs, 1, 1),
                 scale_tril=torch.tril(
                     torch.diag_embed(torch.exp(self.gen_s0_log_var) + EPS)
                 ),
             )
+            
             s_tilde_dist_mean = s_tilde_dist.mean  # [num_seq, 1, dim_s]
             s_tilde_dist_var = torch.diagonal(s_tilde_dist.scale_tril, dim1=-2, dim2=-1)
 
             # p_theta(z_0)
             z_tilde_dist = distributions.MultivariateNormal(
                 self.gen_z0_mean.unsqueeze(0).repeat(
-                    self.num_seq_save, 1, self.num_node
+                    bs, 1, self.num_node
                 ),
                 scale_tril=torch.tril(
                     torch.diag_embed(
@@ -1389,7 +1391,7 @@ class ContinualPSIKT(AmortizedPSIKT):
                     )
                 ).unsqueeze(0),
             )
-            z_tilde_dist_mean = z_tilde_dist.mean  # [1, 1, dim_z]
+            z_tilde_dist_mean = z_tilde_dist.mean # [1, 1, dim_z]
             z_tilde_dist_var = torch.diagonal(z_tilde_dist.scale_tril, dim1=-2, dim2=-1)
 
         else:
@@ -1432,7 +1434,10 @@ class ContinualPSIKT(AmortizedPSIKT):
                     user, :, idx - 1
                 ]  # [bs, 1, dim_z]
                 z_prior_cov = self.infer_z_vars_update[user, :, idx - 1]
-
+                
+            s_next_sample = s_tilde_dist_mean # [bs, 1, dim_s]
+            z_last_sample = z_prior_mean # [bs, 1, num_node]
+            
             sampled_alpha = (
                 torch.relu(s_next_sample[..., 0:1]) + EPS
             )  # TODO change # [bs, 1, 1]
@@ -1503,7 +1508,7 @@ class ContinualPSIKT(AmortizedPSIKT):
         y_idx = feed_dict["label_seq"][:, idx : idx + 1]  # [bs, times]
         t_idx = feed_dict["time_seq"][:, idx : idx + 1]
         item = feed_dict["skill_seq"][:, idx : idx + 1]  # [bs, times]
-
+        
         # ----- embedding -----
         t_emb = self.get_time_embedding(t_idx, "absolute")  # [bs, times, node_dim]
         y_emb = torch.tile(
@@ -1659,3 +1664,176 @@ class ContinualPSIKT(AmortizedPSIKT):
         ) - loss_fn(old_y.flatten(), labels.flatten())
 
         return comparison
+
+
+
+    def loss(
+        self, 
+        feed_dict: Dict[str, torch.Tensor],
+        outdict: Dict[str, torch.Tensor],
+        metrics: List[str] = None,
+    ):
+        """
+        Calculates the loss of the model based on the ground truth label and predicted label.
+
+        Args:
+        - feed_dict (dict): The input to the model
+        - outdict (dict): The output of the model
+        - metrics (dict): A dictionary of metrics to evaluate the performance of the model
+
+        Returns:
+        - losses (defaultdict): A defaultdict of losses
+        """
+        losses = defaultdict(lambda: torch.zeros(()))#, device=self.device))
+
+        # Calculate binary cross-entropy loss -> not used for optimization only for visualization
+        gt = outdict["label"] 
+        pred = outdict["prediction"]
+        loss_fn = torch.nn.BCELoss()
+        bceloss = loss_fn(pred, gt.float())
+        losses['loss_bce'] = bceloss
+        
+        for key in ['elbo', 'sequence_likelihood', 
+                    'st_entropy', 'zt_entropy',
+                    'log_prob_yt', 'log_prob_zt', 'log_prob_st']:
+            losses[key] = outdict[key].mean()
+        losses['loss_total'] = -outdict['elbo'].mean()
+        
+        # Evaluate metrics
+        if metrics != None:
+            self.metrics = metrics
+            pred = pred.detach().cpu().data.numpy()
+            gt = gt.detach().cpu().data.numpy()
+            evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
+        for key in evaluations.keys():
+            losses[key] = evaluations[key]
+        
+        # Calculate mean and variance of the Ornstein-Uhlenbeck process
+        losses['ou_speed'] = outdict["sampled_s"][...,0].mean()
+        losses['ou_mean'] = outdict["sampled_s"][...,1].mean()
+        losses['ou_vola'] = outdict["sampled_s"][...,2].mean()
+        
+        if self.dim_s > 3:
+            losses['ou_gamma'] = outdict["sampled_s"][...,3].mean()
+        
+        return losses
+    
+            
+            
+    def eval_model(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Perform predictive modeling.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): Dictionary containing input data with dtype torch.Tensor.
+        """
+        
+        test_step = 10
+        user = feed_dict['user_id']
+        s_tilde_dist = torch.distributions.MultivariateNormal(
+                loc=self.infer_s_means_update[user, :, idx],
+                scale_tril=torch.diag_embed(self.infer_s_vars_update[user, :, idx]),
+            )
+        z_tilde_dist = torch.distributions.MultivariateNormal(
+                loc=self.infer_z_means_update[user, :, idx],
+                scale_tril=torch.diag_embed(self.infer_z_vars_update[user, :, idx]),
+            )
+
+        y_all = feed_dict['label_seq'][:, idx+1:idx+test_step+1] # [bs, times]
+        item_all = feed_dict["skill_seq"][:, idx+1:idx+test_step+1]
+        t_all = feed_dict['time_seq'][:, idx:idx+test_step+1] # [bs, 10]
+        bs, _ = t_all.shape
+        bsn = bs * self.num_sample
+    
+        qs_dist, qz_dist = s_tilde_dist, z_tilde_dist
+
+        # analytical solution
+        pred_s_mean, pred_s_var, pred_z_mean, pred_z_var = [], [], [], []
+        s_last_mean = qs_dist.mean  # [bs, 1, dim_s]
+        s_last_cov_mat = qs_dist.covariance_matrix  # [bs, 1, dim_s, dim_s]
+        st_tran_r = torch.diag_embed(torch.exp(self.gen_st_log_r) + EPS)
+        z_last_mean = qz_dist.mean  # [bs, 1, num_node]
+        pz_graph_adj = (
+            self.node_dist.sample_A(self.num_sample)[-1][:, 0]
+            .mean(0)
+            .to(z_last_mean.device)
+        )  
+        dt = (
+            torch.diff(t_all, dim=-1).unsqueeze(-1) / T_SCALE + EPS
+        )  # [bs, num_steps, 1]
+        for i in range(test_step):
+            # p(st-1) = N(m, P), p(st|st-1) = N(st|H*st-1 + b, R)
+            # p(st) = N(st|H*m + b, H*P*H' + R)
+            s_next_mean = s_last_mean @ self.gen_st_h  # [bs, 1, dim_s]
+            s_next_cov_mat = (
+                self.gen_st_h @ s_last_cov_mat @ self.gen_st_h.transpose(-1, -2)
+                + st_tran_r
+            )  # [bs, 1, dim_s, dim_s]
+            pred_s_mean.append(s_next_mean)
+            pred_s_var.append(s_next_cov_mat)
+            s_last_mean = s_next_mean
+            s_last_cov_mat = s_next_cov_mat
+
+            # p(zt) = N(zt|zt-1, st)
+            q_alpha = torch.relu(s_next_mean[..., 0:1]) + EPS
+            q_mu = s_next_mean[..., 1:2]  # torch.tanh(s_next_mean[..., 1:2])  #
+            q_sigma = s_next_mean[..., 2:3]  # [bs, 1, 1]
+            q_gamma = torch.sigmoid(
+                s_next_mean[..., 3:4]
+            )  # torch.zeros_like(q_sigma) #
+            # calculate useful variables
+            pz_ou_decay = torch.exp(-q_alpha * dt[:, i : i + 1])  # [bs, 1, 1]
+            pz_ou_var = (
+                q_sigma
+                * q_sigma
+                * (1 - pz_ou_decay * pz_ou_decay)
+                / (2 * q_alpha + EPS)
+            )  # [bs, num_steps-1, 1]
+            pz_empower = (z_last_mean @ pz_graph_adj) / self.num_node * q_gamma
+            pz_empowered_mu = q_mu + pz_empower  # [bs, time-1, num_node]
+            pz_ou_mean = (
+                pz_ou_decay * z_last_mean + (1 - pz_ou_decay) * pz_empowered_mu
+            )  # [bs, 1, num_node]
+            z_last_mean = pz_ou_mean
+            pred_z_mean.append(pz_ou_mean)
+            pred_z_var.append(pz_ou_var)
+
+        pred_s_mean = torch.cat(pred_s_mean, dim=1)  # [bs, time, dim_s]
+        pred_s_cov_mat = torch.cat(pred_s_var, dim=1)  # [bs, time, dim_s, dim_s]
+        pred_z_mean = torch.cat(pred_z_mean, dim=1)  # [bs, time, num_node]
+        pred_z_var = torch.cat(pred_z_var, dim=1).repeat(
+            1, 1, self.num_node
+        )  # [bs, time, num_node]
+
+        pred_z_dist = torch.distributions.MultivariateNormal(
+            loc=pred_z_mean, scale_tril=torch.tril(torch.diag_embed(pred_z_var + EPS))
+        )
+        pred_z_sampled = pred_z_dist.sample(
+            (self.num_sample,)
+        )  # [n, bs, time, num_node]
+        pred_z_sampled = pred_z_sampled.transpose(1, 0).reshape(
+            bsn, test_step, self.num_node
+        )  # [bsn, time, num_node]
+        pred_z_sampled = pred_z_sampled.transpose(
+            -1, -2
+        ).contiguous()  # [bsn, num_node, time]
+
+        item_test = item_all
+        item_test_mc = (
+            item_test.unsqueeze(1)
+            .repeat(1, self.num_sample, 1)
+            .reshape(bsn, 1, test_step)
+        )  # [bsn, 1, time]
+        pred_z_sampled_item = (
+            torch.gather(pred_z_sampled, 1, item_test_mc).transpose(-1, -2).contiguous()
+        )  # [bsn, time, 1]
+        
+        pred_y_test = self.y_emit(pred_z_sampled_item)
+        pred = pred_y_test.reshape(bs, self.num_sample, test_step)
+        mc_label = y_all.unsqueeze(1).repeat(1, self.num_sample, 1)
+
+        return self.pred_evaluate_method(pred.cpu(), mc_label.cpu(), self.metrics)

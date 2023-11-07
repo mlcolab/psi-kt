@@ -543,7 +543,7 @@ class AmortizedPSIKT(PSIKT):
         # s_n and its disentangled elements
         qs_mean = qs_dist.mean[:, 0, 1:]  # [bs, time-1, dim_s]
         q_alpha = torch.relu(qs_mean[..., 0:1]) + EPS
-        q_mu = qs_mean[..., 1:2]  # torch.tanh(qs_mean[..., 1:2])
+        q_mu = qs_mean[..., 1:2]  # torch.tanh(qs_mean[..., 1:2]) # 
         q_sigma = qs_mean[
             ..., 2:3
         ]  # TODO  q_sigma = torch.minimum(qs_mean[..., 2:3], self.var_log_max.to(device))
@@ -895,7 +895,7 @@ class AmortizedPSIKT(PSIKT):
 
             # p(zt) = N(zt|zt-1, st)
             q_alpha = torch.relu(s_next_mean[..., 0:1]) + EPS
-            q_mu = s_next_mean[..., 1:2]  # torch.tanh(s_next_mean[..., 1:2])  #
+            q_mu = s_next_mean[..., 1:2]  # torch.tanh(s_next_mean[..., 1:2])  # 
             q_sigma = s_next_mean[..., 2:3]  # [bs, 1, 1]
             q_gamma = torch.sigmoid(
                 s_next_mean[..., 3:4]
@@ -1066,11 +1066,11 @@ class AmortizedPSIKT(PSIKT):
         )
         sequence_likelihood = (
             w_s * qs_log_prob[:, 1:]
-            + w_z * qz_log_prob[:, 1:]
+            + w_z * qz_log_prob[:, 1:] 
             + w_y * yt_log_prob[:, 1:]
         ) / 3  # [bs,]
         initial_likelihood = (
-            qs_log_prob[:, 0] + qz_log_prob[:, 0] + yt_log_prob[:, 0]
+            w_s * qs_log_prob[:, 0]  + w_z * qz_log_prob[:, 0] + w_y * yt_log_prob[:, 0]
         ) / 3
 
         t1_mean = torch.mean(sequence_likelihood)
@@ -1456,7 +1456,7 @@ class ContinualPSIKT(AmortizedPSIKT):
 
             z_tilde_dist_mean = ou_decay * z_prior_mean + (1 - ou_decay) * empowered_mu
             z_tilde_dist_var = (
-                sampled_gamma ** 2 * (1 - ou_decay ** 2) / (2 * sampled_alpha + EPS)
+                sampled_sigma ** 2 * (1 - ou_decay ** 2) / (2 * sampled_alpha + EPS)
                 + EPS
             )
             z_tilde_dist = distributions.multivariate_normal.MultivariateNormal(

@@ -88,7 +88,7 @@ def parse_args(parser):
     parser.add_argument(
         "--train_mode",
         type=str,
-        default="simple_split_time",
+        default="ls_split_time",
         help="simple_split_time"
         + "simple_split_learner"
         + "ls_split_time"
@@ -145,7 +145,7 @@ def parse_args(parser):
     parser.add_argument(
         "--multi_node",
         type=int,
-        default=0,
+        default=1,
         help="whether we train the model with graph",
     )
     parser.add_argument(
@@ -166,7 +166,7 @@ def parse_args(parser):
     parser.add_argument(
         "--metric",
         type=str,
-        default="F1, Accuracy, Recall, Precision, AUC",
+        default="F1, Accuracy, Recall, Precision",
         help="metrics: AUC, F1, Accuracy, Recall, Presicion;"
         "The first one will be used to determine whether to early stop",
     )

@@ -15,6 +15,7 @@ from knowledge_tracing.runner import runner_baseline
 from knowledge_tracing.utils import utils, arg_parser, logger
 
 from knowledge_tracing.baseline import ppe
+from knowledge_tracing.baseline.pykt import qikt, gkt
 from knowledge_tracing.baseline.HawkesKT import dktforgetting, hkt
 from knowledge_tracing.baseline.EduKTM import dkt, akt
 from knowledge_tracing.baseline.halflife_regression import hlr

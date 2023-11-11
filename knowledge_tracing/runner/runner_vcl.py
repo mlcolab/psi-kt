@@ -57,7 +57,10 @@ class VCLRunner(KTRunner):
 
         # Return a random sample of items from an axis of object.
         epoch_whole_data = epoch_whole_data.sample(frac=1).reset_index(drop=True)
-        whole_batches = model.module.prepare_batches(
+        train_batches = model.module.prepare_batches(
+            corpus, epoch_whole_data, self.batch_size, phase="whole"
+        )
+        eval_batches = model.module.prepare_batches(
             corpus, epoch_whole_data, self.eval_batch_size, phase="whole"
         )
 
@@ -69,8 +72,8 @@ class VCLRunner(KTRunner):
                 model.train()
 
                 self._check_time()
-                self.fit(model, whole_batches, epoch=time, time_step=time)
-                self.test(model, whole_batches, epoch=time, time_step=time)
+                self.fit(model, train_batches, epoch=time, time_step=time)
+                self.test(model, eval_batches, epoch=time, time_step=time)
                 training_time = self._check_time()
 
         except KeyboardInterrupt:
@@ -140,7 +143,7 @@ class VCLRunner(KTRunner):
                 loss_dict["loss_total"].backward()
 
                 # Update parameters.
-                torch.nn.utils.clip_grad_norm(model.module.parameters(), 100)
+                torch.nn.utils.clip_grad_norm_(model.module.parameters(), 100)
                 model.module.optimizer.step()
 
                 with torch.no_grad():
@@ -161,7 +164,7 @@ class VCLRunner(KTRunner):
 
             string = self.logs.result_string(
                 "train", epoch, train_losses, t=epoch, mini_epoch=mini_epoch
-            )  # TODO
+            ) 
             self.logs.write_to_log_file(string)
             self.logs.append_epoch_losses(train_losses, "train")
 

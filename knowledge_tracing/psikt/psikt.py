@@ -547,7 +547,7 @@ class AmortizedPSIKT(PSIKT):
         q_sigma = qs_mean[
             ..., 2:3
         ]  # TODO  q_sigma = torch.minimum(qs_mean[..., 2:3], self.var_log_max.to(device))
-        q_gamma = torch.sigmoid(qs_mean[..., 3:4])  # torch.zeros_like(q_sigma)
+        q_gamma = torch.sigmoid(qs_mean[..., 3:4])  # torch.zeros_like(q_sigma) # 
 
         # calculate useful variables
         # exp(-alpha * dt)
@@ -876,7 +876,7 @@ class AmortizedPSIKT(PSIKT):
             self.node_dist.sample_A(self.num_sample)[-1][:, 0]
             .mean(0)
             .to(z_last_mean.device)
-        )  # # adj =  torch.exp(self.node_dist.edge_log_probs()[0]).to(sampled_s.device) # adj_ij means i has influence on j
+        )  # adj_ij means i has influence on j
         dt = (
             torch.diff(t_all[:, -test_step - 1 :], dim=-1).unsqueeze(-1) / T_SCALE + EPS
         )  # [bs, num_steps-1, 1]
@@ -897,9 +897,7 @@ class AmortizedPSIKT(PSIKT):
             q_alpha = torch.relu(s_next_mean[..., 0:1]) + EPS
             q_mu = s_next_mean[..., 1:2]  # torch.tanh(s_next_mean[..., 1:2])  # 
             q_sigma = s_next_mean[..., 2:3]  # [bs, 1, 1]
-            q_gamma = torch.sigmoid(
-                s_next_mean[..., 3:4]
-            )  # torch.zeros_like(q_sigma) #
+            q_gamma = torch.sigmoid(s_next_mean[..., 3:4])  # torch.zeros_like(q_sigma) # 
             # calculate useful variables
             pz_ou_decay = torch.exp(-q_alpha * dt[:, i : i + 1])  # [bs, 1, 1]
             pz_ou_var = (
@@ -947,23 +945,6 @@ class AmortizedPSIKT(PSIKT):
             torch.gather(pred_z_sampled, 1, item_test_mc).transpose(-1, -2).contiguous()
         )  # [bsn, time, 1]
 
-        # # here are Karman filter
-        # ps_sampled_future = []
-        # qs_sampled = qs_dist.rsample((self.num_sample,)) # [n, bs, 1, time, dim_s]
-        # qs_sampled = qs_sampled.transpose(1,0).reshape(-1, 1, train_step, self.dim_s)
-        # ps_prev = qs_sampled[:,:,-1:]
-        # for i in range(10): # TODO
-        #     ps_next = ps_prev @ self.gen_st_h + self.gen_st_b
-        #     ps_sampled_future.append(ps_next)
-        #     ps_prev = ps_next
-        # ps_sampled_future = torch.cat(ps_sampled_future, dim=-2)
-        # s_sampled = torch.cat([qs_sampled, ps_sampled_future], dim=-2) # [bsn, 1, time, dim_s]
-        # z_prior_dist = self.zt_transition_gen(qs_sampled = s_sampled, feed_dict=feed_dict, eval=True)
-        # sampled_scalar_z = z_prior_dist.rsample()[:,:,-test_step:]
-        # bsn = sampled_scalar_z.shape[0]
-        # items = item_all.unsqueeze(1).repeat(1, self.num_sample, 1).reshape(bsn, 1, -1)[:,:,-test_step:] # [bsn, 1, time]
-        # sampled_scalar_z_item = torch.gather(sampled_scalar_z[..., 0], 1, items).transpose(-1,-2).contiguous() # [bsn, time, 1]
-
         pred_y_test = self.y_emit(pred_z_sampled_item)
         pred = pred_y_test.reshape(bs, self.num_sample, test_step)
         mc_label = y_all[:, -test_step:].unsqueeze(1).repeat(1, self.num_sample, 1)
@@ -971,6 +952,8 @@ class AmortizedPSIKT(PSIKT):
         return {
             "prediction": pred,
             "label": mc_label,
+            'pred_s_mean': pred_s_mean,
+            'pred_s_cov_mat': pred_s_cov_mat,
         }
 
     def get_objective_values(
@@ -1502,9 +1485,6 @@ class ContinualPSIKT(AmortizedPSIKT):
             update: if True, it means the network is optimized by the update loss.
                     We should save the interested parameters in the updated list.
         """
-        # y_idx = feed_dict['label_seq'][:, :idx+1] # [bs, times]
-        # t_idx = feed_dict['time_seq'][:, :idx+1]
-        # item = feed_dict['skill_seq'][:, :idx+1] # [bs, times]
         y_idx = feed_dict["label_seq"][:, idx : idx + 1]  # [bs, times]
         t_idx = feed_dict["time_seq"][:, idx : idx + 1]
         item = feed_dict["skill_seq"][:, idx : idx + 1]  # [bs, times]
@@ -1596,8 +1576,8 @@ class ContinualPSIKT(AmortizedPSIKT):
         zt_entropy = z_infer_dist.entropy().mean()
 
         elbo = (
-            log_prob_st
-            + log_prob_zt
+            self.args.s_log_weight * log_prob_st
+            + self.args.z_log_weight * log_prob_zt
             + self.args.y_log_weight * log_prob_yt
             + self.args.s_entropy_weight * st_entropy
             + self.args.z_entropy_weight * zt_entropy

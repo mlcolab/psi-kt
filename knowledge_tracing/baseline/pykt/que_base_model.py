@@ -28,7 +28,6 @@ class QueEmb(nn.Module):
         emb_size,
         model_name,
         device="cpu",
-        emb_type="qid",
         emb_path="",
         pretrain_dim=768,
     ):
@@ -39,8 +38,6 @@ class QueEmb(nn.Module):
             num_c (_type_): num of concept
             emb_size (_type_): emb_size
             device (str, optional): device. Defaults to 'cpu'.
-            emb_type (str, optional): how to encode question id. Defaults to 'qid'. qid:question_id one-hot;
-                qaid:question_id + r*question_num one-hot; qc_merge: question emb + avg(concept emb);
             emb_path (str, optional): _description_. Defaults to "".
             pretrain_dim (int, optional): _description_. Defaults to 768.
         """
@@ -50,60 +47,18 @@ class QueEmb(nn.Module):
         self.num_c = num_c
         self.emb_size = emb_size
 
-        # get emb type
-        tmp_emb_type = f"{model_name}-{emb_type}"
-        emb_type = emb_type_map.get(
-            tmp_emb_type, tmp_emb_type.replace(f"{model_name}-", "")
-        )
-        print(f"emb_type is {emb_type}")
-
-        self.emb_type = emb_type
         self.emb_path = emb_path
         self.pretrain_dim = pretrain_dim
 
-        if emb_type in ["qc_merge", "qaid_qc"]:
-            self.concept_emb = nn.Parameter(
+        self.interaction_emb = nn.Embedding(self.num_q * 2, self.emb_size)
+        self.que_emb = nn.Embedding(self.num_q, self.emb_size)
+        self.concept_emb = nn.Parameter(
                 torch.randn(self.num_c, self.emb_size).to(device), requires_grad=True
-            )  # concept embeding
-            self.que_emb = nn.Embedding(self.num_q, self.emb_size)  # question embeding
-            self.que_c_linear = nn.Linear(2 * self.emb_size, self.emb_size)
-
-        if emb_type == "qaid_c":
-            self.que_c_linear = nn.Linear(2 * self.emb_size, self.emb_size)
-
-        if emb_type in ["qcaid", "qcaid_h"]:
-            self.concept_emb = nn.Parameter(
-                torch.randn(self.num_c * 2, self.emb_size).to(device),
-                requires_grad=True,
-            )  # concept embeding
-            self.que_inter_emb = nn.Embedding(self.num_q * 2, self.emb_size)
-            self.que_c_linear = nn.Linear(2 * self.emb_size, self.emb_size)
-
-        if emb_type.startswith("qaid"):
-            self.interaction_emb = nn.Embedding(self.num_q * 2, self.emb_size)
-
-        if emb_type.startswith("qid"):
-            self.que_emb = nn.Embedding(self.num_q, self.emb_size)
-
-        if emb_type == "qcid":  # question_emb concat avg(concepts emb)
-            self.que_emb = nn.Embedding(self.num_q, self.emb_size)
-            self.concept_emb = nn.Parameter(
-                torch.randn(self.num_c, self.emb_size).to(device), requires_grad=True
-            )  # concept embeding
-            self.que_c_linear = nn.Linear(2 * self.emb_size, self.emb_size)
-
-        if emb_type == "iekt":
-            self.que_emb = nn.Embedding(self.num_q, self.emb_size)  # question embeding
-            # self.que_emb.weight.requires_grad = False
-            self.concept_emb = nn.Parameter(
-                torch.randn(self.num_c, self.emb_size).to(device), requires_grad=True
-            )  # concept embeding
-            self.que_c_linear = nn.Linear(2 * self.emb_size, self.emb_size)
-
+            ) 
+        
         self.output_emb_dim = emb_size
 
     def get_avg_skill_emb(self, c):
-        import ipdb; ipdb.set_trace()
         # add zero for padding
         concept_emb_cat = torch.cat(
             [torch.zeros(1, self.emb_size).to(self.device), self.concept_emb], dim=0
@@ -122,103 +77,29 @@ class QueEmb(nn.Module):
         return concept_avg
 
     def forward(self, q, c, r=None):
-        # import ipdb; ipdb.set_trace()
-        emb_type = self.emb_type
-        if "qc_merge" in emb_type:
-            concept_avg = self.get_avg_skill_emb(c)  # [batch,max_len-1,emb_size]
-            que_emb = self.que_emb(q)  # [batch,max_len-1,emb_size]
-            
-            que_c_emb = torch.cat(
-                [concept_avg, que_emb], dim=-1
-            )  # [batch,max_len-1,2*emb_size]
-
-        if emb_type == "qaid":
-            x = q + self.num_q * r
-            xemb = self.interaction_emb(x)  # [batch,max_len-1,emb_size]
-            
-        elif emb_type == "qid":
-            xemb = self.que_emb(q)  # [batch,max_len-1,emb_size]
-            
-        elif emb_type == "qaid+qc_merge":
-            x = q + self.num_q * r
-            xemb = self.interaction_emb(x)  # [batch,max_len-1,emb_size]
-            que_c_emb = self.que_c_linear(que_c_emb)  # [batch,max_len-1,emb_size]
-            xemb = xemb + que_c_emb
-            
-        elif emb_type == "qc_merge":
-            xemb = que_c_emb
-            
-        elif emb_type == "qaid_qc":
-            x = q + self.num_q * r
-            emb_q = self.interaction_emb(x)
-            # emb_c = self.get_avg_skill_emb(c)  # [batch,max_len-1,emb_size]
-            emb_c = self.concept_emb[c]
-            xemb = torch.cat([emb_q, emb_c], dim=-1)
-            xemb = self.que_c_linear(xemb)
-            
-            # hq add 
-            emb_qc = torch.cat([emb_q, emb_c], dim=-1)
-            emb_qca = torch.cat(
-                [
-                    emb_qc.mul((1 - r).unsqueeze(-1).repeat(1, 1, self.emb_size * 2)),
-                    emb_qc.mul((r).unsqueeze(-1).repeat(1, 1, self.emb_size * 2)),
-                ],
-                dim=-1,
-            )
-            return xemb, emb_qca, emb_qc, emb_q, emb_c
-        elif emb_type in ["qcaid", "qcaid_h"]:
-            x_q = q + self.num_q * r
-            gate = torch.where(c == -1, 0, 1)
-            x_c = c + self.num_c * r.unsqueeze(-1).repeat(1, 1, 4) * gate
-            emb_q = self.que_inter_emb(x_q)
-            emb_c = self.get_avg_skill_emb(x_c)
-            xemb = torch.cat([emb_q, emb_c], dim=-1)
-            xemb = self.que_c_linear(xemb)
-            # return xemb, emb_q, emb_c
-            
-            # hq add 
-            emb_qc = torch.cat([emb_q, emb_c], dim=-1)
-            emb_qca = torch.cat(
-                [
-                    emb_qc.mul((1 - r).unsqueeze(-1).repeat(1, 1, self.emb_size * 2)),
-                    emb_qc.mul((r).unsqueeze(-1).repeat(1, 1, self.emb_size * 2)),
-                ],
-                dim=-1,
-            )
-            return xemb, emb_qca, emb_qc, emb_q, emb_c
-            
-        elif emb_type in ["qcid", "qaid_h"]:
-            emb_c = self.get_avg_skill_emb(c)  # [batch,max_len-1,emb_size]
-            emb_q = self.que_emb(q)  # [batch,max_len-1,emb_size]
-            que_c_emb = torch.cat(
-                [emb_q, emb_c], dim=-1
-            )  # [batch,max_len-1,2*emb_size]
-            xemb = self.que_c_linear(xemb)
-            return xemb, emb_q, emb_c
         
-        elif emb_type == "iekt":
-            emb_c = self.get_avg_skill_emb(c)  # [batch,max_len-1,emb_size]
-            emb_q = self.que_emb(q)  # [batch,max_len-1,emb_size]
-            emb_qc = torch.cat([emb_q, emb_c], dim=-1)  # [batch,max_len-1,2*emb_size]
-            xemb = self.que_c_linear(emb_qc)
-            emb_qca = torch.cat(
-                [
-                    emb_qc.mul((1 - r).unsqueeze(-1).repeat(1, 1, self.emb_size * 2)),
-                    emb_qc.mul((r).unsqueeze(-1).repeat(1, 1, self.emb_size * 2)),
-                ],
-                dim=-1,
-            )  # s_t 扩展，分别对应正确的错误的情况
-            return xemb, emb_qca, emb_qc, emb_q, emb_c
-
-        return xemb
-
-
+        x = q + self.num_q * r
+        xemb = self.interaction_emb(x)  # [batch,max_len-1,emb_size]
+        
+        emb_q = self.que_emb(q)
+        emb_c = self.concept_emb[c]
+            
+            
+        emb_qc = torch.cat([emb_q, emb_c], dim=-1)
+        emb_qca = torch.cat(
+            [
+                emb_qc.mul((1 - r).unsqueeze(-1).repeat(1, 1, self.emb_size * 2)),
+                emb_qc.mul((r).unsqueeze(-1).repeat(1, 1, self.emb_size * 2)),
+            ],
+            dim=-1,
+        )
+        return xemb, emb_qca, emb_qc, emb_q, emb_c
+    
 # from pykt.utils import set_seed
 class QueBaseModel(nn.Module):
-    def __init__(self, model_name, emb_type, emb_path, pretrain_dim, device, seed=0):
+    def __init__(self, model_name, emb_path, pretrain_dim, device, seed=0):
         super().__init__()
         self.model_name = model_name
-        self.emb_type = emb_type
         self.emb_path = emb_path
         self.pretrain_dim = pretrain_dim
         self.device = device
@@ -280,11 +161,11 @@ class QueBaseModel(nn.Module):
     def _save_model(self):
         torch.save(
             self.model.state_dict(),
-            os.path.join(self.save_dir, self.model.emb_type + "_model.ckpt"),
+            os.path.join(self.save_dir, "_model.ckpt"),
         )
 
     def load_model(self, save_dir):
-        net = torch.load(os.path.join(save_dir, self.emb_type + "_model.ckpt"))
+        net = torch.load(os.path.join(save_dir, "_model.ckpt"))
         self.model.load_state_dict(net)
 
     def batch_to_device(self, data, process=True):
@@ -361,7 +242,7 @@ class QueBaseModel(nn.Module):
                 window_testauc, window_testacc = -1, -1
                 validauc, validacc = auc, acc
             print(
-                f"Epoch: {i}, validauc: {validauc:.4}, validacc: {validacc:.4}, best epoch: {best_epoch}, best auc: {max_auc:.4}, train loss: {loss_mean}, emb_type: {self.model.emb_type}, model: {self.model.model_name}, save_dir: {self.save_dir}"
+                f"Epoch: {i}, validauc: {validauc:.4}, validacc: {validacc:.4}, best epoch: {best_epoch}, best auc: {max_auc:.4}, train loss: {loss_mean}, model: {self.model.model_name}, save_dir: {self.save_dir}"
             )
             print(
                 f"            testauc: {round(testauc,4)}, testacc: {round(testacc,4)}, window_testauc: {round(window_testauc,4)}, window_testacc: {round(window_testacc,4)}"

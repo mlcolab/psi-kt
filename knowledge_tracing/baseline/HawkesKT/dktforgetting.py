@@ -228,11 +228,9 @@ class DKTFORGETTING(BaseModel):
             Dict[str, torch.Tensor]: A dictionary containing evaluation results.
         """
         test_step = 10
-        test_item = feed_dict["skill_seq"][:, idx + 1 : idx + test_step + 1]
 
         items = feed_dict["skill_seq"][:, idx : idx + test_step + 1]  
         labels = feed_dict["label_seq"][:, idx : idx + test_step + 1]
-        time_step = items.shape[-1]
 
         repeated_time_gap_seq = feed_dict["repeated_time_gap_seq"][
             :, idx : idx + test_step + 1]
@@ -244,14 +242,14 @@ class DKTFORGETTING(BaseModel):
         # Compute item embeddings and feature interaction
         predictions = []
         last_emb = self.skill_embeddings(
-            items[:, idx:idx+1] + labels[:, idx:idx+1] * self.skill_num
+            items[:, 0:1] + labels[:, 0:1] * self.skill_num
         )  # [bs, 1, emb_size]
         last_fin = self.fin(
             torch.cat(
                 (
-                    repeated_time_gap_seq[:, idx:idx+1],
-                    sequence_time_gap_seq[:, idx:idx+1],
-                    past_trial_counts_seq[:, idx:idx+1],
+                    repeated_time_gap_seq[:, 0:1],
+                    sequence_time_gap_seq[:, 0:1],
+                    past_trial_counts_seq[:, 0:1],
                 ),
                 dim=-1,
             )
@@ -259,9 +257,9 @@ class DKTFORGETTING(BaseModel):
         last_emb = torch.cat(
             (
                 last_emb.mul(last_fin),
-                repeated_time_gap_seq[:, idx:idx+1],
-                sequence_time_gap_seq[:, idx:idx+1],
-                past_trial_counts_seq[:, idx:idx+1],
+                repeated_time_gap_seq[:, 0:1],
+                sequence_time_gap_seq[:, 0:1],
+                past_trial_counts_seq[:, 0:1],
             ),
             dim=-1,
         )

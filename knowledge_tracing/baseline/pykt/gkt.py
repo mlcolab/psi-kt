@@ -92,7 +92,7 @@ class GKT(BaseModel):
         self.graph = torch.nn.Parameter(
             torch.empty(self.num_c, self.num_c, device=self.device)
         )
-        self.graph.requires_grad = False  # fix parameter
+        self.graph.requires_grad = True  # fix parameter
 
         # one-hot feature and question
         self.one_hot_feat = torch.eye(self.res_len * self.num_c).to(self.device)
@@ -340,6 +340,7 @@ class GKT(BaseModel):
         )
 
         pred_list = []
+        embs = []
         for i in range(seq_len):
             xt = features[:, i]  # [batch_size]
             qt = questions[:, i]  # [batch_size]
@@ -355,11 +356,14 @@ class GKT(BaseModel):
             if i < seq_len - 1:
                 pred = self._get_next_pred(yt, questions[:, i + 1])
                 pred_list.append(pred)
+            embs.append(h_next)
         pred_res = torch.stack(pred_list, dim=1)  # [batch_size, seq_len - 1]
+        embs = torch.stack(embs, dim=1)
 
         out_dict = {
             "prediction": pred_res,
             "label": r[:, 1:].double() if seq_len > 1 else r.double(),
+            'embs': embs,
         }
 
         return out_dict

@@ -197,18 +197,23 @@ class DKTFORGETTING(BaseModel):
             A dictionary containing the model's predictions and corresponding labels.
         """
         # Extract input tensors from feed_dict
-        cur_feed_dict = {
-            "skill_seq": feed_dict["skill_seq"][:, : idx + 1],
-            "label_seq": feed_dict["label_seq"][:, : idx + 1],
-            "repeated_time_gap_seq": feed_dict["repeated_time_gap_seq"][:, : idx + 1],
-            "sequence_time_gap_seq": feed_dict["sequence_time_gap_seq"][:, : idx + 1],
-            "past_trial_counts_seq": feed_dict["past_trial_counts_seq"][:, : idx + 1],
-            "user_id": feed_dict["user_id"],
-            "inverse_indice": feed_dict["inverse_indice"],
-            "length": torch.ones_like(feed_dict["length"]) * (idx + 1),
-        }
+        cur_feed_dict = utils.get_feed_continual(
+            keys=[
+                "skill_seq",
+                "label_seq",
+                "repeated_time_gap_seq",
+                "sequence_time_gap_seq",
+                "past_trial_counts_seq",
+                "user_id",
+                "inverse_indice",
+            ],
+            data=feed_dict,
+            idx=idx,
+        )
+        cur_feed_dict["length"] = torch.ones_like(cur_feed_dict["length"]) * (idx + 1)
+
         out_dict = self.forward(cur_feed_dict)
-        
+
         return out_dict
 
     def evaluate_cl(
@@ -229,15 +234,18 @@ class DKTFORGETTING(BaseModel):
         """
         test_step = 10
 
-        items = feed_dict["skill_seq"][:, idx : idx + test_step + 1]  
+        items = feed_dict["skill_seq"][:, idx : idx + test_step + 1]
         labels = feed_dict["label_seq"][:, idx : idx + test_step + 1]
 
         repeated_time_gap_seq = feed_dict["repeated_time_gap_seq"][
-            :, idx : idx + test_step + 1]
+            :, idx : idx + test_step + 1
+        ]
         sequence_time_gap_seq = feed_dict["sequence_time_gap_seq"][
-            :, idx : idx + test_step + 1]
+            :, idx : idx + test_step + 1
+        ]
         past_trial_counts_seq = feed_dict["past_trial_counts_seq"][
-            :, idx : idx + test_step + 1]
+            :, idx : idx + test_step + 1
+        ]
 
         # Compute item embeddings and feature interaction
         predictions = []
@@ -328,14 +336,14 @@ class DKTFORGETTING(BaseModel):
                 ),
                 dim=-1,
             )
-            
+
         labels = feed_dict["label_seq"][:, idx + 1 : idx + test_step + 1].float()
         prediction = torch.cat(predictions, -1)
 
         return self.pred_evaluate_method(
             prediction.flatten().cpu(), labels.flatten().cpu(), metrics
         )
-        
+
     def forward(
         self,
         feed_dict: Dict[str, torch.Tensor],

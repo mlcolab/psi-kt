@@ -119,6 +119,47 @@ def get_feed_general(
     return feed_dict
 
 
+def get_feed_continual(
+    keys: dict, data: pd.DataFrame, idx: int, pad_list: bool = False
+) -> dict:
+    """
+    Create a feed dictionary for a given index from a DataFrame (for continual learning tasks).
+
+    Args:
+        keys (dict): A dictionary where keys are target variable names and values
+                     are column names in the DataFrame `data` containing the
+                     corresponding sequence data.
+        data (pd.DataFrame): The DataFrame containing the sequence data.
+        idx (int): The index up to which the sequences should be extracted.
+        pad_list (bool, optional): Whether to pad sequences if their keys end with
+                                   '_seq' or contain 'num_'. Default is False.
+
+    Returns:
+        dict: A dictionary with target variable names as keys and PyTorch tensors
+              containing sequences of data up to the specified index as values.
+
+    Note:
+        - If `pad_list` is True, sequences whose keys end with '_seq' or contain
+          'num_' will be padded to the length of the longest sequence in the batch.
+    """
+    # Create an empty dictionary to hold the feed_dict values
+    feed_dict = {}
+
+    # Iterate over the keys in the provided list
+    for key, value in keys.items():
+        # Extract the sequence of values for the current key from the input data
+        seq = data[value][:, : idx + 1]
+
+        # If the key ends in '_seq' and the pad_list flag is True, pad the sequence
+        if pad_list and ("_seq" in key or "num_" in key):
+            seq = pad_lst(seq)
+
+        # Convert the sequence to a PyTorch tensor and add it to the feed_dict dictionary
+        feed_dict[key] = seq
+
+    return feed_dict
+
+
 def format_arg_str(
     args: argparse.Namespace,
     exclude_lst: list = ["device", "log_path", "log_file", "log_file_name"],

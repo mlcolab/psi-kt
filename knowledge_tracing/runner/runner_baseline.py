@@ -472,7 +472,7 @@ class BaselineContinualRunner(BaselineKTRunner):
         train_losses = defaultdict(list)
         
         
-        for mini_epoch in range(0, 10): # self.epoch): 
+        for mini_epoch in range(10): # self.epoch): 
             
             # Iterate through each batch.
             for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch + ' Time %5d' % mini_epoch):

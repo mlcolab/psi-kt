@@ -172,12 +172,10 @@ class DKT(BaseModel):
             target_item = test_item[:, i : i + 1]
             prediction_sorted = torch.gather(
                 pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)
-            ).squeeze(
-                dim=-1
-            )  # [bs, 1]
+            ).squeeze(dim=-1)  # [bs, 1]
             prediction = torch.sigmoid(prediction_sorted)
             last_emb = self.skill_embeddings(
-                test_item[:, i : i + 1] + (prediction >= 0.5) * 1 * self.skill_num
+                test_item[:, i : i + 1] + (prediction >= 0.5) * self.skill_num
             )  # [bs, 1, emb_size]
             predictions.append(prediction)
             hiddens.append(rnn_input)

@@ -27,7 +27,7 @@ python predict_learner_performance_psikt.py --dataset assistment17 --model_name 
 
 * Continual learning 
 
-```
+```bash
 python predict_learner_performance_psikt.py --dataset assistment17 --model_name AmortizedPSIKT --random_seed 2023 --vcl 1
 ```
 

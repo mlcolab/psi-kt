@@ -92,7 +92,6 @@ class HKT(BaseModel):
 
         BaseModel.__init__(self, model_path=Path(args.log_path, "Model"))
 
-
     def _init_weights(self) -> None:
         """
         Initialize the weights of the model components.
@@ -258,18 +257,14 @@ class HKT(BaseModel):
         ].values
 
         feed_dict = {
-            "skill_seq": torch.from_numpy(
-                utils.pad_lst(skill_seqs)
-            ),  
+            "skill_seq": torch.from_numpy(utils.pad_lst(skill_seqs)),
             "label_seq": torch.from_numpy(
                 utils.pad_lst(label_seqs, value=-1)
             ),  # [bs, seq_len]
             "problem_seq": torch.from_numpy(
                 utils.pad_lst(problem_seqs)
             ),  # [bs, seq_len]
-            "time_seq": torch.from_numpy(
-                utils.pad_lst(time_seqs)
-            ),  # [bs, seq_len]
+            "time_seq": torch.from_numpy(utils.pad_lst(time_seqs)),  # [bs, seq_len]
         }
         return feed_dict
 
@@ -290,9 +285,7 @@ class HKT(BaseModel):
         train_step = int(self.args.max_step * self.args.train_time_ratio)
 
         items = feed_dict["skill_seq"][:, train_step - 1 :]  # [bs, seq_len]
-        problems = feed_dict["problem_seq"][
-            :, train_step - 1 :
-        ]  # [bs, seq_len]
+        problems = feed_dict["problem_seq"][:, train_step - 1 :]  # [bs, seq_len]
         times = feed_dict["time_seq"][:, train_step - 1 :]  # [bs, seq_len]
         labels = feed_dict["label_seq"][:, train_step - 1 :]  # [bs, seq_len]
 
@@ -367,12 +360,11 @@ class HKT(BaseModel):
         """
 
         # Extract input tensors from feed_dict
-        cur_feed_dict = {
-            "skill_seq": feed_dict["skill_seq"][:, : idx + 1],
-            "label_seq": feed_dict["label_seq"][:, : idx + 1],
-            "problem_seq": feed_dict["problem_seq"][:, : idx + 1],
-            "time_seq": feed_dict["time_seq"][:, : idx + 1],
-        }
+        cur_feed_dict = utils.get_feed_continual(
+            keys=["skill_seq", "label_seq", "problem_seq", "time_seq"],
+            data=feed_dict,
+            idx=idx,
+        )
 
         out_dict = self.forward(cur_feed_dict)
 
@@ -395,10 +387,9 @@ class HKT(BaseModel):
             Dict[str, torch.Tensor]: A dictionary containing evaluation results.
         """
         test_step = 10
-        
+
         items = feed_dict["skill_seq"][:, idx : idx + test_step + 1]
-        problems = feed_dict["problem_seq"][
-            :, idx : idx + test_step + 1]
+        problems = feed_dict["problem_seq"][:, idx : idx + test_step + 1]
         times = feed_dict["time_seq"][:, idx : idx + test_step + 1]
         labels = feed_dict["label_seq"][:, idx : idx + test_step + 1]
 

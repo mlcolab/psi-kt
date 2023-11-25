@@ -172,11 +172,11 @@ class AKT(BaseModel):
         """
 
         # Extract input tensors from feed_dict
-        cur_feed_dict = {
-            "skill_seq": feed_dict["skill_seq"][:, : idx + 1],
-            "label_seq": feed_dict["label_seq"][:, : idx + 1],
-            "quest_seq": feed_dict["quest_seq"][:, : idx + 1],
-        }
+        cur_feed_dict = utils.get_feed_continual(
+            keys=["skill_seq", "label_seq", "quest_seq"],
+            data=feed_dict,
+            idx=idx,
+        )
 
         out_dict = self.forward(cur_feed_dict)
 

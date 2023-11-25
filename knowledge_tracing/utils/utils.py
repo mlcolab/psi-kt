@@ -148,11 +148,10 @@ def get_feed_continual(
     # Iterate over the keys in the provided list
     for key, value in keys.items():
         # Extract the sequence of values for the current key from the input data
-        seq = data[value][:, : idx + 1]
-
-        # If the key ends in '_seq' and the pad_list flag is True, pad the sequence
-        if pad_list and ("_seq" in key or "num_" in key):
-            seq = pad_lst(seq)
+        if "_seq" in key:
+            seq = data[value][:, : idx + 1]
+        else:
+            seq = data[value]
 
         # Convert the sequence to a PyTorch tensor and add it to the feed_dict dictionary
         feed_dict[key] = seq

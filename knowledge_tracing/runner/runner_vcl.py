@@ -108,7 +108,7 @@ class VCLRunner(KTRunner):
         model.module.train()
         train_losses = defaultdict(list)
 
-        for mini_epoch in range(0, 10):  # self.epoch):
+        for mini_epoch in range(10):  # self.epoch):
 
             # Iterate through each batch.
             for batch in tqdm(

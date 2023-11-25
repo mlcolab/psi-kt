@@ -188,6 +188,32 @@ class AKT(BaseModel):
         idx: int = None,
         metrics=None,
     ) -> Dict[str, torch.Tensor]:
+        """
+        Evaluate a Continual Learning (CL) model's performance.
+
+        This method evaluates a Continual Learning (CL) model's performance for a given
+        index in a sequence. It calculates predictions for future time steps using the
+        model's current state.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data for
+                evaluation, including skill sequences, question sequences, and label
+                sequences.
+            idx (int, optional): The index at which to evaluate the model. Default is None.
+            metrics: User-defined metrics for evaluating model performance (not documented here).
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing evaluation results, typically
+            including model predictions and performance metrics.
+
+        Note:
+            - This method performs CL evaluation by making predictions for future time steps
+            based on the current model state.
+            - The `idx` parameter specifies the evaluation index within the sequences.
+            - The specific metrics used for evaluation are determined by the `metrics` parameter,
+            which is user-defined and not documented here.
+        """
+
         test_time = 10
 
         skills = feed_dict["skill_seq"]  # [batch_size, real_max_step]

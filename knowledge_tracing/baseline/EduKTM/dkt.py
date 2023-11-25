@@ -127,13 +127,11 @@ class DKT(BaseModel):
         """
 
         # Extract input tensors from feed_dict
-        cur_feed_dict = {
-            "skill_seq": feed_dict["skill_seq"][:, : idx + 1],
-            "label_seq": feed_dict["label_seq"][:, : idx + 1],
-            "user_id": feed_dict["user_id"],
-            "inverse_indice": feed_dict["inverse_indice"],
-            "length": feed_dict["length"],
-        }
+        cur_feed_dict = cur_feed_dict = utils.get_feed_continual(
+            keys=["skill_seq", "label_seq", "user_id", "inverse_indice", "length"],
+            data=feed_dict,
+            idx=idx,
+        )
 
         out_dict = self.forward(cur_feed_dict)
         return out_dict
@@ -172,7 +170,9 @@ class DKT(BaseModel):
             target_item = test_item[:, i : i + 1]
             prediction_sorted = torch.gather(
                 pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)
-            ).squeeze(dim=-1)  # [bs, 1]
+            ).squeeze(
+                dim=-1
+            )  # [bs, 1]
             prediction = torch.sigmoid(prediction_sorted)
             last_emb = self.skill_embeddings(
                 test_item[:, i : i + 1] + (prediction >= 0.5) * self.skill_num

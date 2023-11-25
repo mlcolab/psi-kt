@@ -573,7 +573,7 @@ def simulate_graph_ou_learning_path(
     Simulate a learning path using the graph OU model.
     Args:
         args (argparse.Namespace): Command-line arguments containing:
-            - mean_rev_speed (float): Mean reversion speed. 
+            - mean_rev_speed (float): Mean reversion speed.
             - mean_rev_level (float): Mean reversion level.
             - vola (float): Volatility.
             - num_sequence (int): Number of sequences.

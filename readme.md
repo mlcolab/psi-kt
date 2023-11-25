@@ -21,7 +21,7 @@ python predict_learner_performance_baseline.py --dataset assistment17 --model_na
 ```
 
 * PSI-KT
-```
+```bash
 python predict_learner_performance_psikt.py --dataset assistment17 --model_name AmortizedPSIKT --random_seed 2023
 ```
 

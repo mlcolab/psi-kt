@@ -272,13 +272,9 @@ class DKTFORGETTING(BaseModel):
             dim=-1,
         )
 
+        latent_states = None
         for i in range(test_step):
-            if i == 0:
-                output_rnn, latent_states = self.rnn(
-                    last_emb, None
-                )  # [bs, 1, emb_size]
-            else:
-                output_rnn, latent_states = self.rnn(last_emb, latent_states)
+            output_rnn, latent_states = self.rnn(last_emb, latent_states)  # [bs, 1, emb_size]
 
             fout = self.fout(
                 torch.cat(

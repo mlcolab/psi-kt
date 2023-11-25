@@ -73,7 +73,10 @@ class PPE(BaseLearnerModel):
         self.variable_m = torch.tensor(variable_m, device=device).float()
         self.variable_tau = torch.tensor(variable_tau, device=device).float()
         self.variable_s = torch.tensor(variable_s, device=device).float()
-        super().__init__(mode=args.train_mode, device=args.device, logs=logs)
+
+        BaseLearnerModel.__init__(
+            self, mode=args.train_mode, device=args.device, logs=logs
+        )
 
     def _init_weights(self) -> None:
         """
@@ -323,7 +326,7 @@ class PPE(BaseLearnerModel):
         return self.pred_evaluate_method(
             prediction.flatten().cpu(), labels.flatten().cpu(), metrics
         )
-        
+
     def predictive_model(
         self,
         feed_dict: Dict[str, torch.Tensor],

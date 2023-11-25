@@ -2,6 +2,7 @@ import argparse
 from typing import List, Dict
 
 import numpy as np
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -69,7 +70,9 @@ class HLR(BaseLearnerModel):
         else:
             self.adj = None
 
-        super().__init__(mode=args.train_mode, device=args.device, logs=logs)
+        BaseLearnerModel.__init__(
+            self, mode=args.train_mode, device=args.device, logs=logs
+        )
 
     def _init_weights(self) -> None:
         if self.mode == "synthetic":
@@ -318,7 +321,7 @@ class HLR(BaseLearnerModel):
         return self.pred_evaluate_method(
             prediction.flatten().cpu(), labels.flatten().cpu(), metrics
         )
-        
+
     def loss(
         self,
         feed_dict: Dict[str, torch.Tensor],

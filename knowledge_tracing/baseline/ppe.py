@@ -252,17 +252,20 @@ class PPE(BaseLearnerModel):
         Returns:
             Dict[str, torch.Tensor]: A dictionary containing output tensors from the forward pass.
         """
-
         # Extract input tensors from feed_dict
-        cur_feed_dict = {
-            "skill_seq": feed_dict["skill_seq"][:, : idx + 1],
-            "label_seq": feed_dict["label_seq"][:, : idx + 1],
-            "time_seq": feed_dict["time_seq"][:, : idx + 1],
-            "num_history": feed_dict["num_history"][:, : idx + 1],
-            "num_success": feed_dict["num_success"][:, : idx + 1],
-            "num_failure": feed_dict["num_failure"][:, : idx + 1],
-            "user_id": feed_dict["user_id"],
-        }
+        cur_feed_dict = utils.get_feed_continual(
+            keys=[
+                "skill_seq",
+                "label_seq",
+                "time_seq",
+                "num_history",
+                "num_success",
+                "num_failure",
+                "user_id",
+            ],
+            data=feed_dict,
+            idx=idx,
+        )
 
         out_dict = self.forward(cur_feed_dict)
 

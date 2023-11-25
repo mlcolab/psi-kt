@@ -148,7 +148,7 @@ def get_feed_continual(
     # Iterate over the keys in the provided list
     for key, value in keys.items():
         # Extract the sequence of values for the current key from the input data
-        if "_seq" in key:
+        if "_seq" in key or 'num_' in key:
             seq = data[value][:, : idx + 1]
         else:
             seq = data[value]

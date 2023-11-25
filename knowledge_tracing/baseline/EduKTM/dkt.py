@@ -160,12 +160,9 @@ class DKT(BaseModel):
             feed_dict["skill_seq"][:, idx : idx + 1]
             + feed_dict["label_seq"][:, idx : idx + 1] * self.skill_num
         )
-
+        latent_states = None
         for i in range(test_step):
-            if i == 0:
-                rnn_input, latent_states = self.rnn(last_emb, None)
-            else:
-                rnn_input, latent_states = self.rnn(last_emb, latent_states)
+            rnn_input, latent_states = self.rnn(last_emb, latent_states)
             pred_vector = self.out(rnn_input)  # [bs, 1, skill_num]
             target_item = test_item[:, i : i + 1]
             prediction_sorted = torch.gather(

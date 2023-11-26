@@ -16,13 +16,15 @@ class DataReader(object):
     For specific data features, it will be defined at get_feed_dict function in each KT model class.
 
     Args:
-        prefix:    data folder path
-        dataset:   the name of KT dataset
-        sep:       the delimiter when loading a csv file
-        k_fold:    number of k folder to do cross-validation
-        max_step:  the maximum step considered during training; NOTE: sometimes it has also been defined during the pre-processing process
-        logs:      the log instance where defining the saving/loading information
-
+        data_dir:   data folder path (without dataset prefix)
+        dataset:    the name of KT dataset (the data should be in the data folder)
+        k_fold:     number of k folder to do cross-validation
+        max_step:   the maximum step considered during training; NOTE: it should be defined during the pre-processing process
+        overfit:    the number of learners used for overfitting or small-scaled training
+        train_mode: the mode of training data split; it can be either "split_learner" or "split_time"
+        train_time_ratio/test_time_ratio:
+                    the ratio of time steps used for training/testing data split
+        val_ratio:  the ratio of learners used for validation data split
     """
 
     def __init__(
@@ -182,9 +184,7 @@ class DataReader(object):
             ]
         )
         val_size = int(0.1 * len(residual_df))
-        val_indices = np.random.choice(
-            residual_df.index, val_size, replace=False
-        )  
+        val_indices = np.random.choice(residual_df.index, val_size, replace=False)
         self.data_df["val"] = self.user_seq_df.iloc[val_indices]
 
         self.data_df["train"] = residual_df.drop(val_indices)
@@ -220,7 +220,7 @@ class DataReader(object):
             test_user_list = train_val_user_list.loc[
                 ~train_val_user_list.index.isin(val_user_list.index)
             ]
-            
+
             # test_user_list = self.user_seq_df.loc[~self.user_seq_df.index.isin(train_val_user_list.index)]
             # test_user_list = test_user_list.sample(n=overfit, random_state=random_seed)
 

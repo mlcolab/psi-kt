@@ -3,21 +3,23 @@ sys.path.append("..")
 
 import pickle
 import argparse
-from pathlib import Path
 import datetime
 import copy
 
 import numpy as np
+from pathlib import Path
 
 import torch
 
 from knowledge_tracing.data import data_loader
-from knowledge_tracing.runner import runner_baseline
 
 from knowledge_tracing.utils import utils, arg_parser, logger
-from knowledge_tracing.baseline import akt, dkt, hkt, hlr, ppe
-from knowledge_tracing.groupkt import groupkt
-from knowledge_tracing.baseline.HawkesKT import hkt, dktforgetting
+from knowledge_tracing.psikt.psikt import *
+from knowledge_tracing.baseline.pykt import qikt, gkt
+from knowledge_tracing.baseline import ppe
+from knowledge_tracing.baseline.HawkesKT import dktforgetting, hkt
+from knowledge_tracing.baseline.EduKTM import dkt, akt
+from knowledge_tracing.baseline.halflife_regression import hlr
 
 
 if __name__ == "__main__":
@@ -26,28 +28,29 @@ if __name__ == "__main__":
 
     init_parser = argparse.ArgumentParser(description="Model")
     init_parser.add_argument(
-        "--model_name", type=str, default="CausalKT", help="Choose a model to run."
+        "--model_name", type=str, default="KT", help="Choose a model to run."
     )
     init_args, init_extras = init_parser.parse_known_args()
-
+    
     model_name = init_args.model_name
-    model = eval("{0}.{0}".format(model_name))
-
-    parser = arg_parser.parse_args(parser)
-    parser = model.parse_model_args(parser)
+    if 'PSI' not in model_name:
+        model = eval('{0}.{1}'.format(model_name.lower(), model_name.upper()))
+        parser = arg_parser.parse_args(parser)
+        parser = model.parse_model_args(parser)
+    else:
+        parser = arg_parser.parse_args(parser)
+        
     global_args, extras = parser.parse_known_args()
     global_args.model_name = model_name
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    for i in range(5):
-        global_args.dataset = "junyi15/sublearner/sublearner_{}".format(i)
-
-        # ----- random seed -----
-        torch.manual_seed(global_args.random_seed)
-        torch.cuda.manual_seed(global_args.random_seed)
-        np.random.seed(global_args.random_seed)
-
+    # ----- random seed -----
+    torch.manual_seed(global_args.random_seed)
+    torch.cuda.manual_seed(global_args.random_seed)
+    np.random.seed(global_args.random_seed)
+    
+    if 'sublearner' not in global_args.dataset:
         # ----- log -----
         logs = logger.Logger(global_args)
 
@@ -57,6 +60,7 @@ if __name__ == "__main__":
             global_args.dataset,
             "Corpus_{}.pkl".format(global_args.max_step),
         )
+        
         data = data_loader.DataReader(global_args, logs)
         if not corpus_path.exists() or global_args.regenerate_corpus:
             data.create_corpus()
@@ -87,60 +91,91 @@ if __name__ == "__main__":
             global_args.batch_size_multiGPU = global_args.batch_size
         logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
 
-        runner = runner_baseline.BaselineKTRunner(global_args, logs)
-
         # Folder containing the model parameter files
-        folder = ""
-        model_folder = Path(folder, "Model")
-        Path(folder, "Obj").touch()
+        obj_folder = Path(Path(global_args.load_folder).parents[1], "Obj")
+        obj_folder.mkdir(exist_ok=True)
 
-        for epoch_file in list(model_folder.iterdir()):
-            if epoch_file.endswith("90.pt"):
-                # Load model parameters
+        if 'PSI' not in global_args.model_name:
+            cur_model = model(global_args, corpus, logs)
+        else:
+            global_args.node_dim = 16
+            global_args.var_log_max = 1
+            global_args.num_category = 10
+            global_args.learned_graph = 'w_gt'
+            global_args.num_sample = 50
+            global_args.s_entropy_weight = 0.01
+            global_args.z_entropy_weight = 0.01
+            global_args.s_log_weight = 0.01
+            global_args.z_log_weight = 0.01
+            global_args.y_log_weight = 1
+            cur_model = AmortizedPSIKT(
+                mode=global_args.train_mode,
+                num_node=corpus.n_skills,
+                nx_graph=np.load('/mnt/qb/work/mlcolab/hzhou52/kt/junyi15/adj.npy'),
+                device=global_args.device,
+                args=global_args,
+                logs=logs,
+            )
+        cur_model.eval()
+        # Move to current device
+        if torch.cuda.is_available():
+            if global_args.distributed:
+                cur_model, _ = utils.distribute_over_GPUs(
+                    global_args, cur_model, num_GPU=global_args.num_GPU
+                )
+            else:
+                cur_model = cur_model.to(global_args.device)
 
-                cur_model = model(global_args, corpus, logs)
-                cur_model.eval()
-                # Move to current device
-                if torch.cuda.is_available():
-                    if global_args.distributed:
-                        cur_model, _ = utils.distribute_over_GPUs(
-                            global_args, cur_model, num_GPU=global_args.num_GPU
-                        )
-                    else:
-                        cur_model = cur_model.to(global_args.device)
+        # import ipdb; ipdb.set_trace()
+        model_path = global_args.load_folder
+        cur_model.module.load_state_dict(
+            torch.load(model_path), strict=False
+        )  # Assuming 'model_state_dict' is the key used during saving
 
-                model_path = Path(model_folder, epoch_file)
-                checkpoint = torch.load(model_path)
-                cur_model.load_state_dict(
-                    checkpoint, strict=False
-                )  # Assuming 'model_state_dict' is the key used during saving
+        # Perform inference on your input data
+        with torch.no_grad():
+            train_outputs = []
+            test_outputs = []
+            epoch_whole_data = copy.deepcopy(
+                corpus.data_df["whole"]# [: global_args.overfit]
+            )
+            whole_batches = cur_model.module.prepare_batches(
+                corpus, epoch_whole_data, global_args.batch_size, phase="train"
+            )
+            train_whole_data = copy.deepcopy(
+                corpus.data_df["train"]# [: global_args.overfit]
+            )
+            train_batches = cur_model.module.prepare_batches(
+                corpus, train_whole_data, global_args.batch_size, phase="train"
+            )
 
-                # Perform inference on your input data
-                with torch.no_grad():
-                    outputs = []
-                    epoch_train_data = copy.deepcopy(
-                        corpus.data_df["train"][: global_args.overfit]
-                    )
-                    # Return a random sample of items from an axis of object.
-                    epoch_train_data = epoch_train_data.sample(frac=1).reset_index(
-                        drop=True
-                    )
-                    train_batches = cur_model.module.prepare_batches(
-                        corpus, epoch_train_data, global_args.batch_size, phase="train"
-                    )
+            for (
+                batch
+            ) in (
+                train_batches[10:30]
+            ):  
+                batch = cur_model.module.batch_to_gpu(batch, global_args.device)
+                out_dict = cur_model.module.forward(batch)
+                train_outputs.append(out_dict)
 
-                    for (
-                        batch
-                    ) in (
-                        train_batches
-                    ):  # tqdm(train_batches, leave=False, ncols=100, mininterval=1, desc='Predict'):
-                        batch = cur_model.module.batch_to_gpu(batch, global_args.device)
-                        out_dict = cur_model.module.forward(batch)
-                        outputs.append(out_dict)
+            # for (
+            #     batch
+            # ) in (
+            #     whole_batches
+            # ):  
+            #     batch = cur_model.module.batch_to_gpu(batch, global_args.device)
+            #     out_dict = cur_model.module.predictive_model(batch)
+            #     test_outputs.append(out_dict)
 
-                    save_path = f"predictions_{epoch_file[:-3]}.obj"
+            train_path = f"train_{model_path.split('/')[-1][:-3]}_10_30_vis.obj"
+            test_path = f"test_{model_path.split('/')[-1][:-3]}_50.obj"
+            
+            filehandler = open(Path(obj_folder, train_path), "wb")
+            pickle.dump(train_outputs, filehandler)
+            filehandler.close()
+            
+            # filehandler = open(Path(obj_folder, test_path), "wb")
+            # pickle.dump(test_outputs, filehandler)
+            # filehandler.close()
 
-                    save_path = Path(folder, "Obj", save_path)
-                    filehandler = open(save_path, "wb")
-                    pickle.dump(outputs, filehandler)
-                    filehandler.close()
+    #         import ipdb; ipdb.set_trace()

@@ -11,11 +11,11 @@ import numpy as np
 import torch
 
 from knowledge_tracing.data import data_loader
-from knowledge_tracing.runner import runner_psikt# , runner_vcl
+from knowledge_tracing.runner import runner_psikt
 import knowledge_tracing.runner.runner_vcl as runner_vcl
 from knowledge_tracing.utils import utils, arg_parser, logger
 from knowledge_tracing.psikt.psikt import PSIKT, AmortizedPSIKT, ContinualPSIKT
-# from knowledge_tracing.psikt.test import 
+
 
 def global_parse_args():
     """
@@ -54,7 +54,7 @@ def global_parse_args():
     parser.add_argument('--z_entropy_weight', type=float, default=1e-1)
     parser.add_argument('--s_log_weight', type=float, default=1)
     parser.add_argument('--z_log_weight', type=float, default=1)
-    parser.add_argument('--y_log_weight', type=int, default=10)
+    parser.add_argument('--y_log_weight', type=float, default=1)
     parser.add_argument('--sparsity_loss_weight', type=float, default=1e-12)
     parser.add_argument('--cat_weight', type=float, default=10)
 

@@ -275,6 +275,9 @@ class DataReader(object):
             test_user_list = train_val_user_list.loc[
                 ~train_val_user_list.index.isin(val_user_list.index)
             ]
+            
+            # test_user_list = self.user_seq_df.loc[~self.user_seq_df.index.isin(train_val_user_list.index)]
+            # test_user_list = test_user_list.sample(n=overfit, random_state=random_seed)
 
         else:
             train_val_user_list = self.user_seq_df

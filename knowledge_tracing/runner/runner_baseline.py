@@ -188,7 +188,7 @@ class BaselineKTRunner(KTRunner):
 
         with torch.no_grad():
 
-            if self.args.validate:
+            if self.args.validate:# & (epoch >= 10):
                 val_result = self.evaluate(
                     model, corpus, "val", self.val_batches, epoch=epoch
                 )
@@ -211,7 +211,7 @@ class BaselineKTRunner(KTRunner):
                     )
                 )
 
-            if (self.args.test) & (epoch % self.args.test_every == 0):
+            if (self.args.test) & (epoch % self.args.test_every == 0):# & (epoch >= 10):
                 test_result = self.evaluate(
                     model, corpus, "test", self.test_batches, epoch=epoch
                 )
@@ -314,12 +314,6 @@ class BaselineKTRunner(KTRunner):
             prediction, label = out_dict["prediction"], out_dict["label"]
             predictions.extend(prediction.detach().cpu().data.numpy())
             labels.extend(label.detach().cpu().data.numpy())
-
-        # import pickle
-        # import ipdb
-        # filehandler = open("/mnt/qb/work/mlcolab/hzhou52/0iclr_exp3_mi_learner_and_emb/10-20/akt_junyi15_1000_2023_260_test.obj","wb")
-        # pickle.dump(outputs,filehandler)
-        # filehandler.close()
 
         return np.array(predictions), np.array(labels)
 
@@ -431,7 +425,7 @@ class BaselineContinualRunner(BaselineKTRunner):
         whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
         
         try:
-            for time in range(100):
+            for time in range(1,100):
                 gc.collect()
                 model.train()
                 
@@ -487,7 +481,7 @@ class BaselineContinualRunner(BaselineKTRunner):
                 loss_dict['loss_total'].backward()
                 
                 # Update parameters.
-                torch.nn.utils.clip_grad_norm(model.module.parameters(),100)
+                torch.nn.utils.clip_grad_norm_(model.module.parameters(),100)
                 model.module.optimizer.step()
                 
                 train_losses = self.logs.append_batch_losses(train_losses, loss_dict)

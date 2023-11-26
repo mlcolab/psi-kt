@@ -105,7 +105,6 @@ class QIKT(BaseModel):
         args: argparse.Namespace,
         corpus: DataReader,
         logs: logger.Logger,
-        emb_type="qaid_qc",
         emb_path="",
         pretrain_dim=768,
         device="cpu",
@@ -130,8 +129,6 @@ class QIKT(BaseModel):
         self.args = args
         self.logs = logs
 
-        self.emb_type = emb_type
-
         BaseModel.__init__(self, model_path=Path(args.log_path, "Model"))
 
     def _init_weights(self) -> None:
@@ -144,7 +141,6 @@ class QIKT(BaseModel):
             num_q=self.num_q,
             num_c=self.num_c,
             emb_size=self.emb_size,
-            emb_type=self.emb_type,
             model_name=self.model_name,
             device=self.device,
             emb_path=self.emb_path,
@@ -203,10 +199,6 @@ class QIKT(BaseModel):
         c = feed_dict["skill_seq"]
         r = feed_dict["label_seq"]
 
-        # _, emb_qca, emb_qc, emb_q, emb_c = self.que_emb(
-        #     q, c, r
-        # )  # [batch_size,emb_size*4],[batch_size,emb_size*2],[batch_size,emb_size*1],[batch_size,emb_size*1]
-
         _, emb_qca, emb_qc, emb_q, emb_c = self.que_emb(q, c, r)
         emb_qc_shift = emb_qc[:, 1:, :]
         emb_qca_current = emb_qca[:, :-1, :]
@@ -227,7 +219,7 @@ class QIKT(BaseModel):
                 emb_c.mul((r).unsqueeze(-1).repeat(1, 1, self.emb_size)),
             ],
             dim=-1,
-        )  # s_t for corectness and incorrectness; [bs, time, emb*2]
+        ) 
 
         emb_ca_current = emb_ca[:, :-1, :]
         concept_h = self.dropout_layer(
@@ -267,27 +259,32 @@ class QIKT(BaseModel):
 
         train_step = int(self.args.max_step * self.args.train_time_ratio)
 
-        c = feed_dict["skill_seq"][:, train_step - 1 :]  # [bs, seq_len]
-        q = feed_dict["problem_seq"][:, train_step - 1 :]  # [bs, seq_len]
-        r = feed_dict["label_seq"][:, train_step - 1 :]  # [bs, seq_len]
+        c = feed_dict["skill_seq"][:, train_step - 1 :] 
+        q = feed_dict["problem_seq"][:, train_step - 1 :]  
+        r = feed_dict["label_seq"][:, train_step - 1 :] 
 
         test_time = c.shape[-1]
         predictions = []
 
         for i in range(0, test_time - 1):
+            # if i < 1:
+            #     history_labels = r[:, 0:2]
+            # else:
+            #     history_labels = torch.cat(
+            #         [r[:, 0:1], (torch.cat(predictions, -1) >= 0.5) * 1, r[:, i+1:i+2]], dim=-1
+            #     )
+            # _, emb_qca, emb_qc, emb_q, emb_c = self.que_emb(
+            #     q[:, : i + 2], c[:, : i + 2], history_labels
+            # )
             if i < 1:
                 history_labels = r[:, 0:2]
-                _, emb_qca, emb_qc, emb_q, emb_c = self.que_emb(
-                    q[:, 0:2], c[:, 0:2], history_labels
-                )
             else:
                 history_labels = torch.cat(
-                    [r[:, 0:1], (torch.cat(predictions, -1) >= 0.5) * 1, r[:, i+1:i+2]], dim=-1
+                    [(torch.cat(predictions, -1) >= 0.5)[:, -1:] * 1, r[:, i+1:i+2]], dim=-1
                 )
-                # import ipdb; ipdb.set_trace()
-                _, emb_qca, emb_qc, emb_q, emb_c = self.que_emb(
-                    q[:, : i + 2], c[:, : i + 2], history_labels
-                )
+            _, emb_qca, emb_qc, emb_q, emb_c = self.que_emb(
+                q[:, i : i + 2], c[:, i : i + 2], history_labels
+            )
             emb_qc_shift = emb_qc[:, 1:, :]
             emb_qca_current = emb_qca[:, :-1, :]
 
@@ -334,11 +331,10 @@ class QIKT(BaseModel):
             predictions.append(y[:, -1:])
 
         prediction = torch.cat(predictions, dim=-1)
+        
         # Return predictions and labels from the second position in the sequence
-        out_dict = {
-            "prediction": prediction,
-            "label": r[:, 1:].double(),
-        }
+        out_dict['prediction'] = prediction
+        out_dict['label'] = r[:, 1:].double()
 
         return out_dict
 
@@ -563,135 +559,3 @@ class QIKT(BaseModel):
         return self.pred_evaluate_method(
                     prediction.flatten().cpu(), labels.flatten().cpu(), metrics
                 )
-        
-
-#     def train_one_step(self, data, process=True, return_all=False):
-#         outputs, data_new = self.predict_one_step(
-#             data, return_details=True, process=process
-#         )
-
-#         def get_loss_lambda(x):
-#             return self.model.other_config.get(
-#                 f"loss_{x}", 0
-#             ) * self.model.other_config.get(f"output_{x}", 0)
-
-#         # loss weight
-#         loss_c_all_lambda = get_loss_lambda("c_all_lambda")
-#         loss_c_next_lambda = get_loss_lambda("c_next_lambda")
-#         loss_q_all_lambda = get_loss_lambda("q_all_lambda")
-#         loss_q_next_lambda = get_loss_lambda("q_next_lambda")
-
-#         if self.model.output_mode == "an_irt":
-#             loss = (
-#                 loss_kt
-#                 + loss_q_all_lambda * loss_q_all
-#                 + loss_c_all_lambda * loss_c_all
-#                 + loss_c_next_lambda * loss_c_next
-#             )
-#         else:
-#             loss = (
-#                 loss_kt
-#                 + loss_q_all_lambda * loss_q_all
-#                 + loss_c_all_lambda * loss_c_all
-#                 + loss_c_next_lambda * loss_c_next
-#                 + loss_q_next_lambda * loss_q_next
-#             )
-#         # print(f"loss={loss:.3f},loss_kt={loss_kt:.3f},loss_q_all={loss_q_all:.3f},loss_c_all={loss_c_all:.3f},loss_q_next={loss_q_next:.3f},loss_c_next={loss_c_next:.3f}")
-#         return outputs["y"], loss  # y_question没用
-
-
-#     def predict(self, dataset, batch_size, return_ts=False, process=True):
-#         test_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-#         self.model.eval()
-#         with torch.no_grad():
-#             y_trues = []
-#             y_pred_dict = {}
-#             for data in test_loader:
-#                 new_data = self.batch_to_device(data, process=process)
-#                 outputs, data_new = self.predict_one_step(data, return_details=True)
-
-#                 for key in outputs:
-#                     if not key.startswith("y") or key in ["y_qc_predict"]:
-#                         continue
-#                     elif key not in y_pred_dict:
-#                         y_pred_dict[key] = []
-#                     y = (
-#                         torch.masked_select(outputs[key], new_data["sm"]).detach().cpu()
-#                     )  # get label
-#                     y_pred_dict[key].append(y.numpy())
-
-#                 t = (
-#                     torch.masked_select(new_data["rshft"], new_data["sm"])
-#                     .detach()
-#                     .cpu()
-#                 )
-#                 y_trues.append(t.numpy())
-
-#         results = y_pred_dict
-#         for key in results:
-#             results[key] = np.concatenate(results[key], axis=0)
-#         ts = np.concatenate(y_trues, axis=0)
-#         results["ts"] = ts
-#         return results
-
-#     def evaluate(self, dataset, batch_size, acc_threshold=0.5):
-#         results = self.predict(dataset, batch_size=batch_size)
-#         eval_result = {}
-#         ts = results["ts"]
-#         for key in results:
-#             if not key.startswith("y") or key in ["y_qc_predict"]:
-#                 pass
-#             else:
-#                 ps = results[key]
-#                 kt_auc = metrics.roc_auc_score(y_true=ts, y_score=ps)
-#                 prelabels = [1 if p >= acc_threshold else 0 for p in ps]
-#                 kt_acc = metrics.accuracy_score(ts, prelabels)
-#                 if key != "y":
-#                     eval_result["{}_kt_auc".format(key)] = kt_auc
-#                     eval_result["{}_kt_acc".format(key)] = kt_acc
-#                 else:
-#                     eval_result["auc"] = kt_auc
-#                     eval_result["acc"] = kt_acc
-
-#         self.eval_result = eval_result
-#         return eval_result
-
-#     def predict_one_step(
-#         self, data, return_details=False, process=True, return_raw=False
-#     ):
-#         data_new = self.batch_to_device(data, process=process)
-#         outputs = self.model(
-#             data_new["cq"].long(), data_new["cc"], data_new["cr"].long(), data=data_new
-#         )
-#         output_c_all_lambda = self.model.other_config.get("output_c_all_lambda", 1)
-#         output_c_next_lambda = self.model.other_config.get("output_c_next_lambda", 1)
-#         output_q_all_lambda = self.model.other_config.get("output_q_all_lambda", 1)
-#         output_q_next_lambda = self.model.other_config.get(
-#             "output_q_next_lambda", 0
-#         )  # not use this
-
-#         if self.model.output_mode == "an_irt":
-
-#             def sigmoid_inverse(x, epsilon=1e-8):
-#                 return torch.log(x / (1 - x + epsilon) + epsilon)
-
-#             y = (
-#                 sigmoid_inverse(outputs["y_question_all"]) * output_q_all_lambda
-#                 + sigmoid_inverse(outputs["y_concept_all"]) * output_c_all_lambda
-#                 + sigmoid_inverse(outputs["y_concept_next"]) * output_c_next_lambda
-#             )
-#             y = torch.sigmoid(y)
-#         else:
-#             # output weight
-#             y = (
-#                 outputs["y_question_all"] * output_q_all_lambda
-#                 + outputs["y_concept_all"] * output_c_all_lambda
-#                 + outputs["y_concept_next"] * output_c_next_lambda
-#             )
-#             y = y / (output_q_all_lambda + output_c_all_lambda + output_c_next_lambda)
-#         outputs["y"] = y
-
-#         if return_details:
-#             return outputs, data_new
-#         else:
-#             return y

@@ -341,7 +341,7 @@ class AmortizedPSIKT(PSIKT):
 
         super().__init__(mode, num_node, nx_graph, device, args, logs)
 
-    def _init_params(self, shape) -> None:
+    def _init_params(self, shape, grad=True) -> None:
         """
         Initialize the parameters of the model.
 
@@ -351,7 +351,7 @@ class AmortizedPSIKT(PSIKT):
             None
         """
         param = nn.init.xavier_uniform_(torch.empty(shape))
-        return nn.Parameter(param, requires_grad=True)
+        return nn.Parameter(param, requires_grad=grad)
 
     def _init_weights(self) -> None:
         """
@@ -384,20 +384,28 @@ class AmortizedPSIKT(PSIKT):
         gen_st_h = nn.init.xavier_uniform_(torch.empty(1, self.dim_s))
         self.gen_st_h = nn.Parameter(torch.diag_embed(gen_st_h)[0], requires_grad=True)
         self.gen_st_log_r = self._init_params((1, self.dim_s))
+        # gen_st_h = torch.ones(1, self.dim_s)
+        # self.gen_st_h = nn.Parameter(torch.diag_embed(gen_st_h)[0], requires_grad=False)
+        # self.gen_st_log_r = self._init_params((1, self.dim_s), False)
 
         # ----- 3. emission distribution p(y|z) -----
         self.y_emit = torch.nn.Sigmoid()
 
         # --------------- for parameters Phi ---------------
+        time_step = int(self.args.max_step * self.args.train_time_ratio)
         # the embedding network at each time step emb_t = f(y_t, c_t, t)
         # the variational posterior distribution q(s_1:t | y_1:t, c_1:t) and q(z_1:t | y_1:t, c_1:t)
         # ----- 1. embedding network -----
         self.infer_network_emb = build_dense_network(
             self.node_dim * 2, [self.node_dim, self.node_dim], [nn.LeakyReLU(0.2), None]
         )
+        # # Ablation study 1
+        # infer_st_mean = nn.init.xavier_uniform_(torch.empty(time_step, self.dim_s))
+        # self.infer_st_mean = nn.Parameter(infer_st_mean, requires_grad=True)
+        # infer_st_log_var = nn.init.xavier_uniform_(torch.empty(time_step, self.dim_s))
+        # self.infer_st_log_var = nn.Parameter(infer_st_log_var, requires_grad=True)
 
         # ----- 2. variational posterior distribution q(s_1:t | y_1:t, c_1:t) = q(s_1:t | emb_1:t) -----
-        time_step = int(self.args.max_step * self.args.train_time_ratio)
         self.infer_network_posterior_s = InferenceNet(
             self.node_dim, self.dim_s, self.num_category, time_step
         )
@@ -645,6 +653,73 @@ class AmortizedPSIKT(PSIKT):
 
         return qs_dist
 
+    # def st_transition_infer(
+    #     self,
+    #     emb_inputs: torch.Tensor,
+    #     num_sample: int = 0,
+    #     eval: bool = False,
+    # ) -> torch.distributions.MultivariateNormal:
+    
+    #     num_sample = self.num_sample if num_sample == 0 else num_sample
+
+    #     bs = emb_inputs.shape[0]
+    #     s_category = torch.zeros(bs, 1, self.num_category).to(self.device)
+    #     s_mean = self.infer_st_mean.unsqueeze(0).repeat(bs, 1, 1).unsqueeze(1)
+    #     s_var = torch.exp(self.infer_st_log_var).unsqueeze(0).repeat(bs, 1, 1).unsqueeze(1)
+
+    #     s_var_mat = torch.diag_embed(s_var + EPS)  # [bs, 1, time, dim_s, dim_s]
+    #     qs_dist = MultivariateNormal(loc=s_mean, scale_tril=torch.tril(s_var_mat))
+
+    #     # NOTE: For debug use
+    #     if not eval:
+    #         self.register_buffer(name="qs_mean", tensor=s_mean.clone().detach())
+    #         self.register_buffer(name="qs_var", tensor=s_var.clone().detach())
+    #         self.logits = torch.ones(bs, 1, self.num_category).to(self.device)
+    #         self.probs = torch.zeros(bs, 1, self.num_category).to(self.device)
+    #         self.s_category = s_category
+    #     self.register_buffer("qs_category", s_category.clone().detach())
+
+    #     return qs_dist
+
+
+    # def st_transition_infer(
+    #     self,
+    #     emb_inputs: torch.Tensor,
+    #     num_sample: int = 0,
+    #     eval: bool = False,
+    # ) -> torch.distributions.MultivariateNormal:
+        
+    #     num_sample = self.num_sample if num_sample == 0 else num_sample
+
+    #     qs_out_inf = self.infer_network_posterior_s(
+    #         emb_inputs,
+    #         self.qs_temperature,
+    #         self.qs_hard,
+    #     )
+
+    #     time = qs_out_inf["s_mu_infer"].shape[-2]
+    #     s_category = qs_out_inf["categorical"]  # [bs, 1, num_cat]
+    #     s_mean = qs_out_inf["s_mu_infer"].mean(-2).unsqueeze(-2).repeat(1,1,time,1)  # [bs, 1, time, dim_s]
+    #     s_var = qs_out_inf["s_var_infer"].mean(-2).unsqueeze(-2).repeat(1,1,time,1)  # [bs, 1, time, dim_s]
+
+    #     s_var_mat = torch.diag_embed(s_var + EPS)  # [bs, 1, time, dim_s, dim_s]
+    #     qs_dist = MultivariateNormal(loc=s_mean, scale_tril=torch.tril(s_var_mat))
+
+    #     # NOTE: For debug use
+    #     if not eval:
+    #         self.register_buffer(
+    #             "qs_category_logits", qs_out_inf["logits"].clone().detach()
+    #         )
+    #         self.register_buffer(name="qs_mean", tensor=s_mean.clone().detach())
+    #         self.register_buffer(name="qs_var", tensor=s_var.clone().detach())
+    #         self.logits = qs_out_inf["logits"]
+    #         self.probs = qs_out_inf["prob_cat"]
+    #         self.s_category = s_category
+    #     self.register_buffer("qs_category", s_category.clone().detach())
+
+    #     return qs_dist
+    
+    
     def zt_transition_infer(
         self,
         feed_dict: Tuple[torch.Tensor, torch.Tensor],
@@ -826,15 +901,22 @@ class AmortizedPSIKT(PSIKT):
         # Compute the prior distribution of `s_t` and `z_t`
         ps_dist, pz_dist = self.generative_process(qs_dist, qz_dist, feed_dict)
 
-        return_dict = self.get_objective_values(
-            [qs_dist, qz_dist],
-            [ps_dist, pz_dist],
-            feed_dict,
-        )
+        # return_dict = self.get_objective_values(
+        #     [qs_dist, qz_dist],
+        #     [ps_dist, pz_dist],
+        #     feed_dict,
+        # )
 
         self.register_buffer(
             name="output_emb_input", tensor=emb_history.clone().detach()
         )
+        return_dict = {}
+        return_dict['label'] = feed_dict["label_seq"]
+        return_dict['item'] = feed_dict["skill_seq"]
+        return_dict['time'] = feed_dict["time_seq"]
+        return_dict['qs_dist'] = qs_dist
+        return_dict['qz_dist'] = qz_dist
+        # return_dict['pz_dist'] = pz_dist
 
         return return_dict
 

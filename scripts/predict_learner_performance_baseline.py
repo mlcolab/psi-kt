@@ -103,8 +103,14 @@ if __name__ == '__main__':
             model, _ = utils.distribute_over_GPUs(global_args, model, num_GPU=global_args.num_GPU)
         else: 
             model = model.to(global_args.device)
-            
-    # TODO: modify the runner
+    
+    # for name, param in model.state_dict().items():
+    #     # print(name)
+    #     # if 'gru' not in name and 'predict' not in name:
+    #     #     param.requires_grad = False
+    #     if 'out_concept_all.out' not in name and 'out_concept_next.out' not in name and 'out_question_all.out' not in name and 'out_question_next.out' not in name:
+    #         param.requires_grad = False
+    
     if global_args.vcl: 
         runner = runner_baseline.BaselineContinualRunner(global_args, logs)
     else:

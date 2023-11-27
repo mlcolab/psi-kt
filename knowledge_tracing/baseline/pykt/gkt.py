@@ -1,19 +1,17 @@
 # coding: utf-8
 import math
+import argparse
+from collections import defaultdict
+from typing import List, Dict, Optional
+
 from pathlib import Path
 import numpy as np
 import pandas as pd
-import argparse
-from collections import defaultdict
 
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F
-
-from typing import List, Dict, Optional
-
-from knowledge_tracing.baseline import *
 
 from knowledge_tracing.baseline.basemodel import BaseModel
 from knowledge_tracing.utils import utils, logger
@@ -329,8 +327,6 @@ class GKT(BaseModel):
         c = feed_dict["skill_seq"]
         r = feed_dict["label_seq"]
 
-        # features = q * 2 + r
-        # questions = q
         features = c * 2 + r
         questions = c
 
@@ -363,7 +359,7 @@ class GKT(BaseModel):
         out_dict = {
             "prediction": pred_res,
             "label": r[:, 1:].double() if seq_len > 1 else r.double(),
-            'embs': embs,
+            "embs": embs,
         }
 
         return out_dict
@@ -456,7 +452,6 @@ class GKT(BaseModel):
 
         return out_dict
 
-
     def evaluate_cl(
         self,
         feed_dict: Dict[str, torch.Tensor],
@@ -480,16 +475,17 @@ class GKT(BaseModel):
             "label_seq": feed_dict["label_seq"][:, idx : idx + test_step + 1],
             "problem_seq": feed_dict["problem_seq"][:, idx : idx + test_step + 1],
         }
-        
+
         out_dict = self.forward(cur_feed_dict)
-        
-        labels = out_dict['label']
-        prediction = out_dict['prediction']
+
+        labels = out_dict["label"]
+        prediction = out_dict["prediction"]
 
         return self.pred_evaluate_method(
             prediction.flatten().cpu(), labels.flatten().cpu(), metrics
         )
-            
+
+
 # Multi-Layer Perceptron(MLP) layer
 class MLP(nn.Module):
     """Two-layer fully-connected ReLU net with batch norm."""
@@ -573,7 +569,6 @@ class EraseAddGate(nn.Module):
 
         """
         erase_gate = torch.sigmoid(self.erase(x))  # [batch_size, num_c, feature_dim]
-        # self.weight.unsqueeze(dim=1) shape: [num_c, 1]
         tmp_x = x - self.weight.unsqueeze(dim=1) * erase_gate * x
         add_feat = torch.tanh(self.add(x))  # [batch_size, num_c, feature_dim]
         res = tmp_x + self.weight.unsqueeze(dim=1) * add_feat

@@ -1,26 +1,15 @@
 import os
-from turtle import forward
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import numpy as np
-
-# from pykt.utils import debug_print
-from sklearn import metrics
-from torch.utils.data import DataLoader
-
-# from .loss import Loss
-from scipy.special import softmax
-
 import argparse
-from pathlib import Path
 from collections import defaultdict
 from typing import List, Dict, Optional
 
 import numpy as np
-import pandas as pd
+from pathlib import Path
+from sklearn import metrics
 
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 from knowledge_tracing.baseline.pykt.que_base_model import QueBaseModel, QueEmb
 from knowledge_tracing.baseline.basemodel import BaseModel
@@ -179,18 +168,9 @@ class QIKT(BaseModel):
         return torch.log(x / (1 - x + epsilon) + epsilon)
 
     def get_avg_fusion_concepts(self, y_concept, cshft):
-        # import ipdb; ipdb.set_trace()
         max_num_concept = cshft.shape[-1]
         concept_mask = torch.where(cshft.long() == -1, False, True)
         concept_index = F.one_hot(torch.where(cshft != -1, cshft, 0), self.num_c)
-        # concept_sum = (
-        #     y_concept.unsqueeze(2).repeat(1, 1, max_num_concept, 1) * concept_index
-        # ).sum(-1)
-        # concept_sum = concept_sum * concept_mask  # remove mask
-        # y_concept = concept_sum.sum(-1) / torch.where(
-        #     concept_mask.sum(-1) != 0, concept_mask.sum(-1), 1
-        # )
-        # return y_concept
         concept_sum = (y_concept * concept_index).sum(-1)
         return concept_sum
 
@@ -219,7 +199,7 @@ class QIKT(BaseModel):
                 emb_c.mul((r).unsqueeze(-1).repeat(1, 1, self.emb_size)),
             ],
             dim=-1,
-        ) 
+        )
 
         emb_ca_current = emb_ca[:, :-1, :]
         concept_h = self.dropout_layer(
@@ -259,28 +239,23 @@ class QIKT(BaseModel):
 
         train_step = int(self.args.max_step * self.args.train_time_ratio)
 
-        c = feed_dict["skill_seq"][:, train_step - 1 :] 
-        q = feed_dict["problem_seq"][:, train_step - 1 :]  
-        r = feed_dict["label_seq"][:, train_step - 1 :] 
+        c = feed_dict["skill_seq"][:, train_step - 1 :]
+        q = feed_dict["problem_seq"][:, train_step - 1 :]
+        r = feed_dict["label_seq"][:, train_step - 1 :]
 
         test_time = c.shape[-1]
         predictions = []
 
         for i in range(0, test_time - 1):
-            # if i < 1:
-            #     history_labels = r[:, 0:2]
-            # else:
-            #     history_labels = torch.cat(
-            #         [r[:, 0:1], (torch.cat(predictions, -1) >= 0.5) * 1, r[:, i+1:i+2]], dim=-1
-            #     )
-            # _, emb_qca, emb_qc, emb_q, emb_c = self.que_emb(
-            #     q[:, : i + 2], c[:, : i + 2], history_labels
-            # )
             if i < 1:
                 history_labels = r[:, 0:2]
             else:
                 history_labels = torch.cat(
-                    [(torch.cat(predictions, -1) >= 0.5)[:, -1:] * 1, r[:, i+1:i+2]], dim=-1
+                    [
+                        (torch.cat(predictions, -1) >= 0.5)[:, -1:] * 1,
+                        r[:, i + 1 : i + 2],
+                    ],
+                    dim=-1,
                 )
             _, emb_qca, emb_qc, emb_q, emb_c = self.que_emb(
                 q[:, i : i + 2], c[:, i : i + 2], history_labels
@@ -293,15 +268,24 @@ class QIKT(BaseModel):
                 self.que_lstm_layer(emb_qca_current)[0]
             )  # [bs, time-1, emb]
             que_outputs = get_outputs(
-                self, emb_qc_shift, que_h, q[:, 1:i+2], add_name="", model_type="question"
+                self,
+                emb_qc_shift,
+                que_h,
+                q[:, 1 : i + 2],
+                add_name="",
+                model_type="question",
             )  # ['y_question_next', 'y_question_all'] [bs, time-1] [bs, time-1]
             out_dict = que_outputs
 
             # concept model
             emb_ca = torch.cat(
                 [
-                    emb_c.mul((1 - history_labels).unsqueeze(-1).repeat(1, 1, self.emb_size)),
-                    emb_c.mul((history_labels).unsqueeze(-1).repeat(1, 1, self.emb_size)),
+                    emb_c.mul(
+                        (1 - history_labels).unsqueeze(-1).repeat(1, 1, self.emb_size)
+                    ),
+                    emb_c.mul(
+                        (history_labels).unsqueeze(-1).repeat(1, 1, self.emb_size)
+                    ),
                 ],
                 dim=-1,
             )  # s_t for corectness and incorrectness; [bs, time, emb*2]
@@ -314,7 +298,7 @@ class QIKT(BaseModel):
                 self,
                 emb_qc_shift,
                 concept_h,
-                c[:, 1:i+2],
+                c[:, 1 : i + 2],
                 add_name="",
                 model_type="concept",
             )
@@ -331,10 +315,10 @@ class QIKT(BaseModel):
             predictions.append(y[:, -1:])
 
         prediction = torch.cat(predictions, dim=-1)
-        
+
         # Return predictions and labels from the second position in the sequence
-        out_dict['prediction'] = prediction
-        out_dict['label'] = r[:, 1:].double()
+        out_dict["prediction"] = prediction
+        out_dict["label"] = r[:, 1:].double()
 
         return out_dict
 
@@ -464,7 +448,7 @@ class QIKT(BaseModel):
         }
 
         out_dict = self.forward(cur_feed_dict)
-        
+
         return out_dict
 
     def evaluate_cl(
@@ -473,7 +457,7 @@ class QIKT(BaseModel):
         idx: int = None,
         metrics=None,
     ) -> Dict[str, torch.Tensor]:
-        
+
         """
         Evaluate the learner model's performance.
 
@@ -485,14 +469,13 @@ class QIKT(BaseModel):
             Dict[str, torch.Tensor]: A dictionary containing evaluation results.
         """
         test_step = 10
-        
+
         c = feed_dict["skill_seq"][:, idx : idx + test_step + 1]
-        q = feed_dict["problem_seq"][
-            :, idx : idx + test_step + 1]
+        q = feed_dict["problem_seq"][:, idx : idx + test_step + 1]
         r = feed_dict["label_seq"][:, idx : idx + test_step + 1]
 
         predictions = []
-        
+
         for i in range(0, test_step):
             # import ipdb; ipdb.set_trace()
             if i < 1:
@@ -502,7 +485,12 @@ class QIKT(BaseModel):
                 )
             else:
                 history_labels = torch.cat(
-                    [r[:, 0:1], (torch.cat(predictions, -1) >= 0.5) * 1, r[:, i+1:i+2]], dim=-1
+                    [
+                        r[:, 0:1],
+                        (torch.cat(predictions, -1) >= 0.5) * 1,
+                        r[:, i + 1 : i + 2],
+                    ],
+                    dim=-1,
                 )
                 # import ipdb; ipdb.set_trace()
                 _, emb_qca, emb_qc, emb_q, emb_c = self.que_emb(
@@ -516,15 +504,24 @@ class QIKT(BaseModel):
                 self.que_lstm_layer(emb_qca_current)[0]
             )  # [bs, time-1, emb]
             que_outputs = get_outputs(
-                self, emb_qc_shift, que_h, q[:, 1:i+2], add_name="", model_type="question"
+                self,
+                emb_qc_shift,
+                que_h,
+                q[:, 1 : i + 2],
+                add_name="",
+                model_type="question",
             )  # ['y_question_next', 'y_question_all'] [bs, time-1] [bs, time-1]
             out_dict = que_outputs
 
             # concept model
             emb_ca = torch.cat(
                 [
-                    emb_c.mul((1 - history_labels).unsqueeze(-1).repeat(1, 1, self.emb_size)),
-                    emb_c.mul((history_labels).unsqueeze(-1).repeat(1, 1, self.emb_size)),
+                    emb_c.mul(
+                        (1 - history_labels).unsqueeze(-1).repeat(1, 1, self.emb_size)
+                    ),
+                    emb_c.mul(
+                        (history_labels).unsqueeze(-1).repeat(1, 1, self.emb_size)
+                    ),
                 ],
                 dim=-1,
             )  # s_t for corectness and incorrectness; [bs, time, emb*2]
@@ -537,7 +534,7 @@ class QIKT(BaseModel):
                 self,
                 emb_qc_shift,
                 concept_h,
-                c[:, 1:i+2],
+                c[:, 1 : i + 2],
                 add_name="",
                 model_type="concept",
             )
@@ -552,10 +549,10 @@ class QIKT(BaseModel):
             y = torch.sigmoid(y)
 
             predictions.append(y[:, -1:])
-            
+
         prediction = torch.cat(predictions, dim=-1)
         labels = r[:, 1:]
 
         return self.pred_evaluate_method(
-                    prediction.flatten().cpu(), labels.flatten().cpu(), metrics
-                )
+            prediction.flatten().cpu(), labels.flatten().cpu(), metrics
+        )

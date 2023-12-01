@@ -10,28 +10,22 @@
 
 Dependencies are in the `envrionment.yml` file.  
 
-### Executing program
+### Data preprocessing
 
-* Data preprocessing
-We follow the preprocess as in the Hawkes KT model: https://github.com/THUwangcy/HawkesKT/blob/main/data/Preprocess.ipynb
+We follow the preprocess as in the [HawkesKT](https://github.com/THUwangcy/HawkesKT) model.
 
-* Baseline models
+### Baseline models
 ```
 python predict_learner_performance_baseline.py --dataset assistment17 --model_name DKT --random_seed 2023
 ```
 
-* PSI-KT
+### PSI-KT
+Running PSI-KT for prediction on bucket data:
 ```bash
 python predict_learner_performance_psikt.py --dataset assistment17 --model_name AmortizedPSIKT --random_seed 2023
 ```
+Running PSI-KT for continual learning can be set by specifying `--vcl 1`.
 
-* Continual learning 
-```bash
-python predict_learner_performance_psikt.py --dataset assistment17 --model_name AmortizedPSIKT --random_seed 2023 --vcl 1
-```
-
-To reproduce the results in the paper, the five random seeds we use are 2023, 2022, 2021, 2020, 2019.  
-We report the mean and standard deviation of results from these five experiments.  
 
 ## Authors
 
@@ -39,10 +33,10 @@ We report the mean and standard deviation of results from these five experiments
 
 ## License
 
-- [ ] This project is licensed under the [NAME HERE] License - see the LICENSE.md file for details
+This project is licensed under the GNU Affero General Public License - see the LICENSE.md file for details
 
 ## Acknowledgments
 
-Inspiration:
-* [XKT](https://github.com/tswsxk/XKT)  
-Code review: 
+The training architectures follow [HawkesKT](https://github.com/THUwangcy/HawkesKT).  
+The baselines follow [XKT](https://github.com/tswsxk/XKT) and [pyKT](https://github.com/pykt-team/pykt-toolkit).  
+The logging modules follow [AmortizedCausalDiscovery](https://github.com/loeweX/AmortizedCausalDiscovery).

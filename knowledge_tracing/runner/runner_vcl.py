@@ -28,7 +28,7 @@ class VCLRunner(KTRunner):
             args:
             logs
         """
-        super().__init__(args=args, logs=logs)
+        KTRunner.__init__(args=args, logs=logs)
 
         self.max_time_step = args.max_step
 
@@ -164,7 +164,7 @@ class VCLRunner(KTRunner):
 
             string = self.logs.result_string(
                 "train", epoch, train_losses, t=epoch, mini_epoch=mini_epoch
-            ) 
+            )
             self.logs.write_to_log_file(string)
             self.logs.append_epoch_losses(train_losses, "train")
 

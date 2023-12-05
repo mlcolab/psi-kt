@@ -28,26 +28,8 @@ class BaselineKTRunner(KTRunner):
             args (argparse.Namespace): Global arguments provided as a namespace.
             logs (logger.Logger): The Logger instance for logging information.
         """
-
+        KTRunner.__init__(self, args, logs)
         self.time = None
-
-        # number of data to train
-        self.overfit = args.overfit
-
-        # training options
-        self.epoch = args.epoch
-        self.batch_size = args.batch_size_multiGPU
-        self.eval_batch_size = args.eval_batch_size
-
-        # list of evaluation metrics to use during training
-        self.metrics = args.metric.strip().lower().split(",")
-        for i in range(len(self.metrics)):
-            self.metrics[i] = self.metrics[i].strip()
-
-        self.args = args
-        self.early_stop = args.early_stop
-        self.logs = logs
-        self.device = args.device
 
     def train(
         self,
@@ -64,11 +46,12 @@ class BaselineKTRunner(KTRunner):
         assert corpus.data_df["train"] is not None
         self.start_time = self._check_time(start=True)
 
-        # Prepare training data (if needs quick test then specify overfit arguments in the args);
+        # Prepare training data (if needs quick test then specify num_learner arguments in the args);
         set_name = ["train", "val", "test", "whole"]
-        if self.overfit > 0:
+        if self.num_learner > 0:
             epoch_train_data, epoch_val_data, epoch_test_data, epoch_whole_data = [
-                copy.deepcopy(corpus.data_df[key][: self.overfit]) for key in set_name
+                copy.deepcopy(corpus.data_df[key][: self.num_learner])
+                for key in set_name
             ]
         else:
             epoch_train_data, epoch_val_data, epoch_test_data, epoch_whole_data = [
@@ -188,7 +171,7 @@ class BaselineKTRunner(KTRunner):
 
         with torch.no_grad():
 
-            if self.args.validate:# & (epoch >= 10):
+            if self.args.validate & (epoch >= 10):
                 val_result = self.evaluate(
                     model, corpus, "val", self.val_batches, epoch=epoch
                 )
@@ -211,7 +194,7 @@ class BaselineKTRunner(KTRunner):
                     )
                 )
 
-            if (self.args.test) & (epoch % self.args.test_every == 0):# & (epoch >= 10):
+            if (self.args.test) & (epoch % self.args.test_every == 0) & (epoch >= 10):
                 test_result = self.evaluate(
                     model, corpus, "test", self.test_batches, epoch=epoch
                 )
@@ -355,7 +338,7 @@ class BaselineKTRunner(KTRunner):
         return model.module.pred_evaluate_method(
             concat_pred, concat_label, self.metrics
         )
-        
+
 
 class BaselineContinualRunner(BaselineKTRunner):
     """
@@ -378,7 +361,7 @@ class BaselineContinualRunner(BaselineKTRunner):
         self.time = None
 
         # number of data to train
-        self.overfit = args.overfit
+        self.num_learner = args.num_learner
 
         # training options
         self.epoch = args.epoch
@@ -409,26 +392,32 @@ class BaselineContinualRunner(BaselineKTRunner):
         """
         # Build the optimizer if it hasn't been built already.
         if model.module.optimizer is None:
-            model.module.optimizer, model.module.scheduler = self._build_optimizer(model)
-            
-        assert(corpus.data_df['train'] is not None)
+            model.module.optimizer, model.module.scheduler = self._build_optimizer(
+                model
+            )
+
+        assert corpus.data_df["train"] is not None
         self._check_time(start=True)
-        
-        if self.overfit > 0:
-            epoch_whole_data = copy.deepcopy(corpus.data_df['whole'][:self.overfit])
-            epoch_whole_data['user_id'] = np.arange(self.overfit)
+
+        if self.num_learner > 0:
+            epoch_whole_data = copy.deepcopy(
+                corpus.data_df["whole"][: self.num_learner]
+            )
+            epoch_whole_data["user_id"] = np.arange(self.num_learner)
         else:
-            epoch_whole_data = copy.deepcopy(corpus.data_df['whole'])
-            
+            epoch_whole_data = copy.deepcopy(corpus.data_df["whole"])
+
         # Return a random sample of items from an axis of object.
-        epoch_whole_data = epoch_whole_data.sample(frac=1).reset_index(drop=True) 
-        whole_batches = model.module.prepare_batches(corpus, epoch_whole_data, self.eval_batch_size, phase='whole')
-        
+        epoch_whole_data = epoch_whole_data.sample(frac=1).reset_index(drop=True)
+        whole_batches = model.module.prepare_batches(
+            corpus, epoch_whole_data, self.eval_batch_size, phase="whole"
+        )
+
         try:
-            for time in range(1,100):
+            for time in range(1, 100):
                 gc.collect()
                 model.train()
-                
+
                 self._check_time()
                 self.fit(model, whole_batches, epoch=time, time_step=time)
                 self.test(model, whole_batches, epoch=time, time_step=time)
@@ -437,18 +426,19 @@ class BaselineContinualRunner(BaselineKTRunner):
         except KeyboardInterrupt:
             self.logs.write_to_log_file("Early stop manually")
             exit_here = input("Exit completely without evaluation? (y/n) (default n):")
-            if exit_here.lower().startswith('y'):
-                self.logs.write_to_log_file(os.linesep + '-' * 45 + ' END: ' + utils.get_time() + ' ' + '-' * 45)
+            if exit_here.lower().startswith("y"):
+                self.logs.write_to_log_file(
+                    os.linesep + "-" * 45 + " END: " + utils.get_time() + " " + "-" * 45
+                )
                 exit(1)
 
-
     def fit(
-        self, 
-        model, 
-        batches, 
-        epoch: int = 0, 
+        self,
+        model,
+        batches,
+        epoch: int = 0,
         time_step: int = 0,
-    ): 
+    ):
         """
         Trains the given model on the given batches of data.
 
@@ -461,51 +451,58 @@ class BaselineContinualRunner(BaselineKTRunner):
         Returns:
             A dictionary containing the training losses.
         """
-         
+
         model.module.train()
         train_losses = defaultdict(list)
-        
-        
-        for mini_epoch in range(10): # self.epoch): 
-            
+
+        for mini_epoch in range(10):  # self.epoch):
+
             # Iterate through each batch.
-            for batch in tqdm(batches, leave=False, ncols=100, mininterval=1, desc='Epoch %5d' % epoch + ' Time %5d' % mini_epoch):
+            for batch in tqdm(
+                batches,
+                leave=False,
+                ncols=100,
+                mininterval=1,
+                desc="Epoch %5d" % epoch + " Time %5d" % mini_epoch,
+            ):
                 # Move the batch to the GPU.
                 batch = model.module.batch_to_gpu(batch, self.device)
-                
+
                 # Reset gradients.
                 model.module.optimizer.zero_grad(set_to_none=True)
-                
+
                 output_dict = model.module.forward_cl(batch, idx=time_step)
                 loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
-                loss_dict['loss_total'].backward()
-                
+                loss_dict["loss_total"].backward()
+
                 # Update parameters.
-                torch.nn.utils.clip_grad_norm_(model.module.parameters(),100)
+                torch.nn.utils.clip_grad_norm_(model.module.parameters(), 100)
                 model.module.optimizer.step()
-                
+
                 train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
-            
+
             if mini_epoch % 10 == 0:
                 model.module.save_model(epoch=epoch, mini_epoch=mini_epoch)
             self.logs.draw_loss_curves()
-                        
-            string = self.logs.result_string("train", epoch, train_losses, t=epoch, mini_epoch=mini_epoch) # TODO
+
+            string = self.logs.result_string(
+                "train", epoch, train_losses, t=epoch, mini_epoch=mini_epoch
+            )  # TODO
             self.logs.write_to_log_file(string)
-            self.logs.append_epoch_losses(train_losses, 'train')
-        
-        return self.logs.train_results['loss_total'][-1]
+            self.logs.append_epoch_losses(train_losses, "train")
+
+        return self.logs.train_results["loss_total"][-1]
 
     def test(
-        self, 
+        self,
         model: torch.nn.Module,
         test_batches: list = None,
-        epoch: int = 0, 
+        epoch: int = 0,
         time_step: int = 0,
     ):
         test_losses = defaultdict(list)
         model.module.eval()
-        
+
         if (self.args.test) & (epoch % self.args.test_every == 0):
             with torch.no_grad():
                 for batch in test_batches:
@@ -515,4 +512,4 @@ class BaselineContinualRunner(BaselineKTRunner):
 
             string = self.logs.result_string("test", epoch, test_losses, t=epoch)
             self.logs.write_to_log_file(string)
-            self.logs.append_epoch_losses(test_losses, 'test')
+            self.logs.append_epoch_losses(test_losses, "test")

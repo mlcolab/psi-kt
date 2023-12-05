@@ -3,12 +3,11 @@ def parse_args(parser):
     All of the general arguments defined here.
     Model-specific arguments are defined in corresponding files.
     """
-    ############## TODO debugging experiment ##############
     parser.add_argument(
-        "--overfit",
+        "--num_learner",
         type=int,
         default=100,
-        help="whether to overfit and debug (0/>0); if overfit>0, the number of data to train",
+        help="whether to num_learner and debug (0/>0); if num_learner>0, the number of data to train",
     )
 
     ############## distributed training ##############
@@ -162,13 +161,6 @@ def parse_args(parser):
         type=str,
         default="Adam",
         help="optimizer: GD, Adam, Adagrad, Adadelta",
-    )
-    parser.add_argument(
-        "--metric",
-        type=str,
-        default="F1, Accuracy, Recall, Precision",
-        help="metrics: AUC, F1, Accuracy, Recall, Presicion;"
-        "The first one will be used to determine whether to early stop",
     )
 
     return parser

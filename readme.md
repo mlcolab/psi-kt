@@ -1,7 +1,10 @@
 # Predictive, Scalable and Interpretable Knowledge Tracing (PSI-KT)
 
+[![Project Status: Active – The project has reached a usable state and is under active development.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+
+
 ## About The Project
-This is the official github repository for our work [Predictive, scalable and interpretable knowledge tracing on structured domains](https://openreview.net/forum?id=NgaLU2fP5D&referrer=%5Bthe%20profile%20of%20Hanqi%20Zhou%5D(%2Fprofile%3Fid%3D~Hanqi_Zhou1)), where we propose a hierarchical state-space model and for knowledge tracing (KT) and its Bayesian inference process.
+This is the official repository for our work [Predictive, scalable and interpretable knowledge tracing on structured domains](https://openreview.net/forum?id=NgaLU2fP5D&referrer=%5Bthe%20profile%20of%20Hanqi%20Zhou%5D(%2Fprofile%3Fid%3D~Hanqi_Zhou1)), where we proposed a hierarchical state-space model for knowledge tracing (KT) and derived its Bayesian inference process.
 
 > **Abstract**
 >

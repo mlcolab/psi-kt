@@ -66,10 +66,10 @@ class KTRunner(object):
             valid = list(metrics_log[m])
 
             # Check if the last 10 validation results have not improved
-            if not (len(valid) > 10 and utils.non_increasing(valid[-10:])):
+            if not (len(valid) > self.early_stop and utils.non_increasing(valid[-self.early_stop:])):
                 return False
             # Check if the maximum validation result has not improved for the past 10 epochs
-            elif not (len(valid) - valid.index(max(valid)) > 10):
+            elif not (len(valid) - valid.index(max(valid)) > self.early_stop):
                 return False
 
         return True

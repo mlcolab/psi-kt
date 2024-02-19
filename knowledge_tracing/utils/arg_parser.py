@@ -119,7 +119,7 @@ def parse_args(parser):
     parser.add_argument("--gamma", type=float, default=0.5, help="LR decay factor.")
     parser.add_argument("--epoch", type=int, default=200, help="Number of epochs.")
     parser.add_argument(
-        "--early_stop", type=int, default=1, help="whether to early-stop."
+        "--early_stop", type=int, default=10, help="whether to early-stop."
     )
     parser.add_argument("--lr", type=float, default=5e-3, help="Learning rate.")
     parser.add_argument(

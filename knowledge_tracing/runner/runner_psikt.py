@@ -49,7 +49,7 @@ class PSIKTRunner(KTRunner):
         if not self.args.em_train:
             optimizer = optimizer_class(
                 model.module.customize_parameters(), lr=lr, weight_decay=weight_decay
-            )  # TODO some parameters are not initialized
+            )  
             scheduler = lr_scheduler.StepLR(
                 optimizer, step_size=lr_decay, gamma=lr_decay_gamma
             )
@@ -225,7 +225,6 @@ class PSIKTRunner(KTRunner):
         test_batches: list = None,
         val_batches: list = None,
     ):
-        # ipdb.set_trace()
         training_time = self._check_time()
 
         model.module.eval()
@@ -318,30 +317,12 @@ class PSIKTRunner(KTRunner):
             # Append the losses to the train_losses dictionary.
             train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
 
-        string = self.logs.result_string("train", epoch, train_losses, t=epoch)  # TODO
+        string = self.logs.result_string("train", epoch, train_losses, t=epoch) 
         self.logs.write_to_log_file(string)
         self.logs.append_epoch_losses(train_losses, "train")
 
         model.module.scheduler.step()
         model.module.eval()
-
-        # # TODO DEBUG: to visualize the difference of synthetic data adj
-        # if 'synthetic' in self.args.dataset and epoch%2 == 0:
-        #     import matplotlib.patches as mpatches
-        #     gt_adj = batch['gt_adj']
-        #     _, probs, pred_adj = model.module.var_dist_A.sample_A(num_graph=100)
-        #     print(torch.mean(probs, 0))
-        #     # ipdb.set_trace()
-        #     mat_diff = gt_adj-pred_adj[0,0]
-        #     mat_diff = mat_diff.int().cpu().detach().numpy()
-        #     im = plt.imshow(mat_diff, interpolation='none', cmap='Blues',aspect='auto',alpha=0.5)
-
-        #     values = np.unique(mat_diff.ravel())
-        #     colors = [im.cmap(im.norm(value)) for value in values]
-        #     patches = [mpatches.Patch(color=colors[i], label="Level {l}".format(l=values[i]) ) for i in range(len(values))]
-
-        #     plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
-        #     plt.savefig(os.path.join(self.args.plotdir, 'adj_diff_epoch{}.png'.format(epoch)))
 
         return self.logs.train_results["loss_total"][-1]
 
@@ -390,15 +371,7 @@ class PSIKTRunner(KTRunner):
         lengths = np.array(
             list(map(lambda lst: len(lst) - 1, corpus.data_df[set_name]["skill_seq"]))
         )
-
-        # # Concatenate the predictions and labels into arrays.
-        # concat_pred, concat_label = [], []
-        # for pred, label, length in zip(predictions, labels, lengths):
-        #     concat_pred.append(pred)
-        #     concat_label.append(label)
-        # concat_pred = np.concatenate(concat_pred)
-        # concat_label = np.concatenate(concat_label)
-        # ipdb.set_trace()
+        
         concat_pred = predictions
         concat_label = labels
 
@@ -494,7 +467,7 @@ class PSIKTRunner(KTRunner):
             ncols=100,
             mininterval=1,
             desc="Epoch %5d" % epoch,
-        ):  # TODO
+        ):  
 
             model.module.optimizer_infer.zero_grad(set_to_none=True)
             model.module.optimizer_graph.zero_grad(set_to_none=True)
@@ -515,7 +488,7 @@ class PSIKTRunner(KTRunner):
 
         string = self.logs.result_string(
             "train", epoch, train_losses, t=epoch, mini_epoch=mini_epoch
-        )  # TODO
+        )  
         self.logs.write_to_log_file(string)
         self.logs.append_epoch_losses(train_losses, "train")
 

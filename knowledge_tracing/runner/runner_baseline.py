@@ -171,7 +171,7 @@ class BaselineKTRunner(KTRunner):
 
         with torch.no_grad():
 
-            if self.args.validate & (epoch >= 10):
+            if self.args.validate & (epoch >= self.early_stop):
                 val_result = self.evaluate(
                     model, corpus, "val", self.val_batches, epoch=epoch
                 )

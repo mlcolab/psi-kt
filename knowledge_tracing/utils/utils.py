@@ -11,7 +11,42 @@ import torch
 
 from knowledge_tracing.utils import visualize
 
+def compute_entropy_mi(emb, default_dim=16):
+    '''
+    emb: [num_learner, num_sample, time_step, dim]
+    '''
+    num_learner, num_sample, time, dim = emb.shape
+    const = dim/2 * (1+np.log(2*np.pi))
+    
+    # H(s)
+    cov_s = torch.cov(emb.reshape(-1, dim).transpose(0,1))
+    hs = torch.log(torch.linalg.det(cov_s))
+    hs = (hs/2 + const)*default_dim/dim
 
+    # H(s|l)
+    hs_l_list = []
+    cov_sl_list = []
+    for i in range(num_learner):
+        cov_sl = torch.cov(emb[i].reshape(-1, dim).transpose(0,1))
+        determinant = torch.linalg.det(cov_sl)
+        hs_l_list.append(torch.log(determinant))
+        cov_sl_list.append(determinant)
+    hs_l = hs_l_list.sum() / (len(hs_l_list)-i)
+    hs_l = (hs_l/2 + const)*default_dim/dim
+    
+    hs_diag = torch.var(emb.reshape(-1, dim), 0)
+    hs_diag = torch.log(hs_diag).sum()
+    hs_diag = hs_diag/2 + const
+
+    hs_l_diag = torch.var(emb.reshape(num_learner, -1, dim), 1)
+    hs_l_diag = torch.log(hs_l_diag).sum(1).mean()
+    hs_l_diag = (hs_l_diag/2 + const)*default_dim/dim
+
+    print('I_sl_full_full', hs - hs_l)
+    print('I_sl_full_diag', hs - hs_l_diag)
+    print('I_sl_diag_diag', hs_diag - hs_l_diag)
+     
+    
 def get_theta_shape(num_seq: int, num_node: int, other) -> dict:
     """
     Get the shape of theta parameters based on the training mode.

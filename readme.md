@@ -40,3 +40,18 @@ This project is licensed under the GNU Affero General Public License - see the L
 The training architectures follow [HawkesKT](https://github.com/THUwangcy/HawkesKT).  
 The baselines follow [XKT](https://github.com/tswsxk/XKT) and [pyKT](https://github.com/pykt-team/pykt-toolkit).  
 The logging modules follow [AmortizedCausalDiscovery](https://github.com/loeweX/AmortizedCausalDiscovery).
+
+
+## Citation
+Following is the Bibtex if you would like to cite our paper:
+
+```bibtex
+@inproceedings{
+  zhou2024predictive,
+  title={Predictive, scalable and interpretable knowledge tracing on structured domains},
+  author={Hanqi Zhou and Robert Bamler and Charley M Wu and {\'A}lvaro Tejero-Cantero},
+  booktitle={The Twelfth International Conference on Learning Representations},
+  year={2024},
+  url={https://openreview.net/forum?id=NgaLU2fP5D}
+}
+```

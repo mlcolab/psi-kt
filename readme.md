@@ -15,24 +15,18 @@ Dependencies are in the `envrionment.yml` file.
 
 ### Data preprocessing
 
-We follow the preprocess as in the [HawkesKT](https://github.com/THUwangcy/HawkesKT) model.
+We follow the preprocess in the [HawkesKT](https://github.com/THUwangcy/HawkesKT) model.
 
-### Baseline models
-```
-python predict_learner_performance_baseline.py --dataset assistment17 --model_name DKT --random_seed 2023
-```
+### Training and evaluation
+To train different models and then reproduce the results in Figures 2 and 3:
 
-### PSI-KT
 Running PSI-KT for prediction on bucket data:
 ```bash
 python predict_learner_performance_psikt.py --dataset assistment17 --model_name AmortizedPSIKT --random_seed 2023
 ```
+
 Running PSI-KT for continual learning can be set by specifying `--vcl 1`.
 
-
-## Authors
-
-- [ ] Contributors and contact info
 
 ## License
 

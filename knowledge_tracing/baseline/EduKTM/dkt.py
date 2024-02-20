@@ -108,8 +108,6 @@ class DKT(BaseModel):
 
         self.out = torch.nn.Linear(self.hidden_size, self.skill_num)
 
-        self.loss_function = torch.nn.BCELoss()
-
     def forward_cl(
         self,
         feed_dict: Dict[str, torch.Tensor],
@@ -163,17 +161,17 @@ class DKT(BaseModel):
         latent_states = None
         for i in range(test_step):
             rnn_input, latent_states = self.rnn(last_emb, latent_states)
-            pred_vector = self.out(rnn_input)  # [bs, 1, skill_num]
+            pred_vector = self.out(rnn_input)  # [batch_size, 1, skill_num]
             target_item = test_item[:, i : i + 1]
             prediction_sorted = torch.gather(
                 pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)
             ).squeeze(
                 dim=-1
-            )  # [bs, 1]
+            )  # [batch_size, 1]
             prediction = torch.sigmoid(prediction_sorted)
             last_emb = self.skill_embeddings(
                 test_item[:, i : i + 1] + (prediction >= 0.5) * self.skill_num
-            )  # [bs, 1, emb_size]
+            )  # [batch_size, 1, emb_size]
             predictions.append(prediction)
             hiddens.append(rnn_input)
 
@@ -213,16 +211,18 @@ class DKT(BaseModel):
         # Embed the history of items and labels
         embed_history_i = self.skill_embeddings(
             items + labels * self.skill_num
-        )  # [bs, time, emb_size]
+        )  # [batch_size, time, emb_size]
 
         # Pack the embedded history and run through the RNN
         # pack: https://stackoverflow.com/questions/51030782/why-do-we-pack-the-sequences-in-pytorch
         # issues with 'lengths must be on cpu': https://github.com/pytorch/pytorch/issues/43227
-        embed_history_i_packed = embed_history_i  # torch.nn.utils.rnn.pack_padded_sequence(embed_history_i, lengths - 1, batch_first=True) # embed_history_i_packed.data [(time-1)*bs, emb_size]
-        output, _ = self.rnn(embed_history_i_packed, None)  # [bs, time, emb_size]
+        embed_history_i_packed = embed_history_i  # torch.nn.utils.rnn.pack_padded_sequence(embed_history_i, lengths - 1, batch_first=True) # embed_history_i_packed.data [(time-1)*batch_size, emb_size]
+        output, _ = self.rnn(
+            embed_history_i_packed, None
+        )  # [batch_size, time, emb_size]
 
         # Unpack the output of the RNN and run it through the output layer
-        pred_vector = self.out(output)  # [bs, time, skill_num]
+        pred_vector = self.out(output)  # [batch_size, time, skill_num]
 
         # Extract the prediction for the next item and the corresponding label
         target_item = items[:, 1:] if time_step > 1 else items
@@ -239,8 +239,6 @@ class DKT(BaseModel):
         out_dict = {
             "prediction": prediction,
             "label": label,
-            "emb": output,
-            "learner_id": feed_dict["user_id"],
         }
 
         return out_dict
@@ -278,24 +276,24 @@ class DKT(BaseModel):
         last_emb = self.skill_embeddings(
             items[:, train_step - 1 : train_step]
             + labels[:, train_step - 1 : train_step] * self.skill_num
-        )  # [bs, 1, emb_size]
+        )  # [batch_size, 1, emb_size]
         for i in range(test_step):
             if i == 0:
                 rnn_input, latent_states = self.rnn(last_emb, None)
             else:
                 rnn_input, latent_states = self.rnn(last_emb, latent_states)
-            pred_vector = self.out(rnn_input)  # [bs, 1, skill_num]
+            pred_vector = self.out(rnn_input)  # [batch_size, 1, skill_num]
             target_item = test_item[:, i : i + 1]
             prediction_sorted = torch.gather(
                 pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)
             ).squeeze(
                 dim=-1
-            )  # [bs, 1]
+            )  # [batch_size, 1]
             prediction_sorted = torch.sigmoid(prediction_sorted)
             prediction = prediction_sorted[indices]
             last_emb = self.skill_embeddings(
                 test_item[:, i : i + 1] + (prediction >= 0.5) * 1 * self.skill_num
-            )  # [bs, 1, emb_size]
+            )  # [batch_size, 1, emb_size]
             predictions.append(prediction)
             hiddens.append(rnn_input)
 
@@ -308,7 +306,6 @@ class DKT(BaseModel):
         out_dict = {
             "prediction": prediction,
             "label": label,
-            "emb": hiddens,
         }
 
         return out_dict

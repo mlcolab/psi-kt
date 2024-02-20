@@ -1,15 +1,13 @@
 from pathlib import Path
-import numpy as np
-import pandas as pd
+from typing import List, Dict, Optional
 import argparse
 from collections import defaultdict
 
+import numpy as np
+import pandas as pd
+
 import torch
 import torch.nn as nn
-
-from typing import List, Dict, Optional
-
-from knowledge_tracing.baseline import *
 
 from knowledge_tracing.baseline.basemodel import BaseModel
 from knowledge_tracing.utils import utils, logger
@@ -109,9 +107,6 @@ class HKT(BaseModel):
         self.beta_inter_embeddings = nn.Embedding(self.skill_num * 2, self.emb_size)
         self.beta_skill_embeddings = nn.Embedding(self.skill_num, self.emb_size)
 
-        # Binary Cross Entropy Loss
-        self.loss_function = nn.BCELoss()
-
     def forward(
         self,
         feed_dict: Dict[str, torch.Tensor],
@@ -126,40 +121,46 @@ class HKT(BaseModel):
             A dictionary containing the output tensors for the model.
         """
 
-        items = feed_dict["skill_seq"]  # [bs, seq_len]
-        problems = feed_dict["problem_seq"]  # [bs, seq_len]
-        times = feed_dict["time_seq"]  # [bs, seq_len]
-        labels = feed_dict["label_seq"]  # [bs, seq_len]
+        items = feed_dict["skill_seq"]  # [batch_size, seq_len]
+        problems = feed_dict["problem_seq"]  # [batch_size, seq_len]
+        times = feed_dict["time_seq"]  # [batch_size, seq_len]
+        labels = feed_dict["label_seq"]  # [batch_size, seq_len]
 
         mask_labels = labels * (labels > -1).long()
-        inters = items + mask_labels * self.skill_num  # (bs, seq_len)
+        inters = items + mask_labels * self.skill_num  # (batch_size, seq_len)
 
-        # alpha: for each student, how much influence from previous skill and performance on other items
-        # although it is for each student, but the skill embedding is universal
-        alpha_src_emb = self.alpha_inter_embeddings(inters)  # [bs, seq_len, emb]
-        alpha_target_emb = self.alpha_skill_embeddings(items)  # [bs, seq_len, emb]
+        # alpha: for each learner, how much influence from previous skill and performance on other items
+        # although it is for each learner, but the skill embedding is universal
+        alpha_src_emb = self.alpha_inter_embeddings(
+            inters
+        )  # [batch_size, seq_len, emb]
+        alpha_target_emb = self.alpha_skill_embeddings(
+            items
+        )  # [batch_size, seq_len, emb]
         alphas = torch.matmul(
             alpha_src_emb, alpha_target_emb.transpose(-2, -1)
-        )  # [bs, seq_len, seq_len]
+        )  # [batch_size, seq_len, seq_len]
 
-        beta_src_emb = self.beta_inter_embeddings(inters)  # [bs, seq_len, emb]
+        beta_src_emb = self.beta_inter_embeddings(inters)  # [batch_size, seq_len, emb]
         beta_target_emb = self.beta_skill_embeddings(items)
         betas = torch.matmul(
             beta_src_emb, beta_target_emb.transpose(-2, -1)
-        )  # [bs, seq_len, seq_len]
+        )  # [batch_size, seq_len, seq_len]
         betas = torch.clamp(betas + 1, min=0, max=10)
 
         delta_t = (
             (times[:, :, None] - times[:, None, :]).abs().double()
-        )  # [bs, seq_len, seq_len]
+        )  # [batch_size, seq_len, seq_len]
         delta_t = torch.log(delta_t + 1e-10) / np.log(self.time_log)
 
-        cross_effects = alphas * torch.exp(-betas * delta_t)  # [bs, seq_len, seq_len]
+        cross_effects = alphas * torch.exp(
+            -betas * delta_t
+        )  # [batch_size, seq_len, seq_len]
 
         seq_len = items.shape[1]
         valid_mask = np.triu(np.ones((1, seq_len, seq_len)), k=1)
         mask = (torch.from_numpy(valid_mask) == 0).to(cross_effects.device)
-        sum_t = cross_effects.masked_fill(mask, 0).sum(-2)  # [bs, seq_len]
+        sum_t = cross_effects.masked_fill(mask, 0).sum(-2)  # [batch_size, seq_len]
 
         problem_bias = self.problem_base(problems).squeeze(dim=-1)
         skill_bias = self.skill_base(items).squeeze(dim=-1)
@@ -260,11 +261,13 @@ class HKT(BaseModel):
             "skill_seq": torch.from_numpy(utils.pad_lst(skill_seqs)),
             "label_seq": torch.from_numpy(
                 utils.pad_lst(label_seqs, value=-1)
-            ),  # [bs, seq_len]
+            ),  # [batch_size, seq_len]
             "problem_seq": torch.from_numpy(
                 utils.pad_lst(problem_seqs)
-            ),  # [bs, seq_len]
-            "time_seq": torch.from_numpy(utils.pad_lst(time_seqs)),  # [bs, seq_len]
+            ),  # [batch_size, seq_len]
+            "time_seq": torch.from_numpy(
+                utils.pad_lst(time_seqs)
+            ),  # [batch_size, seq_len]
         }
         return feed_dict
 
@@ -284,10 +287,12 @@ class HKT(BaseModel):
 
         train_step = int(self.args.max_step * self.args.train_time_ratio)
 
-        items = feed_dict["skill_seq"][:, train_step - 1 :]  # [bs, seq_len]
-        problems = feed_dict["problem_seq"][:, train_step - 1 :]  # [bs, seq_len]
-        times = feed_dict["time_seq"][:, train_step - 1 :]  # [bs, seq_len]
-        labels = feed_dict["label_seq"][:, train_step - 1 :]  # [bs, seq_len]
+        items = feed_dict["skill_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
+        problems = feed_dict["problem_seq"][
+            :, train_step - 1 :
+        ]  # [batch_size, seq_len]
+        times = feed_dict["time_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
+        labels = feed_dict["label_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
 
         test_time = items.shape[-1]
         predictions = []
@@ -304,29 +309,33 @@ class HKT(BaseModel):
                 cur_time = times[:, : i + 1]
                 delta_t = (
                     (cur_time[:, :, None] - cur_time[:, None, :]).abs().double()
-                )  # [bs, seq_len, seq_len]
+                )  # [batch_size, seq_len, seq_len]
                 delta_t = torch.log(delta_t + 1e-10) / np.log(self.time_log)
 
-            alpha_src_emb = self.alpha_inter_embeddings(inters)  # [bs, seq_len, emb]
+            alpha_src_emb = self.alpha_inter_embeddings(
+                inters
+            )  # [batch_size, seq_len, emb]
             alpha_target_emb = self.alpha_skill_embeddings(
                 items[:, i + 1 : i + 2]
-            )  # [bs, seq_len, emb]
+            )  # [batch_size, seq_len, emb]
             alphas = torch.matmul(
                 alpha_src_emb, alpha_target_emb.transpose(-2, -1)
-            )  # [bs, seq_len, seq_len]
+            )  # [batch_size, seq_len, seq_len]
 
-            beta_src_emb = self.beta_inter_embeddings(inters)  # [bs, seq_len, emb]
+            beta_src_emb = self.beta_inter_embeddings(
+                inters
+            )  # [batch_size, seq_len, emb]
             beta_target_emb = self.beta_skill_embeddings(items[:, i + 1 : i + 2])
             betas = torch.matmul(
                 beta_src_emb, beta_target_emb.transpose(-2, -1)
-            )  # [bs, seq_len, seq_len]
+            )  # [batch_size, seq_len, seq_len]
             betas = torch.clamp(betas + 1, min=0, max=10)
 
             cross_effects = alphas * torch.exp(
                 -betas * delta_t
-            )  # [bs, seq_len, seq_len]
+            )  # [batch_size, seq_len, seq_len]
 
-            sum_t = cross_effects.sum(-2)  # [bs, seq_len]
+            sum_t = cross_effects.sum(-2)  # [batch_size, seq_len]
 
             problem_bias = self.problem_base(problems[:, i + 1 : i + 2]).squeeze(dim=-1)
             skill_bias = self.skill_base(items[:, i + 1 : i + 2]).squeeze(dim=-1)
@@ -407,29 +416,33 @@ class HKT(BaseModel):
                 cur_time = times[:, : i + 1]
                 delta_t = (
                     (cur_time[:, :, None] - cur_time[:, None, :]).abs().double()
-                )  # [bs, seq_len, seq_len]
+                )  # [batch_size, seq_len, seq_len]
                 delta_t = torch.log(delta_t + 1e-10) / np.log(self.time_log)
 
-            alpha_src_emb = self.alpha_inter_embeddings(inters)  # [bs, seq_len, emb]
+            alpha_src_emb = self.alpha_inter_embeddings(
+                inters
+            )  # [batch_size, seq_len, emb]
             alpha_target_emb = self.alpha_skill_embeddings(
                 items[:, i + 1 : i + 2]
-            )  # [bs, seq_len, emb]
+            )  # [batch_size, seq_len, emb]
             alphas = torch.matmul(
                 alpha_src_emb, alpha_target_emb.transpose(-2, -1)
-            )  # [bs, seq_len, seq_len]
+            )  # [batch_size, seq_len, seq_len]
 
-            beta_src_emb = self.beta_inter_embeddings(inters)  # [bs, seq_len, emb]
+            beta_src_emb = self.beta_inter_embeddings(
+                inters
+            )  # [batch_size, seq_len, emb]
             beta_target_emb = self.beta_skill_embeddings(items[:, i + 1 : i + 2])
             betas = torch.matmul(
                 beta_src_emb, beta_target_emb.transpose(-2, -1)
-            )  # [bs, seq_len, seq_len]
+            )  # [batch_size, seq_len, seq_len]
             betas = torch.clamp(betas + 1, min=0, max=10)
 
             cross_effects = alphas * torch.exp(
                 -betas * delta_t
-            )  # [bs, seq_len, seq_len]
+            )  # [batch_size, seq_len, seq_len]
 
-            sum_t = cross_effects.sum(-2)  # [bs, seq_len]
+            sum_t = cross_effects.sum(-2)  # [batch_size, seq_len]
 
             problem_bias = self.problem_base(problems[:, i + 1 : i + 2]).squeeze(dim=-1)
             skill_bias = self.skill_base(items[:, i + 1 : i + 2]).squeeze(dim=-1)

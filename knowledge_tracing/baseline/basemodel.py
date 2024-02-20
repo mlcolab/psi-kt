@@ -34,6 +34,7 @@ class BaseModel(torch.nn.Module):
         self.model_path = model_path
         self._init_weights()
         self.optimizer = None
+        self.loss_function = torch.nn.BCELoss()
 
     @staticmethod
     def parse_model_args(

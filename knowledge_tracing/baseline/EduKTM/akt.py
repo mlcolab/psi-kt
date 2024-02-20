@@ -153,8 +153,6 @@ class AKT(BaseModel):
             nn.Linear(32, 1),
         )
 
-        self.loss_function = nn.BCELoss(reduction="sum")
-
     def forward_cl(
         self,
         feed_dict: Dict[str, torch.Tensor],
@@ -332,7 +330,6 @@ class AKT(BaseModel):
         out_dict = {
             "prediction": prediction,
             "label": label.float(),
-            "emb": x,
         }
 
         return out_dict
@@ -424,7 +421,6 @@ class AKT(BaseModel):
         out_dict = {
             "prediction": prediction,
             "label": labels[:, train_step:].float() if all_step > 1 else labels.float(),
-            "emb": x,
         }
 
         return out_dict
@@ -681,7 +677,7 @@ class MultiHeadAttention(nn.Module):
             q = self.k_linear(q).view(bs, -1, self.h, self.d_k)
         v = self.v_linear(v).view(bs, -1, self.h, self.d_k)
 
-        # transpose to get dimensions bs * h * sl * d_model
+        # transpose to get dimensions batch_size * h * sl * d_model
         k = k.transpose(1, 2)
         q = q.transpose(1, 2)
         v = v.transpose(1, 2)
@@ -725,7 +721,7 @@ class MultiHeadAttention(nn.Module):
         """
         scores = (
             torch.matmul(q, k.transpose(-2, -1)) / d_k**0.5
-        )  # BS, head, seqlen, seqlen
+        )  # batch_size, head, seqlen, seqlen
         bs, head, seqlen = scores.size(0), scores.size(1), scores.size(2)
 
         x1 = torch.arange(seqlen).expand(seqlen, -1)
@@ -733,18 +729,20 @@ class MultiHeadAttention(nn.Module):
         x2 = x1.transpose(0, 1).contiguous()
 
         with torch.no_grad():
-            scores_ = F.softmax(scores, dim=-1)  # BS,8,seqlen,seqlen
+            scores_ = F.softmax(scores, dim=-1)  # batch_size,8,seqlen,seqlen
             scores_ = scores_ * mask.float()
             scores_ = scores_.cuda() if self.gpu != "" else scores_
-            distcum_scores = torch.cumsum(scores_, dim=-1)  # bs, 8, sl, sl
-            disttotal_scores = torch.sum(scores_, dim=-1, keepdim=True)  # bs, 8, sl, 1
+            distcum_scores = torch.cumsum(scores_, dim=-1)  # batch_size, 8, sl, sl
+            disttotal_scores = torch.sum(
+                scores_, dim=-1, keepdim=True
+            )  # batch_size, 8, sl, 1
             position_effect = torch.abs(x1 - x2)[
                 None, None, :, :
             ].float()  # 1, 1, seqlen, seqlen
             position_effect = (
                 position_effect.cuda() if self.gpu != "" else position_effect
             )
-            # bs, 8, sl, sl positive distance
+            # batch_size, 8, sl, sl positive distance
             dist_scores = torch.clamp(
                 (disttotal_scores - distcum_scores) * position_effect, min=0.0
             )
@@ -759,7 +757,7 @@ class MultiHeadAttention(nn.Module):
 
         maxim = torch.tensor(-1e20).to(scores.device)
         scores = scores.masked_fill(mask == 0, maxim)  # float('-inf'))
-        scores = F.softmax(scores, dim=-1)  # BS, head, seqlen, seqlen
+        scores = F.softmax(scores, dim=-1)  # batch_size, head, seqlen, seqlen
         if zero_pad:
             pad_zero = torch.zeros(bs, head, 1, seqlen).float()
             pad_zero = pad_zero.cuda() if self.gpu != "" else pad_zero

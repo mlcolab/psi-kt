@@ -378,7 +378,7 @@ class BaseModel(torch.nn.Module):
 
 ##########################################################################################
 # Learner Model
-# It is previously used to simulate learning trajectories based on PPE/HLR/OU process.
+# It is used to simulate learning trajectories based on PPE/HLR/OU process.
 ##########################################################################################
 
 
@@ -426,9 +426,9 @@ class BaseLearnerModel(BaseModel):
         - The time stampes of last interactions.
 
         Args:
-            all_feature (torch.Tensor): Tensor of shape [bs, 1, num_step, 3].
-            t (torch.Tensor): Tensor of shape [bs, num_step].
-            items (torch.Tensor): Tensor of shape [bs, num_step].
+            all_feature (torch.Tensor): Tensor of shape [batch_size, 1, num_step, 3].
+            t (torch.Tensor): Tensor of shape [batch_size, num_step].
+            items (torch.Tensor): Tensor of shape [batch_size, num_step].
             num_node (int): Number of nodes (items).
 
         Returns:
@@ -456,7 +456,7 @@ class BaseLearnerModel(BaseModel):
         # Loop over time steps
         for i in range(1, num_step):
             cur_item = items[:, i]  # [num_seq, ]
-            cur_feat = all_feature[:, 0, i-1]  # [bs, 1, 3]
+            cur_feat = all_feature[:, 0, i-1]  # [batch_size, 1, 3]
 
             # Accumulate whole_stats
             whole_stats[:, :, i] = whole_stats[:, :, i - 1]  # whole_stats[:,:,i-1] #
@@ -502,7 +502,7 @@ class BaseLearnerModel(BaseModel):
             all_feature[torch.arange(0, num_seq), item_start, 2] += 1
             all_feature = all_feature.unsqueeze(-2).tile((1, 1, time_step, 1))
         else:
-            all_feature = stats.float()  # [num_seq/bs, num_node, num_time_step, 3]
+            all_feature = stats.float()  # [num_seq/batch_size, num_node, num_time_step, 3]
 
         return all_feature
 
@@ -550,13 +550,13 @@ class BaseLearnerModel(BaseModel):
         times = feed_dict["time_seq"]  # [batch_size, seq_len]
         labels = feed_dict["label_seq"]  # [batch_size, seq_len]
 
-        bs, _ = labels.shape
-        self.num_seq = bs
+        batch_size, _ = labels.shape
+        self.num_seq = batch_size
 
         # Set initial state x0 for simulation
-        x0 = torch.zeros((bs, self.num_node), requires_grad=True).to(labels.device)
+        x0 = torch.zeros((batch_size, self.num_node), requires_grad=True).to(labels.device)
         if self.num_node > 1:
-            x0[torch.arange(bs), skills[:, 0]] += labels[:, 0]
+            x0[torch.arange(batch_size), skills[:, 0]] += labels[:, 0]
             items = skills
         else:
             x0[:, 0] += labels[:, 0]
@@ -586,7 +586,7 @@ class BaseLearnerModel(BaseModel):
         out_dict.update(
             {
                 "prediction": out_dict["x_item_pred"],  # Add the prediction tensor
-                "label": labels.unsqueeze(1),  # Add the label tensor [bs, 1, time]
+                "label": labels.unsqueeze(1),  # Add the label tensor [batch_size, 1, time]
             }
         )
 

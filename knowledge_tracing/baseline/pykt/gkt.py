@@ -1,12 +1,8 @@
-# coding: utf-8
 import math
 import argparse
 from collections import defaultdict
 from typing import List, Dict, Optional
-
 from pathlib import Path
-import numpy as np
-import pandas as pd
 
 import torch
 import torch.nn as nn
@@ -14,7 +10,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 
 from knowledge_tracing.baseline.basemodel import BaseModel
-from knowledge_tracing.utils import utils, logger
+from knowledge_tracing.utils import logger
 from knowledge_tracing.data.data_loader import DataReader
 
 
@@ -27,9 +23,6 @@ class GKT(BaseModel):
         emb_size (int): embedding dimension for question embedding layer
         graph_type (str, optional): graph type, dense or transition. Defaults to "dense".
         graph (_type_, optional): graph. Defaults to None.
-        dropout (float, optional): dropout. Defaults to 0.5.
-        emb_type (str, optional): emb_type. Defaults to "qid".
-        emb_path (str, optional): emb_path. Defaults to "".
         bias (bool, optional): add bias for DNN. Defaults to True.
     """
 
@@ -43,7 +36,7 @@ class GKT(BaseModel):
 
         Args:
             parser (argparse.ArgumentParser): The argument parser.
-            model_name (str, optional): Name of the model. Defaults to "HKT".
+            model_name (str, optional): Name of the model. Defaults to "GKT".
 
         Returns:
             argparse.Namespace: Parsed command-line arguments.
@@ -61,7 +54,7 @@ class GKT(BaseModel):
         corpus: DataReader,
         logs: logger.Logger,
         graph=None,
-    ):
+    ) -> None:
         self.model_name = "gkt"
 
         self.num_c = int(corpus.n_skills)
@@ -69,16 +62,13 @@ class GKT(BaseModel):
         self.emb_size = args.emb_size
         self.res_len = 2
         self.graph_type = args.graph_type
-        self.device = args.device
 
-        # self.graph = nn.Parameter(graph)  # [num_c, num_c]
-        self.emb_type = "qid"
-        self.emb_path = ""
         self.bias = True
         self.dropout = args.dropout
 
         self.args = args
         self.logs = logs
+        self.device = args.device
         BaseModel.__init__(self, model_path=Path(args.log_path, "Model"))
 
     def _init_weights(self) -> None:
@@ -98,13 +88,10 @@ class GKT(BaseModel):
         zero_padding = torch.zeros(1, self.num_c).to(self.device)
         self.one_hot_q = torch.cat((self.one_hot_q, zero_padding), dim=0)
 
-        if self.emb_type.startswith("qid"):
-            # concept and concept & response embeddings
-            self.interaction_emb = nn.Embedding(
-                self.res_len * self.num_c, self.emb_size
-            )
-            # last embedding is used for padding, so dim + 1
-            self.emb_c = nn.Embedding(self.num_c + 1, self.emb_size, padding_idx=-1)
+        # concept and concept & response embeddings
+        self.interaction_emb = nn.Embedding(self.res_len * self.num_c, self.emb_size)
+        # last embedding is used for padding, so dim + 1
+        self.emb_c = nn.Embedding(self.num_c + 1, self.emb_size, padding_idx=-1)
 
         # f_self function
         mlp_input_dim = self.hidden_dim + self.emb_size
@@ -150,31 +137,27 @@ class GKT(BaseModel):
         self.loss_function = nn.BCELoss()
 
     # Aggregate step, as shown in Section 3.2.1 of the paper
-    def _aggregate(self, xt, qt, ht, batch_size):
-        r"""
-        Parameters:
+    def _aggregate(
+        self, xt: torch.Tensor, qt: torch.Tensor, ht: torch.Tensor, batch_size: int
+    ) -> torch.Tensor:
+        """
+        Args:
             xt: input one-hot question answering features at the current timestamp
             qt: question indices for all students in a batch at the current timestamp
             ht: hidden representations of all concepts at the current timestamp
             batch_size: the size of a student batch
-        Shape:
-            xt: [batch_size]
-            qt: [batch_size]
-            ht: [batch_size, num_c, hidden_dim]
-            tmp_ht: [batch_size, num_c, hidden_dim + emb_size]
         Return:
             tmp_ht: aggregation results of concept hidden knowledge state and concept(& response) embedding
         """
-        # import ipdb; ipdb.set_trace()
         qt_mask = torch.ne(qt, -1)  # [batch_size], qt != -1
         x_idx_mat = torch.arange(self.res_len * self.num_c, device=self.device)
         x_embedding = self.interaction_emb(x_idx_mat)  # [res_len * num_c, emb_size]
 
         masked_feat = F.embedding(
             xt[qt_mask], self.one_hot_feat
-        )  # [bs, res_len * num_c] A simple lookup table that looks up embeddings in a fixed dictionary and size.
+        )  # [batch_size, res_len * num_c] A simple lookup table that looks up embeddings in a fixed dictionary and size.
 
-        res_embedding = masked_feat.mm(x_embedding)  # [bs, emb_size]
+        res_embedding = masked_feat.mm(x_embedding)  # [batch_size, emb_size]
         mask_num = res_embedding.shape[0]
 
         concept_idx_mat = (
@@ -182,8 +165,8 @@ class GKT(BaseModel):
         )
         concept_idx_mat[qt_mask, :] = torch.arange(
             self.num_c, device=self.device
-        )  # [bs, num_c]
-        concept_embedding = self.emb_c(concept_idx_mat)  # [bs, num_c, emb_size]
+        )  # [batch_size, num_c]
+        concept_embedding = self.emb_c(concept_idx_mat)  # [batch_size, num_c, emb_size]
 
         index_tuple = (torch.arange(mask_num, device=self.device), qt[qt_mask].long())
         concept_embedding[qt_mask] = concept_embedding[qt_mask].index_put(
@@ -191,19 +174,15 @@ class GKT(BaseModel):
         )
         tmp_ht = torch.cat(
             (ht, concept_embedding), dim=-1
-        )  # [bs, num_c, hidden_dim + emb_size]
+        )  # [batch_size, num_c, hidden_dim + emb_size]
         return tmp_ht
 
     # GNN aggregation step, as shown in 3.3.2 Equation 1 of the paper
-    def _agg_neighbors(self, tmp_ht, qt):
-        r"""
-        Parameters:
+    def _agg_neighbors(self, tmp_ht: torch.Tensor, qt: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
             tmp_ht: temporal hidden representations of all concepts after the aggregate step
             qt: question indices for all students in a batch at the current timestamp
-        Shape:
-            tmp_ht: [batch_size, num_c, hidden_dim + emb_size]
-            qt: [batch_size]
-            m_next: [batch_size, num_c, hidden_dim]
         Return:
             m_next: hidden representations of all concepts aggregating neighboring representations at the next timestamp
             concept_embedding: input of VAE (optional)
@@ -240,17 +219,14 @@ class GKT(BaseModel):
         return m_next, concept_embedding, rec_embedding, z_prob
 
     # Update step, as shown in Section 3.3.2 of the paper
-    def _update(self, tmp_ht, ht, qt):
-        r"""
-        Parameters:
+    def _update(
+        self, tmp_ht: torch.Tensor, ht: torch.Tensor, qt: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Args:
             tmp_ht: temporal hidden representations of all concepts after the aggregate step
             ht: hidden representations of all concepts at the current timestamp
             qt: question indices for all students in a batch at the current timestamp
-        Shape:
-            tmp_ht: [batch_size, num_c, hidden_dim + emb_size]
-            ht: [batch_size, num_c, hidden_dim]
-            qt: [batch_size]
-            h_next: [batch_size, num_c, hidden_dim]
         Return:
             h_next: hidden representations of all concepts at the next timestamp
             concept_embedding: input of VAE (optional)
@@ -280,15 +256,11 @@ class GKT(BaseModel):
         return h_next, concept_embedding, rec_embedding, z_prob
 
     # Predict step, as shown in Section 3.3.3 of the paper
-    def _predict(self, h_next, qt):
-        r"""
-        Parameters:
+    def _predict(self, h_next: torch.Tensor, qt: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
             h_next: hidden representations of all concepts at the next timestamp after the update step
             qt: question indices for all students in a batch at the current timestamp
-        Shape:
-            h_next: [batch_size, num_c, hidden_dim]
-            qt: [batch_size]
-            y: [batch_size, num_c]
         Return:
             y: predicted correct probability of all concepts at the next timestamp
         """
@@ -297,16 +269,12 @@ class GKT(BaseModel):
         y[qt_mask] = torch.sigmoid(y[qt_mask])  # [batch_size, num_c]
         return y
 
-    def _get_next_pred(self, yt, q_next):
-        r"""
-        Parameters:
+    def _get_next_pred(self, yt: torch.Tensor, q_next: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
             yt: predicted correct probability of all concepts at the next timestamp
             q_next: question index matrix at the next timestamp
             batch_size: the size of a student batch
-        Shape:
-            y: [batch_size, num_c]
-            questions: [batch_size, seq_len]
-            pred: [batch_size, ]
         Return:
             pred: predicted correct probability of the question answered at the next timestamp
         """
@@ -321,9 +289,16 @@ class GKT(BaseModel):
         pred = (yt * one_hot_qt).sum(dim=1)  # [batch_size, ]
         return pred
 
-    def forward(self, feed_dict):
-        """ """
-        q = feed_dict["problem_seq"]
+    def forward(self, feed_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        """
+        Make predictions using the model for a given input feed dictionary.
+
+        Args:
+            feed_dict: A dictionary containing the input tensors for the model.
+
+        Returns:
+            A dictionary containing the output tensors for the model.
+        """
         c = feed_dict["skill_seq"]
         r = feed_dict["label_seq"]
 
@@ -336,7 +311,6 @@ class GKT(BaseModel):
         )
 
         pred_list = []
-        embs = []
         for i in range(seq_len):
             xt = features[:, i]  # [batch_size]
             qt = questions[:, i]  # [batch_size]
@@ -344,22 +318,19 @@ class GKT(BaseModel):
             tmp_ht = self._aggregate(
                 xt, qt, ht, batch_size
             )  # [batch_size, num_c, hidden_dim + emb_size]
-            h_next, concept_embedding, rec_embedding, z_prob = self._update(
+            h_next, _, _, _ = self._update(
                 tmp_ht, ht, qt
             )  # [batch_size, num_c, hidden_dim]
             ht[qt_mask] = h_next[qt_mask]  # update new ht
-            yt = self._predict(h_next, qt)  # [bs, num_c]
+            yt = self._predict(h_next, qt)  # [batch_size, num_c]
             if i < seq_len - 1:
                 pred = self._get_next_pred(yt, questions[:, i + 1])
                 pred_list.append(pred)
-            embs.append(h_next)
         pred_res = torch.stack(pred_list, dim=1)  # [batch_size, seq_len - 1]
-        embs = torch.stack(embs, dim=1)
 
         out_dict = {
             "prediction": pred_res,
             "label": r[:, 1:].double() if seq_len > 1 else r.double(),
-            "embs": embs,
         }
 
         return out_dict
@@ -429,7 +400,7 @@ class GKT(BaseModel):
         self,
         feed_dict: Dict[str, torch.Tensor],
         idx: int = None,
-    ):
+    ) -> Dict[str, torch.Tensor]:
         """
         Forward pass for the classification task, given the input feed_dict and the current time index.
 
@@ -469,7 +440,6 @@ class GKT(BaseModel):
             Dict[str, torch.Tensor]: A dictionary containing evaluation results.
         """
         test_step = 10
-        train_step = int(self.args.max_step * self.args.train_time_ratio)
         cur_feed_dict = {
             "skill_seq": feed_dict["skill_seq"][:, idx : idx + test_step + 1],
             "label_seq": feed_dict["label_seq"][:, idx : idx + test_step + 1],

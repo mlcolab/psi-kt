@@ -1,17 +1,14 @@
-import os
 import argparse
 from collections import defaultdict
 from typing import List, Dict, Optional
 
-import numpy as np
 from pathlib import Path
-from sklearn import metrics
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from knowledge_tracing.baseline.pykt.que_base_model import QueBaseModel, QueEmb
+from knowledge_tracing.baseline.pykt.que_base_model import QueEmb
 from knowledge_tracing.baseline.basemodel import BaseModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
@@ -47,7 +44,7 @@ def get_outputs(self, emb_qc_shift, h, data, add_name="", model_type="question")
         y_question_all = torch.sigmoid(self.out_question_all(h))
         outputs["y_question_next" + add_name] = y_question_next.squeeze(
             -1
-        )  # [bs, time-1]
+        )  # [batch_size, time-1]
         outputs["y_question_all" + add_name] = (
             y_question_all * F.one_hot(data.long(), self.num_q)
         ).sum(-1)
@@ -72,7 +69,7 @@ class QIKT(BaseModel):
         model_name: str = "QIKT",
     ) -> argparse.Namespace:
         """
-        Parse HKT-specific model arguments from the command line.
+        Parse QIKT-specific model arguments from the command line.
 
         Args:
             parser (argparse.ArgumentParser): The argument parser.
@@ -94,10 +91,6 @@ class QIKT(BaseModel):
         args: argparse.Namespace,
         corpus: DataReader,
         logs: logger.Logger,
-        emb_path="",
-        pretrain_dim=768,
-        device="cpu",
-        mlp_layer_num=1,
         other_config={},
     ):
         self.model_name = "qcaid"
@@ -109,8 +102,6 @@ class QIKT(BaseModel):
         self.dropout = args.dropout
         self.device = args.device
 
-        self.emb_path = emb_path
-        self.pretrain_dim = pretrain_dim
         self.other_config = other_config
         self.output_mode = self.other_config.get("output_mode", "an")
 
@@ -132,8 +123,6 @@ class QIKT(BaseModel):
             emb_size=self.emb_size,
             model_name=self.model_name,
             device=self.device,
-            emb_path=self.emb_path,
-            pretrain_dim=self.pretrain_dim,
         )
 
         self.que_lstm_layer = nn.LSTM(
@@ -161,15 +150,10 @@ class QIKT(BaseModel):
 
         self.que_disc = MLP(self.mlp_layer_num, self.hidden_size * 2, 1, self.dropout)
 
-        # Binary Cross Entropy Loss
-        self.loss_function = nn.BCELoss()
-
     def sigmoid_inverse(self, x, epsilon=1e-8):
         return torch.log(x / (1 - x + epsilon) + epsilon)
 
     def get_avg_fusion_concepts(self, y_concept, cshft):
-        max_num_concept = cshft.shape[-1]
-        concept_mask = torch.where(cshft.long() == -1, False, True)
         concept_index = F.one_hot(torch.where(cshft != -1, cshft, 0), self.num_c)
         concept_sum = (y_concept * concept_index).sum(-1)
         return concept_sum
@@ -179,17 +163,17 @@ class QIKT(BaseModel):
         c = feed_dict["skill_seq"]
         r = feed_dict["label_seq"]
 
-        _, emb_qca, emb_qc, emb_q, emb_c = self.que_emb(q, c, r)
+        _, emb_qca, emb_qc, _, emb_c = self.que_emb(q, c, r)
         emb_qc_shift = emb_qc[:, 1:, :]
         emb_qca_current = emb_qca[:, :-1, :]
 
         # question model
         que_h = self.dropout_layer(
             self.que_lstm_layer(emb_qca_current)[0]
-        )  # [bs, time-1, emb]
+        )  # [batch_size, time-1, emb]
         que_outputs = get_outputs(
             self, emb_qc_shift, que_h, q[:, 1:], add_name="", model_type="question"
-        )  # ['y_question_next', 'y_question_all'] [bs, time-1] [bs, time-1]
+        )  # ['y_question_next', 'y_question_all'] [batch_size, time-1] [batch_size, time-1]
         out_dict = que_outputs
 
         # concept model
@@ -204,7 +188,7 @@ class QIKT(BaseModel):
         emb_ca_current = emb_ca[:, :-1, :]
         concept_h = self.dropout_layer(
             self.concept_lstm_layer(emb_ca_current)[0]
-        )  # [bs, time-1, emb]
+        )  # [batch_size, time-1, emb]
         concept_outputs = get_outputs(
             self, emb_qc_shift, concept_h, c[:, 1:], add_name="", model_type="concept"
         )
@@ -266,7 +250,7 @@ class QIKT(BaseModel):
             # question model
             que_h = self.dropout_layer(
                 self.que_lstm_layer(emb_qca_current)[0]
-            )  # [bs, time-1, emb]
+            )  # [batch_size, time-1, emb]
             que_outputs = get_outputs(
                 self,
                 emb_qc_shift,
@@ -274,7 +258,7 @@ class QIKT(BaseModel):
                 q[:, 1 : i + 2],
                 add_name="",
                 model_type="question",
-            )  # ['y_question_next', 'y_question_all'] [bs, time-1] [bs, time-1]
+            )  # ['y_question_next', 'y_question_all'] [batch_size, time-1] [batch_size, time-1]
             out_dict = que_outputs
 
             # concept model
@@ -288,12 +272,12 @@ class QIKT(BaseModel):
                     ),
                 ],
                 dim=-1,
-            )  # s_t for corectness and incorrectness; [bs, time, emb*2]
+            )  # s_t for corectness and incorrectness; [batch_size, time, emb*2]
 
             emb_ca_current = emb_ca[:, :-1, :]
             concept_h = self.dropout_layer(
                 self.concept_lstm_layer(emb_ca_current)[0]
-            )  # [bs, time-1, emb]
+            )  # [batch_size, time-1, emb]
             concept_outputs = get_outputs(
                 self,
                 emb_qc_shift,
@@ -415,11 +399,13 @@ class QIKT(BaseModel):
             "skill_seq": torch.from_numpy(utils.pad_lst(skill_seqs)),
             "label_seq": torch.from_numpy(
                 utils.pad_lst(label_seqs, value=-1)
-            ),  # [bs, seq_len]
+            ),  # [batch_size, seq_len]
             "problem_seq": torch.from_numpy(
                 utils.pad_lst(problem_seqs)
-            ),  # [bs, seq_len]
-            "time_seq": torch.from_numpy(utils.pad_lst(time_seqs)),  # [bs, seq_len]
+            ),  # [batch_size, seq_len]
+            "time_seq": torch.from_numpy(
+                utils.pad_lst(time_seqs)
+            ),  # [batch_size, seq_len]
         }
         return feed_dict
 
@@ -457,7 +443,6 @@ class QIKT(BaseModel):
         idx: int = None,
         metrics=None,
     ) -> Dict[str, torch.Tensor]:
-
         """
         Evaluate the learner model's performance.
 
@@ -477,10 +462,9 @@ class QIKT(BaseModel):
         predictions = []
 
         for i in range(0, test_step):
-            # import ipdb; ipdb.set_trace()
             if i < 1:
                 history_labels = r[:, 0:2]
-                _, emb_qca, emb_qc, emb_q, emb_c = self.que_emb(
+                _, emb_qca, emb_qc, _, emb_c = self.que_emb(
                     q[:, 0:2], c[:, 0:2], history_labels
                 )
             else:
@@ -492,8 +476,7 @@ class QIKT(BaseModel):
                     ],
                     dim=-1,
                 )
-                # import ipdb; ipdb.set_trace()
-                _, emb_qca, emb_qc, emb_q, emb_c = self.que_emb(
+                _, emb_qca, emb_qc, _, emb_c = self.que_emb(
                     q[:, : i + 2], c[:, : i + 2], history_labels
                 )
             emb_qc_shift = emb_qc[:, 1:, :]
@@ -502,7 +485,7 @@ class QIKT(BaseModel):
             # question model
             que_h = self.dropout_layer(
                 self.que_lstm_layer(emb_qca_current)[0]
-            )  # [bs, time-1, emb]
+            )  # [batch_size, time-1, emb]
             que_outputs = get_outputs(
                 self,
                 emb_qc_shift,
@@ -510,7 +493,7 @@ class QIKT(BaseModel):
                 q[:, 1 : i + 2],
                 add_name="",
                 model_type="question",
-            )  # ['y_question_next', 'y_question_all'] [bs, time-1] [bs, time-1]
+            )  # ['y_question_next', 'y_question_all'] [batch_size, time-1] [batch_size, time-1]
             out_dict = que_outputs
 
             # concept model
@@ -524,12 +507,12 @@ class QIKT(BaseModel):
                     ),
                 ],
                 dim=-1,
-            )  # s_t for corectness and incorrectness; [bs, time, emb*2]
+            )  # s_t for corectness and incorrectness; [batch_size, time, emb*2]
 
             emb_ca_current = emb_ca[:, :-1, :]
             concept_h = self.dropout_layer(
                 self.concept_lstm_layer(emb_ca_current)[0]
-            )  # [bs, time-1, emb]
+            )  # [batch_size, time-1, emb]
             concept_outputs = get_outputs(
                 self,
                 emb_qc_shift,

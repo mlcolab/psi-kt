@@ -1,12 +1,14 @@
+import os
+
+import numpy as np
+import pandas as pd
+from sklearn import metrics
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import os
-import numpy as np
-import pandas as pd
 from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
-from sklearn import metrics
 
 emb_type_list = ["qc_merge", "qid", "qaid", "qcid_merge"]
 emb_type_map = {
@@ -28,8 +30,6 @@ class QueEmb(nn.Module):
         emb_size,
         model_name,
         device="cpu",
-        emb_path="",
-        pretrain_dim=768,
     ):
         """_summary_
 
@@ -38,8 +38,6 @@ class QueEmb(nn.Module):
             num_c (_type_): num of concept
             emb_size (_type_): emb_size
             device (str, optional): device. Defaults to 'cpu'.
-            emb_path (str, optional): _description_. Defaults to "".
-            pretrain_dim (int, optional): _description_. Defaults to 768.
         """
         super().__init__()
         self.device = device
@@ -47,15 +45,12 @@ class QueEmb(nn.Module):
         self.num_c = num_c
         self.emb_size = emb_size
 
-        self.emb_path = emb_path
-        self.pretrain_dim = pretrain_dim
-
         self.interaction_emb = nn.Embedding(self.num_q * 2, self.emb_size)
         self.que_emb = nn.Embedding(self.num_q, self.emb_size)
         self.concept_emb = nn.Parameter(
-                torch.randn(self.num_c, self.emb_size).to(device), requires_grad=True
-            ) 
-        
+            torch.randn(self.num_c, self.emb_size).to(device), requires_grad=True
+        )
+
         self.output_emb_dim = emb_size
 
     def get_avg_skill_emb(self, c):
@@ -77,14 +72,12 @@ class QueEmb(nn.Module):
         return concept_avg
 
     def forward(self, q, c, r=None):
-        
         x = q + self.num_q * r
         xemb = self.interaction_emb(x)  # [batch,max_len-1,emb_size]
-        
+
         emb_q = self.que_emb(q)
         emb_c = self.concept_emb[c]
-            
-            
+
         emb_qc = torch.cat([emb_q, emb_c], dim=-1)
         emb_qca = torch.cat(
             [
@@ -94,16 +87,14 @@ class QueEmb(nn.Module):
             dim=-1,
         )
         return xemb, emb_qca, emb_qc, emb_q, emb_c
-    
+
+
 # from pykt.utils import set_seed
 class QueBaseModel(nn.Module):
-    def __init__(self, model_name, emb_path, pretrain_dim, device, seed=0):
+    def __init__(self, model_name, device, seed=0):
         super().__init__()
         self.model_name = model_name
-        self.emb_path = emb_path
-        self.pretrain_dim = pretrain_dim
         self.device = device
-        # set_seed(seed)
 
     def compile(self, optimizer, lr=0.001, loss="binary_crossentropy", metrics=None):
         """

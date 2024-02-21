@@ -123,20 +123,20 @@ class PPE(BaseLearnerModel):
         Simulate the learner model's path over time.
 
         Args:
-            x0: shape[num_seq/bs, num_node]; the initial state of the learner model
-            t: shape[num_seq/bs, num_time_step]
-            items: [num_seq/bs, num_time_step];
+            x0: shape[num_seq/batch_size, num_node]; the initial state of the learner model
+            t: shape[num_seq/batch_size, num_time_step]
+            items: [num_seq/batch_size, num_time_step];
                 ** it cannot be None when mode=synthetic
             stats_cal_on_fly: whether calculate the stats of history based on the prediction
                 ** TODO test. it causes gradient error now
-            stats: [num_seq/bs, num_node, num_time_step, 3]; it contains [N_total, N_success, N_failure]
+            stats: [num_seq/batch_size, num_node, num_time_step, 3]; it contains [N_total, N_success, N_failure]
         """
         assert t.numel() > 0  # check if tensor is not empty
         num_node = x0.shape[-1]
         num_seq, time_step = t.shape
 
         dt = torch.diff(t).unsqueeze(1)
-        dt = torch.tile(dt, (1, num_node, 1)) / T_SCALE + EPS  # [bs, num_node, time-1]
+        dt = torch.tile(dt, (1, num_node, 1)) / T_SCALE + EPS  # [batch_size, num_node, time-1]
 
         # ----- compute the stats of history -----
         if items == None or num_node == 1:
@@ -174,23 +174,20 @@ class PPE(BaseLearnerModel):
             cur_repeat = whole_stats[:, :, i, 0]
             cur_history_last_time = whole_last_time[
                 :, :, : i + 1
-            ]  # [bs, num_node, i+1]
+            ]  # [batch_size, num_node, i+1]
             lags = (
                 torch.diff(cur_history_last_time) / T_SCALE + EPS
-            )  # [bs, num_node, i]
+            )  # [batch_size, num_node, i]
             lag_mask = lags > 0
             dn = ((1 / torch.log(abs(lags + EPS) + np.e)) * lag_mask).sum(dim=-1) / (
                 cur_repeat - 1 + EPS
-            )  # [bs, num_node]
-            dn = batch_b + batch_m * dn.unsqueeze(-1)  # [bs, num_node, 1]
+            )  # [batch_size, num_node]
+            dn = batch_b + batch_m * dn.unsqueeze(-1)  # [batch_size, num_node, 1]
 
             # - big T
             small_t = (
                 t[..., i : i + 1] - whole_last_time[..., : i + 1]
             ) / T_SCALE + EPS
-            # cur_t.unsqueeze(-1) - cur_item_times # [bs, times]
-            # mask1 = (cur_item_times!=0)
-            # small_t *= mask1
             small_t = torch.minimum(small_t, torch.tensor(1e2))
             big_t = torch.nan_to_num(torch.pow(small_t + EPS, -batch_x)) / (
                 torch.sum(
@@ -200,7 +197,7 @@ class PPE(BaseLearnerModel):
                 )
                 + EPS
             )
-            big_t = torch.sum(big_t * small_t, -1)[..., None]  # [bs, num_node]
+            big_t = torch.sum(big_t * small_t, -1)[..., None]  # [batch_size, num_node]
             big_t = torch.nan_to_num(big_t)
 
             big_t_mask = big_t != 0
@@ -293,12 +290,12 @@ class PPE(BaseLearnerModel):
         labels = feed_dict["label_seq"][:, idx : idx + test_step + 1]
         times = feed_dict["time_seq"][:, idx : idx + test_step + 1]
 
-        bs, _ = labels.shape
-        self.num_seq = bs
+        batch_size, _ = labels.shape
+        self.num_seq = batch_size
 
-        x0 = torch.zeros((bs, self.num_node)).to(labels.device)
+        x0 = torch.zeros((batch_size, self.num_node)).to(labels.device)
         if self.num_node > 1:
-            x0[torch.arange(bs), skills[:, 0]] += labels[:, 0]
+            x0[torch.arange(batch_size), skills[:, 0]] += labels[:, 0]
             items = skills
         else:
             x0[:, 0] += labels[:, 0]
@@ -352,12 +349,12 @@ class PPE(BaseLearnerModel):
         times = feed_dict["time_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
         labels = feed_dict["label_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
 
-        bs, _ = labels.shape
-        self.num_seq = bs
+        batch_size, _ = labels.shape
+        self.num_seq = batch_size
 
-        x0 = torch.zeros((bs, self.num_node)).to(labels.device)
+        x0 = torch.zeros((batch_size, self.num_node)).to(labels.device)
         if self.num_node > 1:
-            x0[torch.arange(bs), skills[:, 0]] += labels[:, 0]
+            x0[torch.arange(batch_size), skills[:, 0]] += labels[:, 0]
             items = skills
         else:
             x0[:, 0] += labels[:, 0]
@@ -385,7 +382,7 @@ class PPE(BaseLearnerModel):
         out_dict.update(
             {
                 "prediction": out_dict["x_item_pred"][..., 1:],
-                "label": labels.unsqueeze(1)[..., 1:],  # [bs, 1, time]
+                "label": labels.unsqueeze(1)[..., 1:],  # [batch_size, 1, time]
             }
         )
 
@@ -422,13 +419,5 @@ class PPE(BaseLearnerModel):
             label = label.detach().cpu().data.numpy()
             evaluations = BaseModel.pred_evaluate_method(pred, label, metrics)
             losses.update(evaluations)
-
-        losses["learning_rate"] = self.lr.clone()[0, 0]
-        losses["variable_x"] = self.variable_x.clone()[0, 0]
-        losses["variable_b"] = self.variable_b.clone()[0, 0]
-        losses["variable_m"] = self.variable_m.clone()[0, 0]
-        losses["variable_tau"] = self.variable_tau.clone()[0, 0]
-        losses["variable_s"] = self.variable_s.clone()[0, 0]
-        losses["variable_b"] = self.variable_b.clone()[0, 0]
 
         return losses

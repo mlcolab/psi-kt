@@ -25,15 +25,21 @@ To train different models and then reproduce the results in Figures 2 and 3:
 
 Running PSI-KT for prediction on bucket data:
 ```bash
-python predict_learner_performance_psikt.py --dataset assistment17 --model_name AmortizedPSIKT --random_seed 2023
+python predict_learner_performance_psikt.py 
+--dataset assistment17 
+--model_name AmortizedPSIKT 
+--random_seed 2023
+--num_learner 100
 ```
-
-Running PSI-KT for continual learning can be set by specifying `--vcl 1`.
+Arguments for training:  
+- `dataset`: Evaluations on different datasets can be specified as assistment12, assistment17, junyi15, or your own KT dataset.  
+- `vcl`: Running PSI-KT for continual learning can be set by specifying `--vcl 1`.
+- `early_stop`: Whether the training stops earlier given the results in validation dataset. 
 
 
 ## License
 
-This project is licensed under the GNU Affero General Public License - see the LICENSE.md file for details
+This project is licensed under the GNU Affero General Public License - see the [LICENSE.md](https://github.com/mlcolab/psi-kt/LICENSE) file for details
 
 ## Acknowledgments
 

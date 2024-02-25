@@ -13,9 +13,6 @@ import knowledge_tracing.utils.utils as utils
 
 import matplotlib.pyplot as plt
 
-plt.rcParams["font.family"] = "DeJavu Serif"
-plt.rcParams["font.serif"] = ["Times New Roman"]
-
 
 def parse_args(parser):
     parser.add_argument(

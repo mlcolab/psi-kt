@@ -38,7 +38,7 @@ def parse_args(parser):
     parser.add_argument(
         "--random_seed",
         type=int,
-        default=2022,
+        default=2023,
     )
     parser.add_argument(
         "--GPU_to_use", type=int, default=None, help="GPU to use for training"
@@ -49,26 +49,28 @@ def parse_args(parser):
     parser.add_argument(
         "--data_dir",
         type=str,
-        default="/mnt/qb/work/mlcolab/hzhou52/kt",
+        default="../kt",
         help="Input data dir.",
     )
     parser.add_argument("--dataset", type=str, help="[junyi, assistment12, ]")
     parser.add_argument("--kfold", type=int, default=5, help="K-fold number.")
+    parser.add_argument("--fold", type=int, default=0, help="Select a fold to run.")
+
     parser.add_argument(
         "--max_step", type=int, default=50, help="Max time steps per sequence."
     )
     parser.add_argument("--regenerate_corpus", action="store_true", default=False)
 
-    parser.add_argument("--train_time_ratio", type=float, default=0.4, help="")
+    parser.add_argument("--train_time_ratio", type=float, default=0.2, help="")
     parser.add_argument("--val_time_ratio", type=float, default=0.2, help="")
-    parser.add_argument("--test_time_ratio", type=float, default=0.5, help="")
+    parser.add_argument("--test_time_ratio", type=float, default=0.2, help="")
 
     ############## logger ##############
     parser.add_argument("--create_logs", default=1)
     parser.add_argument(
         "--save_folder",
         type=str,
-        default="/mnt/qb/work/mlcolab/hzhou52/kt/logs",
+        default="../kt/logs",
     )
     parser.add_argument(
         "--save_every",
@@ -133,13 +135,12 @@ def parse_args(parser):
         "--validate", default=1, type=int, help="validate results throughout training."
     )
     parser.add_argument(
-        "--test", default=0, type=int, help="test results throughout training."
+        "--test", default=1, type=int, help="test results throughout training."
     )
     parser.add_argument(
         "--test_every", type=int, default=5, help="test results throughout training."
     )
-    parser.add_argument("--fold", type=int, default=0, help="Select a fold to run.")
-
+    
     ############## model architecture ##############
     parser.add_argument(
         "--multi_node",

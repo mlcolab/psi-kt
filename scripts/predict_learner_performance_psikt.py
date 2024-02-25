@@ -40,7 +40,7 @@ def global_parse_args():
     parser.add_argument(
         "--num_sample",
         type=int,
-        default=500,
+        default=100,
         help="number of samples when we use MC for non-analytical solution",
     )
     parser.add_argument(

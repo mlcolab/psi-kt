@@ -39,7 +39,6 @@ class BaseModel(torch.nn.Module):
     @staticmethod
     def parse_model_args(
         parser: argparse.ArgumentParser,
-        model_name: str = "BaseModel",
     ):
         parser.add_argument(
             "--model_path", type=str, default="", help="Model save path."
@@ -70,9 +69,6 @@ class BaseModel(torch.nn.Module):
         # Convert the predictions to binary values based on a threshold of 0.5
         y_pred_binary = (y_pred > 0.5).astype(int)
         evaluation_funcs = {
-            "mse": mean_squared_error,
-            "mae": mean_absolute_error,
-            "auc": roc_auc_score,
             "f1": f1_score,
             "accuracy": accuracy_score,
             "precision": precision_score,
@@ -83,12 +79,7 @@ class BaseModel(torch.nn.Module):
         evaluations = {}
         for metric in metrics:
             if metric in evaluation_funcs:
-                evaluations[metric] = evaluation_funcs[metric](
-                    y_true,
-                    y_pred_binary
-                    if metric in ["f1", "accuracy", "precision", "recall"]
-                    else y_pred,
-                )
+                evaluations[metric] = evaluation_funcs[metric](y_true, y_pred_binary)
 
         return evaluations
 
@@ -104,7 +95,6 @@ class BaseModel(torch.nn.Module):
             None: The method modifies the weights and biases of the input module in-place.
         """
 
-        # TODO: add more initialization methods
         if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Embedding):
             torch.nn.init.normal_(m.weight, mean=0.0, std=0.01)
             if m.bias is not None:
@@ -289,7 +279,7 @@ class BaseModel(torch.nn.Module):
         """
         if model_path is None:
             model_path = self.model_path
-        model_path = Path(model_path, 'Model_{}_{}.pt'.format(epoch, mini_epoch))
+        model_path = Path(model_path, "Model_{}_{}.pt".format(epoch, mini_epoch))
 
         Path(model_path).parents[0].mkdir(exist_ok=True)
         torch.save(self.state_dict(), model_path)
@@ -373,8 +363,6 @@ class BaseModel(torch.nn.Module):
         self.logs.write_to_log_file("Training time: {:.2f} seconds".format(train_time))
         self.logs.write_to_log_file("Final training loss: {:.4f}".format(final_loss))
 
-        # TODO: Add more actions if needed
-
 
 ##########################################################################################
 # Learner Model
@@ -456,15 +444,13 @@ class BaseLearnerModel(BaseModel):
         # Loop over time steps
         for i in range(1, num_step):
             cur_item = items[:, i]  # [num_seq, ]
-            cur_feat = all_feature[:, 0, i-1]  # [batch_size, 1, 3]
+            cur_feat = all_feature[:, 0, i - 1]  # [batch_size, 1, 3]
 
             # Accumulate whole_stats
-            whole_stats[:, :, i] = whole_stats[:, :, i - 1]  # whole_stats[:,:,i-1] #
+            whole_stats[:, :, i] = whole_stats[:, :, i - 1]
             whole_stats[seq_indices, cur_item, i] = cur_feat
 
-            whole_last_time[:, :, i + 1] = whole_last_time[
-                :, :, i
-            ]  # + whole_last_time[seq_indices,:,i]
+            whole_last_time[:, :, i + 1] = whole_last_time[:, :, i]
             whole_last_time[seq_indices, cur_item, i + 1] = t[:, i]
 
         return whole_stats, whole_last_time
@@ -502,7 +488,9 @@ class BaseLearnerModel(BaseModel):
             all_feature[torch.arange(0, num_seq), item_start, 2] += 1
             all_feature = all_feature.unsqueeze(-2).tile((1, 1, time_step, 1))
         else:
-            all_feature = stats.float()  # [num_seq/batch_size, num_node, num_time_step, 3]
+            all_feature = (
+                stats.float()
+            )  # [num_seq/batch_size, num_node, num_time_step, 3]
 
         return all_feature
 
@@ -554,7 +542,9 @@ class BaseLearnerModel(BaseModel):
         self.num_seq = batch_size
 
         # Set initial state x0 for simulation
-        x0 = torch.zeros((batch_size, self.num_node), requires_grad=True).to(labels.device)
+        x0 = torch.zeros((batch_size, self.num_node), requires_grad=True).to(
+            labels.device
+        )
         if self.num_node > 1:
             x0[torch.arange(batch_size), skills[:, 0]] += labels[:, 0]
             items = skills
@@ -586,7 +576,9 @@ class BaseLearnerModel(BaseModel):
         out_dict.update(
             {
                 "prediction": out_dict["x_item_pred"],  # Add the prediction tensor
-                "label": labels.unsqueeze(1),  # Add the label tensor [batch_size, 1, time]
+                "label": labels.unsqueeze(
+                    1
+                ),  # Add the label tensor [batch_size, 1, time]
             }
         )
 

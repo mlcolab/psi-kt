@@ -4,7 +4,8 @@
 
 
 ## About The Project
-This is the official repository for our work [Predictive, scalable and interpretable knowledge tracing on structured domains](https://openreview.net/forum?id=NgaLU2fP5D&referrer=%5Bthe%20profile%20of%20Hanqi%20Zhou%5D(%2Fprofile%3Fid%3D~Hanqi_Zhou1)), where we proposed a hierarchical state-space model for knowledge tracing (KT) and derived its Bayesian inference process.
+
+Knowledge Tracing (KT) is a fundamental task in the realm of intelligent tutoring systems, aimed at predicting how students learn and progress over time. PSI-KT introduces a novel approach to KT, leveraging a hierarchical state-space model to improve the prediction, scalability, and interpretability of knowledge tracing on structured domains. This is the official repository for our work [Predictive, scalable and interpretable knowledge tracing on structured domains](https://openreview.net/forum?id=NgaLU2fP5D&referrer=%5Bthe%20profile%20of%20Hanqi%20Zhou%5D(%2Fprofile%3Fid%3D~Hanqi_Zhou1)), offering a unique blend of predictive accuracy, efficient scalability, and insightful interpretability.
 
 > **Abstract**
 >
@@ -12,16 +13,22 @@ This is the official repository for our work [Predictive, scalable and interpret
 
 ## Getting Started
 
-### Dependencies
+### Installation
+Clone this repository and install the required dependencies:
 
-Dependencies are in the `envrionment.yml` file.  
+```bash
+git clone https://github.com/mlcolab/psi-kt.git
+cd psi-kt
+conda env create -f environment.yml
+conda activate psi-kt
+```
 
 ### Data preprocessing
 
-We follow the preprocess in the [HawkesKT](https://github.com/THUwangcy/HawkesKT) model.
+We follow the preprocessing steps outlined in the [HawkesKT](https://github.com/THUwangcy/HawkesKT) model.
 
 ### Training and evaluation
-To train different models and then reproduce the results in Figures 2 and 3:
+To train different models and reproduce the results in Figures 2 and 3:
 
 Running PSI-KT for prediction on bucket data:
 ```bash
@@ -31,15 +38,18 @@ python predict_learner_performance_psikt.py
 --random_seed 2023
 --num_learner 100
 ```
-Arguments for training:  
-- `dataset`: Evaluations on different datasets can be specified as assistment12, assistment17, junyi15, or your own KT dataset.  
-- `vcl`: Running PSI-KT for continual learning can be set by specifying `--vcl 1`.
-- `early_stop`: Whether the training stops earlier given the results in validation dataset. 
+Arguments Explained:
+- `random_seed`: Sets the seed for random number generation to ensure reproducibility of results. You can specify any integer value, but we recommend using one of the following for consistent experimentation: 2023, 2022, 2021, 2020, or 2019. 
+- `dataset`: Specifies the dataset to be used for training and evaluation. We support several predefined datasets, including assistment12, assistment17, and junyi15. You can also use your custom Knowledge Tracing (KT) dataset by providing its name here. 
+- `model_name`: Specifies the model to be used for training and evaluation. We support HLR, PPE, DKT, DKTForgetting, AKT, HKT, GKT, QIKT. 
+- `vcl`: Enables Variational Continual Learning (VCL) by setting this argument to 1. VCL helps in adapting the model to new data over time without forgetting previously learned information. 
+- `early_stop`: Determines whether to stop the training process early if the performance on the validation dataset does not improve. 
+
 
 
 ## License
 
-This project is licensed under the GNU Affero General Public License - see the [LICENSE.md](https://github.com/mlcolab/psi-kt/LICENSE) file for details
+This project is licensed under the GNU Affero General Public License - see the [LICENSE.md](https://github.com/mlcolab/psi-kt/blob/main/LICENSE) for details. 
 
 ## Acknowledgments
 

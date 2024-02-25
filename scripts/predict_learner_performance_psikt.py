@@ -1,4 +1,5 @@
 import sys
+
 sys.path.append("..")
 
 import os
@@ -33,39 +34,91 @@ def global_parse_args():
     parser.add_argument(
         "--graph_path",
         type=str,
-        default="/mnt/qb/work/mlcolab/hzhou52/kt/junyi15/adj.npy",
+        default="../kt/junyi15/adj.npy",
         help="if the data has ground-truth graph we can compare our inferred graph with ground truth. Note the GT graph is not used for training.",
     )
     parser.add_argument(
         "--num_sample",
         type=int,
-        default=50,
+        default=500,
         help="number of samples when we use MC for non-analytical solution",
     )
     parser.add_argument(
         "--node_dim",
         type=int,
         default=16,
+        help="the dimension of the node embedding of learned concept graph",
     )
-    parser.add_argument('--em_train', type=int, default=0)
-    parser.add_argument('--var_log_max', type=int, default=10)
-    parser.add_argument('--num_category', type=int, default=10)
-    parser.add_argument('--s_entropy_weight', type=float, default=1e-1)
-    parser.add_argument('--z_entropy_weight', type=float, default=1e-1)
-    parser.add_argument('--s_log_weight', type=float, default=1)
-    parser.add_argument('--z_log_weight', type=float, default=1)
-    parser.add_argument('--y_log_weight', type=float, default=1)
-    parser.add_argument('--sparsity_loss_weight', type=float, default=1e-12)
-    parser.add_argument('--cat_weight', type=float, default=10)
+    parser.add_argument(
+        "--em_train",
+        type=int,
+        default=0,
+        help="whether to use the EM version of training, i.e., separate the generative model and inference model",
+    )
+    parser.add_argument(
+        "--var_log_max",
+        type=int,
+        default=10,
+        help="the maximum value of the variance of the logit of the Bernoulli distribution",
+    )
+    parser.add_argument(
+        "--num_category",
+        type=int,
+        default=100,
+        help="the number of categories in the categorical distribution in GMVAE",
+    )
+    parser.add_argument(
+        "--s_entropy_weight",
+        type=float,
+        default=1e-1,
+        help="the weight of the entropy of the s",
+    )
+    parser.add_argument(
+        "--z_entropy_weight",
+        type=float,
+        default=1e-1,
+        help="the weight of the entropy of the z",
+    )
+    parser.add_argument(
+        "--s_log_weight",
+        type=float,
+        default=1,
+        help="the weight of the log likelihood of the s",
+    )
+    parser.add_argument(
+        "--z_log_weight",
+        type=float,
+        default=1,
+        help="the weight of the log likelihood of the z",
+    )
+    parser.add_argument(
+        "--y_log_weight",
+        type=float,
+        default=1,
+        help="the weight of the log likelihood of the y",
+    )
+    parser.add_argument(
+        "--sparsity_loss_weight",
+        type=float,
+        default=1e-12,
+        help="the weight of the sparsity loss",
+    )
+    parser.add_argument(
+        "--cat_weight",
+        type=float,
+        default=10,
+        help="the weight of the categorical loss",
+    )
 
     return parser
+
 
 if __name__ == "__main__":
     # ----- add aditional arguments for this exp. -----
     parser = global_parse_args()
     parser = arg_parser.parse_args(parser)
     global_args, extras = parser.parse_known_args()
-    
+
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -109,9 +162,10 @@ if __name__ == "__main__":
     logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
 
     # ----- Model initialization -----
-    if 'ls_' or 'ln_' in global_args.train_mode:
+    if "ls_" or "ln_" in global_args.train_mode:
         num_seq = corpus.n_users if not global_args.overfit else global_args.overfit
-    else: num_seq = 1
+    else:
+        num_seq = 1
 
     adj = np.load(global_args.graph_path)
 
@@ -132,16 +186,16 @@ if __name__ == "__main__":
             device=global_args.device,
             args=global_args,
             logs=logs,
-            num_seq = num_seq,
+            num_seq=num_seq,
         )
-    
+
     if global_args.load > 0:
-        # model.load_state_dict(torch.load(path), strict=False)
         model.load_state_dict(torch.load(global_args.load_folder), strict=False)
         if global_args.vcl:
             for name, param in model.named_parameters():
-                if 'gen' in name: param.requires_grad = False
-    
+                if "gen" in name:
+                    param.requires_grad = False
+
     logs.write_to_log_file(model)
     model.actions_before_train()
 

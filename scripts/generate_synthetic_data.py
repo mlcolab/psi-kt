@@ -1,13 +1,10 @@
 import sys
+
 sys.path.append("..")
 
 import argparse
 import datetime
 from pathlib import Path
-
-from scipy.special import expit
-import numpy as np
-import networkx as nx
 
 import torch
 
@@ -15,8 +12,6 @@ from knowledge_tracing.baseline.halflife_regression import hlr as HLR
 from knowledge_tracing.baseline.learner_model import ou as VanillaOU
 from knowledge_tracing.baseline.learner_model import graph_ou as GraphOU
 from knowledge_tracing.baseline.ppe import ppe as PPE
-
-import knowledge_tracing.utils.visualize as visualize
 import knowledge_tracing.utils.utils as utils
 
 

@@ -18,8 +18,6 @@ OPTIMIZER_MAP = {
     "adam": optim.Adam,
 }
 
-# TODO merge more functions from KTRunner_baseline and KTRunner_hssm
-
 
 class KTRunner(object):
     """
@@ -66,7 +64,10 @@ class KTRunner(object):
             valid = list(metrics_log[m])
 
             # Check if the last 10 validation results have not improved
-            if not (len(valid) > self.early_stop and utils.non_increasing(valid[-self.early_stop:])):
+            if not (
+                len(valid) > self.early_stop
+                and utils.non_increasing(valid[-self.early_stop :])
+            ):
                 return False
             # Check if the maximum validation result has not improved for the past 10 epochs
             elif not (len(valid) - valid.index(max(valid)) > self.early_stop):
@@ -165,8 +166,8 @@ class KTRunner(object):
         assert corpus.data_df["train"] is not None
         self._check_time(start=True)
 
-        ##### prepare training data (if needs quick test then specify num_learner arguments in the args);
-        ##### prepare the batches of training data; this is specific to different KT models (different models may require different features)
+        # prepare training data (if needs quick test then specify num_learner arguments in the args);
+        # prepare the batches of training data; this is specific to different KT models (different models may require different features)
         set_name = ["train", "val", "test", "whole"]
         if self.num_learner > 0:
             epoch_train_data, epoch_val_data, epoch_test_data, epoch_whole_data = [
@@ -285,7 +286,11 @@ class KTRunner(object):
         training_time = self._check_time()
 
         model.module.eval()
-        if (self.args.test) & (epoch % self.args.test_every == 0):
+        if (
+            (self.args.test)
+            & (epoch % self.args.test_every == 0)
+            & (epoch >= self.early_stop)
+        ):
             with torch.no_grad():
                 test_result = self.evaluate(
                     model, corpus, "test", self.test_batches, epoch=epoch + 1
@@ -356,7 +361,6 @@ class KTRunner(object):
             mininterval=1,
             desc="Epoch %5d" % epoch,
         ):
-
             batch = model.module.batch_to_gpu(batch, self.device)
 
             # Reset gradients.
@@ -376,29 +380,11 @@ class KTRunner(object):
             # Append the losses to the train_losses dictionary.
             train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
 
-        string = self.logs.result_string("train", epoch, train_losses, t=epoch)  # TODO
+        string = self.logs.result_string("train", epoch, train_losses, t=epoch)
         self.logs.write_to_log_file(string)
         self.logs.append_epoch_losses(train_losses, "train")
 
         model.module.scheduler.step()
         model.module.eval()
-
-        # # TODO DEBUG: to visualize the difference of synthetic data adj
-        # if 'synthetic' in self.args.dataset and epoch%2 == 0:
-        #     import matplotlib.patches as mpatches
-        #     gt_adj = batch['gt_adj']
-        #     _, probs, pred_adj = model.module.var_dist_A.sample_A(num_graph=100)
-        #     print(torch.mean(probs, 0))
-        #     # ipdb.set_trace()
-        #     mat_diff = gt_adj-pred_adj[0,0]
-        #     mat_diff = mat_diff.int().cpu().detach().numpy()
-        #     im = plt.imshow(mat_diff, interpolation='none', cmap='Blues',aspect='auto',alpha=0.5)
-
-        #     values = np.unique(mat_diff.ravel())
-        #     colors = [im.cmap(im.norm(value)) for value in values]
-        #     patches = [mpatches.Patch(color=colors[i], label="Level {l}".format(l=values[i]) ) for i in range(len(values))]
-
-        #     plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
-        #     plt.savefig(os.path.join(self.args.plotdir, 'adj_diff_epoch{}.png'.format(epoch)))
 
         return self.logs.train_results["loss_total"][-1]

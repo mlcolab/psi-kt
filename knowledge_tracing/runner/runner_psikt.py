@@ -49,7 +49,7 @@ class PSIKTRunner(KTRunner):
         if not self.args.em_train:
             optimizer = optimizer_class(
                 model.module.customize_parameters(), lr=lr, weight_decay=weight_decay
-            )  
+            )
             scheduler = lr_scheduler.StepLR(
                 optimizer, step_size=lr_decay, gamma=lr_decay_gamma
             )
@@ -123,14 +123,11 @@ class PSIKTRunner(KTRunner):
         train_batches = model.module.prepare_batches(
             corpus, epoch_train_data, self.batch_size, phase="train"
         )
-        val_batches, test_batches, whole_batches = None, None, None
+        val_batches, test_batches = None, None
 
         if self.args.test:
             test_batches = model.module.prepare_batches(
                 corpus, epoch_test_data, self.eval_batch_size, phase="test"
-            )
-            whole_batches = model.module.prepare_batches(
-                corpus, epoch_whole_data, self.eval_batch_size, phase="whole"
             )
         if self.args.validate:
             val_batches = model.module.prepare_batches(
@@ -154,7 +151,7 @@ class PSIKTRunner(KTRunner):
                         test_batches=test_batches,
                         val_batches=val_batches,
                     )
-                else:  # TODO: this is not used currently
+                else:
                     loss = self.fit_em_phases(model, corpus, epoch=epoch)
 
                 if epoch % self.args.save_every == 0:
@@ -317,7 +314,7 @@ class PSIKTRunner(KTRunner):
             # Append the losses to the train_losses dictionary.
             train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
 
-        string = self.logs.result_string("train", epoch, train_losses, t=epoch) 
+        string = self.logs.result_string("train", epoch, train_losses, t=epoch)
         self.logs.write_to_log_file(string)
         self.logs.append_epoch_losses(train_losses, "train")
 
@@ -371,7 +368,7 @@ class PSIKTRunner(KTRunner):
         lengths = np.array(
             list(map(lambda lst: len(lst) - 1, corpus.data_df[set_name]["skill_seq"]))
         )
-        
+
         concat_pred = predictions
         concat_label = labels
 
@@ -381,7 +378,6 @@ class PSIKTRunner(KTRunner):
         )
 
     def fit_em_phases(self, model, corpus, epoch=-1):
-
         if model.module.optimizer is None:
             opt, sch = self._build_optimizer(model)
             (
@@ -397,7 +393,6 @@ class PSIKTRunner(KTRunner):
             model.module.optimizer = model.module.optimizer_infer
 
         for phase in ["infer", "gen_graph"]:  # 'model', 'graph', 'infer', 'gen'
-
             model.module.train()
 
             if phase == "model":
@@ -458,7 +453,6 @@ class PSIKTRunner(KTRunner):
         phase="infer",
         opt=None,
     ):
-
         train_losses = defaultdict(list)
 
         for batch in tqdm(
@@ -467,8 +461,7 @@ class PSIKTRunner(KTRunner):
             ncols=100,
             mininterval=1,
             desc="Epoch %5d" % epoch,
-        ):  
-
+        ):
             model.module.optimizer_infer.zero_grad(set_to_none=True)
             model.module.optimizer_graph.zero_grad(set_to_none=True)
             model.module.optimizer_gen.zero_grad(set_to_none=True)
@@ -488,7 +481,7 @@ class PSIKTRunner(KTRunner):
 
         string = self.logs.result_string(
             "train", epoch, train_losses, t=epoch, mini_epoch=mini_epoch
-        )  
+        )
         self.logs.write_to_log_file(string)
         self.logs.append_epoch_losses(train_losses, "train")
 

@@ -170,8 +170,7 @@ class BaselineKTRunner(KTRunner):
         val_result, test_result = None, None
 
         with torch.no_grad():
-
-            if self.args.validate & (epoch >= self.early_stop):
+            if self.args.validate:
                 val_result = self.evaluate(
                     model, corpus, "val", self.val_batches, epoch=epoch
                 )
@@ -194,7 +193,11 @@ class BaselineKTRunner(KTRunner):
                     )
                 )
 
-            if (self.args.test) & (epoch % self.args.test_every == 0) & (epoch >= 10):
+            if (
+                (self.args.test)
+                & (epoch % self.args.test_every == 0)
+                & (epoch >= self.early_stop)
+            ):
                 test_result = self.evaluate(
                     model, corpus, "test", self.test_batches, epoch=epoch
                 )
@@ -248,7 +251,6 @@ class BaselineKTRunner(KTRunner):
             mininterval=1,
             desc="Epoch %5d" % epoch,
         ):
-
             batch = model.module.batch_to_gpu(batch, self.device)
 
             # Reset gradients.
@@ -456,7 +458,6 @@ class BaselineContinualRunner(BaselineKTRunner):
         train_losses = defaultdict(list)
 
         for mini_epoch in range(10):  # self.epoch):
-
             # Iterate through each batch.
             for batch in tqdm(
                 batches,
@@ -487,7 +488,7 @@ class BaselineContinualRunner(BaselineKTRunner):
 
             string = self.logs.result_string(
                 "train", epoch, train_losses, t=epoch, mini_epoch=mini_epoch
-            )  # TODO
+            )
             self.logs.write_to_log_file(string)
             self.logs.append_epoch_losses(train_losses, "train")
 

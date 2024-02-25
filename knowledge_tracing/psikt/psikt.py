@@ -1,13 +1,12 @@
 import math, argparse
 from typing import List, Dict, Tuple, Optional
-from pathlib import Path
+from collections import defaultdict
 
 import numpy
-from collections import defaultdict
+from pathlib import Path
 
 import torch
 from torch import nn, distributions
-from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.nn import functional as F
 
 from knowledge_tracing.psikt import T_SCALE, EPS, COV_MIN
@@ -356,9 +355,6 @@ class AmortizedPSIKT(PSIKT):
         gen_st_h = nn.init.xavier_uniform_(torch.empty(1, self.dim_s))
         self.gen_st_h = nn.Parameter(torch.diag_embed(gen_st_h)[0], requires_grad=True)
         self.gen_st_log_r = self._init_params((1, self.dim_s))
-        # gen_st_h = torch.ones(1, self.dim_s)
-        # self.gen_st_h = nn.Parameter(torch.diag_embed(gen_st_h)[0], requires_grad=False)
-        # self.gen_st_log_r = self._init_params((1, self.dim_s), False)
 
         # ----- 3. emission distribution p(y|z) -----
         self.y_emit = torch.nn.Sigmoid()
@@ -371,11 +367,6 @@ class AmortizedPSIKT(PSIKT):
         self.infer_network_emb = build_dense_network(
             self.node_dim * 2, [self.node_dim, self.node_dim], [nn.LeakyReLU(0.2), None]
         )
-        # # Ablation study 1
-        # infer_st_mean = nn.init.xavier_uniform_(torch.empty(time_step, self.dim_s))
-        # self.infer_st_mean = nn.Parameter(infer_st_mean, requires_grad=True)
-        # infer_st_log_var = nn.init.xavier_uniform_(torch.empty(time_step, self.dim_s))
-        # self.infer_st_log_var = nn.Parameter(infer_st_log_var, requires_grad=True)
 
         # ----- 2. variational posterior distribution q(s_1:t | y_1:t, c_1:t) = q(s_1:t | emb_1:t) -----
         self.infer_network_posterior_s = InferenceNet(
@@ -417,9 +408,9 @@ class AmortizedPSIKT(PSIKT):
 
     def st_transition_gen(
         self,
-        qs_dist: MultivariateNormal,
+        qs_dist: distributions.MultivariateNormal,
         eval: bool = False,
-    ) -> MultivariateNormal:
+    ) -> distributions.MultivariateNormal:
         """
         Generate state transitions based on a given multivariate normal distribution.
 
@@ -464,7 +455,9 @@ class AmortizedPSIKT(PSIKT):
             [ps0_cov_mat_mc, pst_cov_mat], dim=-3
         )  # [bs, 1, time, dim_s, dim_s]
 
-        ps_dist = MultivariateNormal(loc=ps_mean, scale_tril=torch.tril(ps_cov_mat))
+        ps_dist = distributions.MultivariateNormal(
+            loc=ps_mean, scale_tril=torch.tril(ps_cov_mat)
+        )
 
         if not eval:  # For debugging
             self.register_buffer("ps_mean", ps_mean.clone().detach())
@@ -524,9 +517,7 @@ class AmortizedPSIKT(PSIKT):
         qs_mean = qs_dist.mean[:, 0, 1:]  # [bs, time-1, dim_s]
         q_alpha = torch.relu(qs_mean[..., 0:1]) + EPS
         q_mu = qs_mean[..., 1:2]  # torch.tanh(qs_mean[..., 1:2]) #
-        q_sigma = qs_mean[
-            ..., 2:3
-        ]  # TODO  q_sigma = torch.minimum(qs_mean[..., 2:3], self.var_log_max.to(device))
+        q_sigma = qs_mean[..., 2:3]
         q_gamma = torch.sigmoid(qs_mean[..., 3:4])  # torch.zeros_like(q_sigma) #
 
         # calculate useful variables
@@ -560,7 +551,7 @@ class AmortizedPSIKT(PSIKT):
             1, 1, self.num_node
         )  # [bs, time, num_node]
 
-        pz_dist = MultivariateNormal(
+        pz_dist = distributions.MultivariateNormal(
             loc=pz_mean, scale_tril=torch.tril(torch.diag_embed(pz_var + EPS))
         )
 
@@ -609,65 +600,20 @@ class AmortizedPSIKT(PSIKT):
         s_var = qs_out_inf["s_var_infer"]  # [bs, 1, time, dim_s]
 
         s_var_mat = torch.diag_embed(s_var + EPS)  # [bs, 1, time, dim_s, dim_s]
-        qs_dist = MultivariateNormal(loc=s_mean, scale_tril=torch.tril(s_var_mat))
+        qs_dist = distributions.MultivariateNormal(
+            loc=s_mean, scale_tril=torch.tril(s_var_mat)
+        )
 
-        # NOTE: For debug use
-        if not eval:
-            self.register_buffer(
-                "qs_category_logits", qs_out_inf["logits"].clone().detach()
-            )
-            self.register_buffer(name="qs_mean", tensor=s_mean.clone().detach())
-            self.register_buffer(name="qs_var", tensor=s_var.clone().detach())
-            self.logits = qs_out_inf["logits"]
-            self.probs = qs_out_inf["prob_cat"]
-            self.s_category = s_category
         self.register_buffer("qs_category", s_category.clone().detach())
 
         return qs_dist
-
-    # def st_transition_infer(
-    #     self,
-    #     emb_inputs: torch.Tensor,
-    #     num_sample: int = 0,
-    #     eval: bool = False,
-    # ) -> torch.distributions.MultivariateNormal:
-
-    #     num_sample = self.num_sample if num_sample == 0 else num_sample
-
-    #     qs_out_inf = self.infer_network_posterior_s(
-    #         emb_inputs,
-    #         self.qs_temperature,
-    #         self.qs_hard,
-    #     )
-
-    #     time = qs_out_inf["s_mu_infer"].shape[-2]
-    #     s_category = qs_out_inf["categorical"]  # [bs, 1, num_cat]
-    #     s_mean = qs_out_inf["s_mu_infer"].mean(-2).unsqueeze(-2).repeat(1,1,time,1)  # [bs, 1, time, dim_s]
-    #     s_var = qs_out_inf["s_var_infer"].mean(-2).unsqueeze(-2).repeat(1,1,time,1)  # [bs, 1, time, dim_s]
-
-    #     s_var_mat = torch.diag_embed(s_var + EPS)  # [bs, 1, time, dim_s, dim_s]
-    #     qs_dist = MultivariateNormal(loc=s_mean, scale_tril=torch.tril(s_var_mat))
-
-    #     # NOTE: For debug use
-    #     if not eval:
-    #         self.register_buffer(
-    #             "qs_category_logits", qs_out_inf["logits"].clone().detach()
-    #         )
-    #         self.register_buffer(name="qs_mean", tensor=s_mean.clone().detach())
-    #         self.register_buffer(name="qs_var", tensor=s_var.clone().detach())
-    #         self.logits = qs_out_inf["logits"]
-    #         self.probs = qs_out_inf["prob_cat"]
-    #         self.s_category = s_category
-    #     self.register_buffer("qs_category", s_category.clone().detach())
-
-    #     return qs_dist
 
     def zt_transition_infer(
         self,
         feed_dict: Tuple[torch.Tensor, torch.Tensor],
         emb_inputs: Optional[torch.Tensor] = None,
         eval: bool = False,
-    ) -> MultivariateNormal:
+    ) -> distributions.MultivariateNormal:
         """
         Compute the posterior distribution of `z_t` using an inference network.
 
@@ -698,7 +644,7 @@ class AmortizedPSIKT(PSIKT):
         qz_cov_mat = torch.diag_embed(
             torch.exp(qz_log_var) + EPS
         )  # [bs, times, num_node, num_node]
-        qz_dist = MultivariateNormal(
+        qz_dist = distributions.MultivariateNormal(
             loc=qz_mean, scale_tril=torch.tril(qz_cov_mat)
         )  # [bs, times, num_node]; [bs, times, num_node, num_node]
 
@@ -918,11 +864,9 @@ class AmortizedPSIKT(PSIKT):
 
             # p(zt) = N(zt|zt-1, st)
             q_alpha = torch.relu(s_next_mean[..., 0:1]) + EPS
-            q_mu = s_next_mean[..., 1:2]  # torch.tanh(s_next_mean[..., 1:2])  #
+            q_mu = s_next_mean[..., 1:2]
             q_sigma = s_next_mean[..., 2:3]  # [bs, 1, 1]
-            q_gamma = torch.sigmoid(
-                s_next_mean[..., 3:4]
-            )  # torch.zeros_like(q_sigma) #
+            q_gamma = torch.sigmoid(s_next_mean[..., 3:4])
             # calculate useful variables
             pz_ou_decay = torch.exp(-q_alpha * dt[:, i : i + 1])  # [bs, 1, 1]
             pz_ou_var = (
@@ -947,7 +891,7 @@ class AmortizedPSIKT(PSIKT):
             1, 1, self.num_node
         )  # [bs, time, num_node]
 
-        pred_z_dist = MultivariateNormal(
+        pred_z_dist = distributions.MultivariateNormal(
             loc=pred_z_mean, scale_tril=torch.tril(torch.diag_embed(pred_z_var + EPS))
         )
         pred_z_sampled = pred_z_dist.sample(
@@ -1041,7 +985,7 @@ class AmortizedPSIKT(PSIKT):
         )  # [bsn, time, 1]
 
         y_prob_train = self.y_emit(qz_sampled_item)
-        y_dist_train = torch.distributions.bernoulli.Bernoulli(probs=y_prob_train)
+        y_dist_train = distributions.bernoulli.Bernoulli(probs=y_prob_train)
         y_train_mc = (
             label.unsqueeze(1).repeat(1, self.num_sample, 1).reshape(bsn, -1, 1).float()
         )
@@ -1085,7 +1029,7 @@ class AmortizedPSIKT(PSIKT):
         t2_mean = torch.mean(initial_likelihood) * 1e-4
 
         t3_mean = torch.mean(qs_dist.entropy())
-        t4_mean = torch.mean(qz_dist.entropy())  # TODO
+        t4_mean = torch.mean(qz_dist.entropy())
 
         elbo = t1_mean + t2_mean + temp_s * t3_mean + temp_z * t4_mean
 
@@ -1116,9 +1060,7 @@ class AmortizedPSIKT(PSIKT):
         losses = defaultdict(lambda: torch.zeros(()))
 
         # Calculate binary cross-entropy loss -> not used for optimization only for visualization
-        gt = outdict["label"].repeat(
-            1, self.num_sample, 1, 1
-        )  # .repeat(self.num_sample, 1)
+        gt = outdict["label"].repeat(1, self.num_sample, 1, 1)
         pred = outdict["prediction"]
 
         loss_fn = torch.nn.BCELoss()
@@ -1137,24 +1079,6 @@ class AmortizedPSIKT(PSIKT):
         ]:
             losses[key] = outdict[key].mean()
 
-        # Still NOT for optimization
-        edge_log_probs = self.node_dist.edge_log_probs().to(pred.device)
-        pred_att = torch.exp(edge_log_probs[0]).to(pred.device)
-        pred_adj = torch.nn.functional.gumbel_softmax(edge_log_probs, hard=True, dim=0)[
-            0
-        ].sum()
-
-        losses["sparsity"] = (pred_att >= 0.5).sum()
-        losses["loss_sparsity"] = pred_adj * self.args.sparsity_loss_weight
-
-        if "junyi15" in self.args.dataset:
-            gt_adj = self.adj.to(pred.device)
-            losses["adj_0_att_1"] = (1 * (pred_att >= 0.5) * (1 - gt_adj)).sum()
-            losses["adj_1_att_0"] = (1 * (pred_att < 0.5) * gt_adj).sum()
-            self.register_buffer(
-                name="output_gt_graph_weights", tensor=gt_adj.clone().detach()
-            )
-
         gmvae_loss = LossFunctions()
         loss_cat = -gmvae_loss.entropy(self.logits, self.probs) - numpy.log(0.1)
         losses["loss_cat"] = loss_cat * self.args.cat_weight
@@ -1166,16 +1090,7 @@ class AmortizedPSIKT(PSIKT):
             loss_cat_in_entropy * self.args.cat_in_entropy_weight
         )
 
-        losses["loss_total"] = (
-            -outdict["elbo"].mean() + losses["loss_sparsity"] + losses["loss_cat"]
-        )
-
-        # Register output predictions
-        self.register_buffer(name="output_predictions", tensor=pred.clone().detach())
-        self.register_buffer(name="output_gt", tensor=gt.clone().detach())
-        self.register_buffer(
-            name="output_attention_weights", tensor=pred_att.clone().detach()
-        )
+        losses["loss_total"] = -outdict["elbo"].mean() + losses["loss_cat"]
 
         # Evaluate metrics
         if metrics != None:
@@ -1184,13 +1099,6 @@ class AmortizedPSIKT(PSIKT):
             evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
             for key in evaluations.keys():
                 losses[key] = evaluations[key]
-
-        # Calculate mean and variance of the Ornstein-Uhlenbeck process
-        losses["ou_speed"] = outdict["sampled_s"][..., 0].mean()
-        losses["ou_mean"] = outdict["sampled_s"][..., 1].mean()
-        losses["ou_vola"] = outdict["sampled_s"][..., 2].mean()
-        if self.dim_s == 4:
-            losses["ou_gamma"] = outdict["sampled_s"][..., 3].mean()
 
         return losses
 
@@ -1288,12 +1196,6 @@ class ContinualPSIKT(AmortizedPSIKT):
         self.infer_network_posterior_mean_var_s = VAEEncoder(
             self.node_dim * 2, self.node_dim, self.dim_s
         )
-        # self.infer_network_posterior_mean_var_s = VAEEncoder(
-        #     self.node_dim, self.node_dim, self.dim_s
-        # )
-        # self.infer_network_posterior_mean_var_z = VAEEncoder(
-        #     self.node_dim, self.node_dim, self.num_node
-        # )
 
     def st_transition_infer(
         self,
@@ -1323,7 +1225,6 @@ class ContinualPSIKT(AmortizedPSIKT):
             output
         )  # [bs, time_step, dim_s]
 
-        # mean, log_var = self.infer_network_posterior_mean_var_s(emb_inputs)
         log_var = torch.minimum(log_var, self.var_minimum)
         cov_mat = torch.diag_embed(torch.exp(log_var) + EPS)
         dist_s = distributions.multivariate_normal.MultivariateNormal(
@@ -1393,7 +1294,6 @@ class ContinualPSIKT(AmortizedPSIKT):
         bs = y_idx.shape[0]
 
         if idx == 0:
-
             t_idx = feed_dict["time_seq"][:, : idx + 1]  # [bs, 2]
             dt = t_idx / T_SCALE + EPS
             s_tilde_dist = distributions.MultivariateNormal(
@@ -1419,7 +1319,6 @@ class ContinualPSIKT(AmortizedPSIKT):
             z_tilde_dist_var = torch.diagonal(z_tilde_dist.scale_tril, dim1=-2, dim2=-1)
 
         else:
-
             t_idx = feed_dict["time_seq"][:, idx - 1 : idx + 1]  # [bs, 2]
             dt = torch.diff(t_idx, dim=-1) / T_SCALE + EPS
 
@@ -1462,9 +1361,7 @@ class ContinualPSIKT(AmortizedPSIKT):
             s_next_sample = s_tilde_dist_mean  # [bs, 1, dim_s]
             z_last_sample = z_prior_mean  # [bs, 1, num_node]
 
-            sampled_alpha = (
-                torch.relu(s_next_sample[..., 0:1]) + EPS
-            )  # TODO change # [bs, 1, 1]
+            sampled_alpha = torch.relu(s_next_sample[..., 0:1]) + EPS
             sampled_mu = s_next_sample[..., 1:2]
             sampled_sigma = s_next_sample[..., 2:3]
             sampled_gamma = torch.sigmoid(s_next_sample[..., 3:4])
@@ -1480,7 +1377,7 @@ class ContinualPSIKT(AmortizedPSIKT):
 
             z_tilde_dist_mean = ou_decay * z_prior_mean + (1 - ou_decay) * empowered_mu
             z_tilde_dist_var = (
-                sampled_sigma ** 2 * (1 - ou_decay ** 2) / (2 * sampled_alpha + EPS)
+                sampled_sigma**2 * (1 - ou_decay**2) / (2 * sampled_alpha + EPS)
                 + EPS
             )
             z_tilde_dist = distributions.multivariate_normal.MultivariateNormal(
@@ -1744,7 +1641,7 @@ class ContinualPSIKT(AmortizedPSIKT):
         Returns:
             losses (defaultdict): A defaultdict of losses
         """
-        losses = defaultdict(lambda: torch.zeros(()))  # , device=self.device))
+        losses = defaultdict(lambda: torch.zeros(()))
 
         # Calculate binary cross-entropy loss -> not used for optimization only for visualization
         gt = outdict["label"]
@@ -1773,14 +1670,6 @@ class ContinualPSIKT(AmortizedPSIKT):
             evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
         for key in evaluations.keys():
             losses[key] = evaluations[key]
-
-        # Calculate mean and variance of the Ornstein-Uhlenbeck process
-        losses["ou_speed"] = outdict["sampled_s"][..., 0].mean()
-        losses["ou_mean"] = outdict["sampled_s"][..., 1].mean()
-        losses["ou_vola"] = outdict["sampled_s"][..., 2].mean()
-
-        if self.dim_s > 3:
-            losses["ou_gamma"] = outdict["sampled_s"][..., 3].mean()
 
         return losses
 
@@ -1846,9 +1735,7 @@ class ContinualPSIKT(AmortizedPSIKT):
             q_alpha = torch.relu(s_next_mean[..., 0:1]) + EPS
             q_mu = s_next_mean[..., 1:2]  # torch.tanh(s_next_mean[..., 1:2])  #
             q_sigma = s_next_mean[..., 2:3]  # [bs, 1, 1]
-            q_gamma = torch.sigmoid(
-                s_next_mean[..., 3:4]
-            )  # torch.zeros_like(q_sigma) #
+            q_gamma = torch.sigmoid(s_next_mean[..., 3:4])
             # calculate useful variables
             pz_ou_decay = torch.exp(-q_alpha * dt[:, i : i + 1])  # [bs, 1, 1]
             pz_ou_var = (

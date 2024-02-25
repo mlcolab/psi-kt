@@ -5,7 +5,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import Dropout, Linear, Module, Sequential
-from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 
 class VAEEncoder(nn.Module):

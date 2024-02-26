@@ -22,6 +22,30 @@ class PSIKTRunner(KTRunner):
     def __init__(self, args, logs):
         KTRunner.__init__(args, logs)
 
+    def _partition_parameters(self, model: torch.nn.Module):
+        """
+        Partitions the model's parameters into generative, inference, and graph-related groups for separate optimization.
+
+        Args:
+            model: The KT model instance whose parameters are to be partitioned.
+
+        Returns:
+            Three lists of parameters corresponding to generative, inference, and graph components of the model.
+        """
+        generative_params = []
+        inference_params = []
+        graph_params = []
+        for param_group in list(model.module.named_parameters()):
+            if param_group[1].requires_grad:
+                if "node_" in param_group[0]:
+                    graph_params.append(param_group[1])
+                elif "infer_" in param_group[0] and param_group[1].requires_grad:
+                    inference_params.append(param_group[1])
+                else:
+                    generative_params.append(param_group[1])
+
+        return generative_params, inference_params, graph_params
+
     def _build_optimizer(
         self,
         model: torch.nn.Module,
@@ -34,18 +58,21 @@ class PSIKTRunner(KTRunner):
             model: the training KT model
         """
 
+        # Retrieve optimizer settings from global arguments
         optimizer_name = self.args.optimizer.lower()
         lr = self.args.lr
         weight_decay = self.args.l2
         lr_decay = self.args.lr_decay
         lr_decay_gamma = self.args.gamma
 
+        # Ensure the specified optimizer is supported
         if optimizer_name not in OPTIMIZER_MAP:
             raise ValueError("Unknown optimizer: " + optimizer_name)
 
         optimizer_class = OPTIMIZER_MAP[optimizer_name]
         self.logs.write_to_log_file(f"Optimizer: {optimizer_name}")
 
+        # For models not using EM training, create a single optimizer and scheduler
         if not self.args.em_train:
             optimizer = optimizer_class(
                 model.module.customize_parameters(), lr=lr, weight_decay=weight_decay
@@ -56,21 +83,12 @@ class PSIKTRunner(KTRunner):
             return optimizer, scheduler
 
         else:
-            generative_params = []
-            inference_params = []
-            graph_params = []
-            for param_group in list(model.module.named_parameters()):
-                if param_group[1].requires_grad:
-                    if "node_" in param_group[0]:
-                        graph_params.append(param_group[1])
-                    elif "infer_" in param_group[0] and param_group[1].requires_grad:
-                        inference_params.append(param_group[1])
-                    elif param_group[1].requires_grad:
-                        generative_params.append(param_group[1])
-
-            self.graph_params = graph_params
-            self.inference_params = inference_params
-            self.generative_params = generative_params
+            # For EM training, separate the model's parameters into different groups
+            (
+                generative_params,
+                inference_params,
+                graph_params,
+            ) = self._partition_parameters(model)
 
             optimizer_infer = optimizer_class(
                 inference_params, lr=lr, weight_decay=weight_decay
@@ -102,7 +120,7 @@ class PSIKTRunner(KTRunner):
         self,
         model: torch.nn.Module,
         corpus: DataReader,
-    ):
+    ) -> None:
         """
         Trains the KT model instance with parameters.
 
@@ -221,10 +239,28 @@ class PSIKTRunner(KTRunner):
         train_loss: float = 0.0,
         test_batches: list = None,
         val_batches: list = None,
-    ):
+    ) -> None:
+        """
+        Evaluate the model's performance on the test and validation datasets.
+
+        Args:
+            model (torch.nn.Module): The neural network model to evaluate.
+            corpus (DataReader): The data reader object containing test and validation datasets.
+            epoch (int, optional): The current epoch number. Defaults to 0.
+            train_loss (float, optional): The training loss. Defaults to 0.0.
+            test_batches (list, optional): List of batches for the test dataset. Defaults to None.
+            val_batches (list, optional): List of batches for the validation dataset. Defaults to None.
+
+        Returns:
+            None
+        """
+        # Measure training time
         training_time = self._check_time()
 
+        # Set the model to evaluation mode
         model.module.eval()
+
+        # If testing is enabled and the current epoch is a multiple of test_every
         if (self.args.test) & (epoch % self.args.test_every == 0):
             with torch.no_grad():
                 test_result = self.evaluate(
@@ -249,9 +285,13 @@ class PSIKTRunner(KTRunner):
                 else:
                     valid_result = test_result
 
+            # Measure testing time
             testing_time = self._check_time()
 
+            # Append test results to logs
             self.logs.append_epoch_losses(test_result, "test")
+
+            # Write log entry
             self.logs.write_to_log_file(
                 "Epoch {:<3} loss={:<.4f} [{:<.1f} s]\t valid=({}) test=({}) [{:<.1f} s] ".format(
                     epoch + 1,
@@ -266,9 +306,9 @@ class PSIKTRunner(KTRunner):
     def fit(
         self,
         model: torch.nn.Module,
-        batches=None,
-        epoch=-1,
-    ):
+        batches: list = None,
+        epoch: int = -1,
+    ) -> dict:
         """
         Trains the given model on the given batches of data.
 
@@ -323,29 +363,56 @@ class PSIKTRunner(KTRunner):
 
         return self.logs.train_results["loss_total"][-1]
 
-    def predict(self, model, data_batches=None, epoch=None):
+    def predict(
+        self, model: torch.nn.Module, data_batches: list = None, epoch: int = -1
+    ):
         """
+        Predict labels using the trained model.
+
         Args:
-            model:
+            model: The trained neural network model.
+            data_batches (list, optional): List of data batches for prediction. Defaults to None.
+            epoch (int, optional): The current epoch number. Defaults to None.
+
+        Returns:
+            tuple: A tuple containing two numpy arrays: (predictions, labels).
+
+        Note:
+            This method assumes that the model has already been trained and is in evaluation mode.
+
         """
+        # Set the model to evaluation mode
         model.module.eval()
 
+        # Initialize lists to store predictions and labels
         predictions, labels = [], []
 
+        # Iterate over data batches for prediction
         for batch in tqdm(
             data_batches, leave=False, ncols=100, mininterval=1, desc="Predict"
         ):
+            # Move batch to GPU
             batch = model.module.batch_to_gpu(batch, self.device)
 
+            # Get predictions from the model
             out_dict = model.module.predictive_model(batch)
             prediction, label = out_dict["prediction"], out_dict["label"]
 
+            # Convert predictions and labels to numpy arrays and store
             predictions.extend(prediction.detach().cpu().data.numpy())
             labels.extend(label.detach().cpu().data.numpy())
 
+        # Return predictions and labels as numpy arrays
         return np.array(predictions), np.array(labels)
 
-    def evaluate(self, model, corpus, set_name, data_batches=None, epoch=None):
+    def evaluate(
+        self,
+        model: torch.nn.Module,
+        corpus: DataReader,
+        set_name: str,
+        data_batches: list = None,
+        epoch: int = -1,
+    ) -> dict:
         """
         Evaluate the results for an input set.
 
@@ -362,22 +429,32 @@ class PSIKTRunner(KTRunner):
         """
 
         # Get the predictions and labels from the predict() method.
-        predictions, labels = self.predict(model, data_batches, epoch=epoch)
-
-        # Get the lengths of the sequences in the input dataset.
-        lengths = np.array(
-            list(map(lambda lst: len(lst) - 1, corpus.data_df[set_name]["skill_seq"]))
-        )
-
-        concat_pred = predictions
-        concat_label = labels
+        concat_pred, concat_label = self.predict(model, data_batches, epoch=epoch)
 
         # Evaluate the predictions and labels using the pred_evaluate_method of the model.
         return model.module.pred_evaluate_method(
             concat_pred, concat_label, self.metrics
         )
 
-    def fit_em_phases(self, model, corpus, epoch=-1):
+    def fit_em_phases(
+        self, model: torch.nn.Module, corpus: DataReader, epoch: int = -1
+    ) -> float:
+        """
+        Perform training using the EM algorithm in multiple phases.
+
+        Args:
+            model: The neural network model to train.
+            corpus: The data reader object containing the training data.
+            epoch (int, optional): The current epoch number. Defaults to -1.
+
+        Returns:
+            float: The total loss after training.
+
+        Note:
+            This method assumes that the model's optimizer and scheduler have been initialized.
+
+        """
+        # Initialize optimizer and scheduler if not already done
         if model.module.optimizer is None:
             opt, sch = self._build_optimizer(model)
             (
@@ -392,6 +469,7 @@ class PSIKTRunner(KTRunner):
             ) = sch
             model.module.optimizer = model.module.optimizer_infer
 
+        # Iterate over training phases
         for phase in ["infer", "gen_graph"]:  # 'model', 'graph', 'infer', 'gen'
             model.module.train()
 
@@ -432,29 +510,50 @@ class PSIKTRunner(KTRunner):
                 for param in self.generative_params + self.graph_params:
                     param.requires_grad = True
 
+            # Perform training for the current phase
             for i in range(5):  # TODO: 5 is a hyperparameter
                 loss = self.fit_one_phase(model, epoch=epoch, mini_epoch=i, opt=opt)
 
+            # Evaluate the model after each phase
             self.test(model, corpus, train_loss=loss)
 
+        # Update schedulers
         model.module.scheduler_infer.step()
         model.module.scheduler_graph.step()
         model.module.scheduler_gen.step()
 
+        # Set model to evaluation mode
         model.module.eval()
 
+        # Return the total loss after training
         return self.logs.train_results["loss_total"][-1]
 
     def fit_one_phase(
         self,
-        model,
-        epoch=-1,
-        mini_epoch=-1,
-        phase="infer",
-        opt=None,
-    ):
+        model: torch.nn.Module,
+        epoch: int = -1,
+        mini_epoch: int = -1,
+        phase: str = "infer",
+        opt: list = None,
+    ) -> float:
+        """
+        Perform one training phase for the given model.
+
+        Args:
+            model (torch.nn.Module): The neural network model to train.
+            epoch (int, optional): The current epoch number. Defaults to -1.
+            mini_epoch (int, optional): The current mini-epoch number. Defaults to -1.
+            phase (str, optional): The phase of training. Defaults to "infer".
+            opt (list, optional): List of optimizers to use for training. Defaults to None.
+
+        Returns:
+            float: The total loss after the training phase.
+
+        """
+        # Dictionary to store training losses
         train_losses = defaultdict(list)
 
+        # Iterate over batches for training
         for batch in tqdm(
             self.whole_batches,
             leave=False,
@@ -462,31 +561,33 @@ class PSIKTRunner(KTRunner):
             mininterval=1,
             desc="Epoch %5d" % epoch,
         ):
+            # Zero out gradients for all optimizers
             model.module.optimizer_infer.zero_grad(set_to_none=True)
             model.module.optimizer_graph.zero_grad(set_to_none=True)
             model.module.optimizer_gen.zero_grad(set_to_none=True)
 
+            # Forward pass
             output_dict = model(batch)
             loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
+
+            # Backward pass and optimization
             loss_dict["loss_total"].backward()
-
-            # ipdb.set_trace()
             torch.nn.utils.clip_grad_norm_(model.module.parameters(), 100)
-
             for o in opt:
                 o.step()
 
-            # Append the losses to the train_losses dictionary.
+            # Append the losses to the train_losses dictionary
             train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
 
+        # Generate result string and write to log file
         string = self.logs.result_string(
             "train", epoch, train_losses, t=epoch, mini_epoch=mini_epoch
         )
         self.logs.write_to_log_file(string)
         self.logs.append_epoch_losses(train_losses, "train")
 
+        # Return the total loss after the training phase
         return self.logs.train_results["loss_total"][-1]
-
 
 
 class VCLRunner(KTRunner):
@@ -508,7 +609,7 @@ class VCLRunner(KTRunner):
 
         self.max_time_step = args.max_step
 
-    def train(self, model, corpus):
+    def train(self, model: torch.nn.Module, corpus: DataReader) -> None:
         """
         Trains the KT model instance with parameters.
 
@@ -525,9 +626,11 @@ class VCLRunner(KTRunner):
         assert corpus.data_df["train"] is not None
         self._check_time(start=True)
 
-        if self.overfit > 0:
-            epoch_whole_data = copy.deepcopy(corpus.data_df["whole"][: self.overfit])
-            epoch_whole_data["user_id"] = np.arange(self.overfit)
+        if self.num_learner > 0:
+            epoch_whole_data = copy.deepcopy(
+                corpus.data_df["whole"][: self.num_learner]
+            )
+            epoch_whole_data["user_id"] = np.arange(self.num_learner)
         else:
             epoch_whole_data = copy.deepcopy(corpus.data_df["whole"])
 
@@ -550,7 +653,6 @@ class VCLRunner(KTRunner):
                 self._check_time()
                 self.fit(model, train_batches, epoch=time, time_step=time)
                 self.test(model, eval_batches, epoch=time, time_step=time)
-                training_time = self._check_time()
 
         except KeyboardInterrupt:
             self.logs.write_to_log_file("Early stop manually")
@@ -563,11 +665,11 @@ class VCLRunner(KTRunner):
 
     def fit(
         self,
-        model,
-        batches,
+        model: torch.nn.Module,
+        batches: list = None,
         epoch: int = 0,
         time_step: int = 0,
-    ):
+    ) -> dict:
         """
         Trains the given model on the given batches of data.
 
@@ -585,7 +687,6 @@ class VCLRunner(KTRunner):
         train_losses = defaultdict(list)
 
         for mini_epoch in range(10):  # self.epoch):
-
             # Iterate through each batch.
             for batch in tqdm(
                 batches,
@@ -652,17 +753,33 @@ class VCLRunner(KTRunner):
         test_batches: list = None,
         epoch: int = 0,
         time_step: int = 0,
-    ):
+    ) -> None:
+        """
+        Evaluate the KT model instance on the test dataset.
+
+        Args:
+            model (torch.nn.Module): The KT model instance to evaluate.
+            test_batches (list, optional): List of batches for the test dataset. Defaults to None.
+            epoch (int, optional): The current epoch number. Defaults to 0.
+            time_step (int, optional): The current time step. Defaults to 0.
+
+        """
+        # Dictionary to store test losses
         test_losses = defaultdict(list)
+
+        # Set the model to evaluation mode
         model.module.eval()
 
-        if (self.args.test) & (epoch % self.args.test_every == 0):
+        # If testing is enabled and the current epoch is a multiple of test_every
+        if self.args.test and epoch % self.args.test_every == 0:
             with torch.no_grad():
+                # Iterate over test batches and evaluate
                 for batch in test_batches:
                     batch = model.module.batch_to_gpu(batch, self.device)
                     loss_dict = model.module.eval_model(batch, time_step)
                     test_losses = self.logs.append_batch_losses(test_losses, loss_dict)
 
+            # Generate result string and write to log file
             string = self.logs.result_string("test", epoch, test_losses, t=epoch)
             self.logs.write_to_log_file(string)
             self.logs.append_epoch_losses(test_losses, "test")

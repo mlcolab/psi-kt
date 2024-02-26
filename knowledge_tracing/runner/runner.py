@@ -155,7 +155,7 @@ class KTRunner(object):
         self,
         model: torch.nn.Module,
         corpus: DataReader,
-    ):
+    ) -> None:
         """
         Trains the KT model instance with parameters.
 
@@ -282,7 +282,7 @@ class KTRunner(object):
         corpus: DataReader,
         epoch: int = 0,
         train_loss: float = 0.0,
-    ):
+    ) -> None:
         training_time = self._check_time()
 
         model.module.eval()
@@ -327,10 +327,10 @@ class KTRunner(object):
     def fit(
         self,
         model: torch.nn.Module,
-        batches=None,
-        epoch_train_data=None,
-        epoch=-1,
-    ):
+        batches: list = None,
+        epoch_train_data: pd.DataFrame = None,
+        epoch: int = 0,
+    ) -> dict:
         """
         Trains the given model on the given batches of data.
 

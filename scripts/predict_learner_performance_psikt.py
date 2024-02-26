@@ -25,6 +25,15 @@ def global_parse_args():
     parser = argparse.ArgumentParser(description="Global")
     parser.add_argument("--model_name", type=str, help="Choose a model to run.")
 
+    # Data loading parameters
+    parser.add_argument(
+        "--graph_path",
+        type=str,
+        default="../kt/junyi15/adj.npy",
+        help="if the data has ground-truth graph we can compare our inferred graph with ground truth. Note the GT graph is not used for training.",
+    )
+    
+    # Training parameters
     parser.add_argument(
         "--learned_graph",
         type=str,
@@ -32,16 +41,10 @@ def global_parse_args():
         help="none: no graph is learner; b_gt: graph with binary edge; w_gt: graph with weighted graph",
     )
     parser.add_argument(
-        "--graph_path",
-        type=str,
-        default="../kt/junyi15/adj.npy",
-        help="if the data has ground-truth graph we can compare our inferred graph with ground truth. Note the GT graph is not used for training.",
-    )
-    parser.add_argument(
-        "--num_sample",
+        "--em_train",
         type=int,
-        default=100,
-        help="number of samples when we use MC for non-analytical solution",
+        default=0,
+        help="whether to use the EM version of training, i.e., separate the generative model and inference model",
     )
     parser.add_argument(
         "--node_dim",
@@ -50,10 +53,10 @@ def global_parse_args():
         help="the dimension of the node embedding of learned concept graph",
     )
     parser.add_argument(
-        "--em_train",
+        "--num_sample",
         type=int,
-        default=0,
-        help="whether to use the EM version of training, i.e., separate the generative model and inference model",
+        default=1e3,
+        help="number of samples when we use MC for non-analytical solution",
     )
     parser.add_argument(
         "--var_log_max",
@@ -64,9 +67,11 @@ def global_parse_args():
     parser.add_argument(
         "--num_category",
         type=int,
-        default=100,
+        default=1e1,
         help="the number of categories in the categorical distribution in GMVAE",
     )
+    
+    # Loss weight parameters
     parser.add_argument(
         "--s_entropy_weight",
         type=float,
@@ -114,29 +119,33 @@ def global_parse_args():
 
 
 if __name__ == "__main__":
-    # ----- add aditional arguments for this exp. -----
-    parser = global_parse_args()
-    parser = arg_parser.parse_args(parser)
-    global_args, extras = parser.parse_known_args()
+    # Parse global arguments and additional experiment-specific arguments
+    parser = global_parse_args()  # Global argument parser setup
+    parser = arg_parser.parse_args(parser)  # Add experiment-specific arguments
+    global_args, extras = parser.parse_known_args()  # Parse known and extra arguments
 
+    # Set current time and device (GPU or CPU) in global_args
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+    # Initialize logger with global arguments
     logs = logger.Logger(global_args)
 
-    # ----- data part -----
+    # Setup path for corpus data and initialize data reader
     corpus_path = Path(
         global_args.data_dir,
         global_args.dataset,
         "Corpus_{}.pkl".format(global_args.max_step),
     )
     data = data_loader.DataReader(global_args, logs)
+    
+    # If corpus does not exist or regeneration is requested, create and save corpus
     if not corpus_path.exists() or global_args.regenerate_corpus:
         data.create_corpus()
         data.show_columns()
     corpus = data.load_corpus(global_args)
 
-    # ----- logger information -----
+    # Log experiment setup information
     log_args = [
         global_args.model_name,
         global_args.dataset,
@@ -145,12 +154,23 @@ if __name__ == "__main__":
     logs.write_to_log_file("-" * 45 + " BEGIN: " + utils.get_time() + " " + "-" * 45)
     logs.write_to_log_file(utils.format_arg_str(global_args, exclude_lst=[]))
 
-    # ----- random seed -----
+    # Set random seed for reproducibility
     torch.manual_seed(global_args.random_seed)
     torch.cuda.manual_seed(global_args.random_seed)
     np.random.seed(global_args.random_seed)
 
-    # ----- GPU & CUDA -----
+    # Setup GPU and CUDA if available
+    if global_args.device.type != "cpu":
+        if global_args.GPU_to_use is not None:
+            torch.cuda.set_device(global_args.GPU_to_use)
+        global_args.num_GPU = torch.cuda.device_count()  # Number of GPUs available
+        global_args.batch_size_multiGPU = global_args.batch_size * global_args.num_GPU
+    else:
+        global_args.num_GPU = None
+        global_args.batch_size_multiGPU = global_args.batch_size
+    logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
+
+    # Setup GPU and CUDA if available
     if global_args.device.type != "cpu":
         if global_args.GPU_to_use is not None:
             torch.cuda.set_device(global_args.GPU_to_use)
@@ -161,13 +181,9 @@ if __name__ == "__main__":
         global_args.batch_size_multiGPU = global_args.batch_size
     logs.write_to_log_file("# cuda devices: {}".format(torch.cuda.device_count()))
 
-    # ----- Model initialization -----
-    if "ls_" or "ln_" in global_args.train_mode:
-        num_seq = corpus.n_users if not global_args.overfit else global_args.overfit
-    else:
-        num_seq = 1
-
-    adj = np.load(global_args.graph_path)
+    # Model initialization based on training mode and whether using VCL or not
+    num_seq = corpus.n_users if not global_args.num_learner else global_args.num_learner
+    adj = np.load(global_args.graph_path)  # Load adjacency matrix for graph
 
     if global_args.vcl == 0:
         model = AmortizedPSIKT(
@@ -189,17 +205,20 @@ if __name__ == "__main__":
             num_seq=num_seq,
         )
 
+    # Load model state from file if specified
     if global_args.load > 0:
         model.load_state_dict(torch.load(global_args.load_folder), strict=False)
+        # Disable gradient updates for generator parameters in VCL mode
         if global_args.vcl:
             for name, param in model.named_parameters():
                 if "gen" in name:
                     param.requires_grad = False
 
+    # Log model details and prepare for training
     logs.write_to_log_file(model)
-    model.actions_before_train()
+    model.actions_before_train()  # Perform any pre-training actions
 
-    # Move to current device
+    # Move model to the current device (GPU or CPU)
     if torch.cuda.is_available():
         if global_args.distributed:
             model, _ = utils.distribute_over_GPUs(
@@ -215,6 +234,7 @@ if __name__ == "__main__":
         runner = runner_psikt.PSIKTRunner(global_args, logs)
 
 runner.train(model, corpus)
+# Log the end of the experiment
 logs.write_to_log_file(
     os.linesep + "-" * 45 + " END: " + utils.get_time() + " " + "-" * 45
 )

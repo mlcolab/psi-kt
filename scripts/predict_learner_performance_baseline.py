@@ -29,7 +29,7 @@ def global_parse_args():
     parser = argparse.ArgumentParser(description="Global")
 
     parser.add_argument(
-        "--model_name", type=str, default="CausalKT", help="Choose a model to run."
+        "--model_name", type=str, default="CausalKT", help="choose a model to run."
     )
 
     return parser
@@ -52,7 +52,6 @@ if __name__ == "__main__":
     # ----- args -----
     # reference:
     # # https://docs.python.org/3/library/argparse.html?highlight=parse_known_args#argparse.ArgumentParser.parse_known_args
-
     global_args.model_name = model_name
     global_args.time = datetime.datetime.now().isoformat()
     global_args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

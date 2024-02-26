@@ -8,26 +8,52 @@ import pandas as pd
 
 import torch
 
+
 class Logger:
-    def __init__(
-        self,
-        args: argparse.Namespace
-    ):
+    def __init__(self, args: argparse.Namespace) -> None:
+        """
+        A logger class for tracking and storing results of training, testing, and validation processes.
+
+        This class is designed to initialize logging structures and, if specified by the user,
+        create a log path for storing results. It maintains separate pandas DataFrame objects
+        for training, testing, and validation results, allowing for organized storage and easy
+        retrieval of performance metrics.
+
+        Attributes:
+            args (argparse.Namespace): Configuration arguments passed to the logger. Includes
+                all necessary parameters for log creation and management, such as paths and
+                flags indicating whether to create log files.
+            train_results (pd.DataFrame): DataFrame to store training process results.
+            test_results (pd.DataFrame): DataFrame to store testing process results.
+            val_results (pd.DataFrame): DataFrame to store validation process results.
+
+        Methods:
+            __init__(self, args: argparse.Namespace) -> None:
+                Initializes the Logger instance, setting up the DataFrames for storing
+                results and creating log paths if indicated by the configuration.
+
+        Raises:
+            ValueError: If the arguments passed do not meet expected criteria (optional,
+                        depending on implementation details of create_log_path).
+
+        Note:
+            The create_log_path method should be documented separately to detail its
+            functionality, parameters, return values, and any exceptions it might raise.
+        """
         self.args = args
-        
+
         self.train_results = pd.DataFrame()
         self.test_results = pd.DataFrame()
         self.val_results = pd.DataFrame()
-        
+
         if args.create_logs:
             self.create_log_path(args)
 
-
-    @staticmethod 
+    @staticmethod
     def append_batch_losses(
         losses_list: dict,
         losses: dict,
-    ):
+    ) -> dict:
         """
         # TODO is it necesary to make this static?
         Appends the losses dictionary to the losses_list.
@@ -47,13 +73,12 @@ class Logger:
             else:
                 losses_list[loss].append(value.item())
         return losses_list
-    
-    
+
     def create_log_path(
-        self, 
+        self,
         args: argparse.Namespace,
         add_path_var: str = "",
-    ):
+    ) -> None:
         """
         Creates a log path for saving files related to the experiment.
 
@@ -61,8 +86,13 @@ class Logger:
             args: An object containing various arguments.
             add_path_var: Additional path variable to be included in the log path.
         """
-        args.log_path = Path(args.save_folder, add_path_var, args.model_name, args.dataset,
-                                     f"{args.time}_{args.expername}_overfit_{args.overfit}")
+        args.log_path = Path(
+            args.save_folder,
+            add_path_var,
+            args.model_name,
+            args.dataset,
+            f"{args.time}_{args.expername}_overfit_{args.overfit}",
+        )
         args.log_path.mkdir(parents=True, exist_ok=True)
 
         self.log_file = Path(args.log_path, "log.txt")
@@ -73,11 +103,10 @@ class Logger:
         args.visdir = Path(args.log_path, "out_dict")
         args.visdir.mkdir(exist_ok=True)
 
-
     def write_to_log_file(
-        self, 
+        self,
         string: str,
-    ):
+    ) -> None:
         """
         Write given string in log-file and print as terminal output
         """
@@ -88,37 +117,35 @@ class Logger:
         cur_file.write("\n")
         cur_file.close()
 
-
     def append_epoch_losses(
-        self, 
+        self,
         loss_dict: dict,
-        phase: str = 'train',
-    ):
-        '''
+        phase: str = "train",
+    ) -> None:
+        """
         Append loss results to corresponding data frame
-        '''
-        if phase == 'train':
+        """
+        if phase == "train":
             results_df = self.train_results
-        elif phase == 'val':
+        elif phase == "val":
             results_df = self.val_results
-        elif phase == 'test':
+        elif phase == "test":
             results_df = self.test_results
         else:
-            raise ValueError('Invalid result type: ' + phase)
+            raise ValueError("Invalid result type: " + phase)
 
         results_idx = len(results_df)
         for k, v in loss_dict.items():
             results_df.at[str(results_idx), k] = np.mean(v)
-        
-        
+
     def result_string(
-        self, 
-        phase: str, 
-        epoch: int, 
-        losses: dict, 
-        t: float = None, 
+        self,
+        phase: str,
+        epoch: int,
+        losses: dict,
+        t: float = None,
         mini_epoch: int = None,
-    ): 
+    ) -> str:
         """
         Generates a string representation of the results.
 
@@ -132,9 +159,9 @@ class Logger:
         Returns:
             The string representation of the results.
         """
-        
+
         string = ""
-        
+
         if phase == "test":
             string += (
                 "-------------------------------- \n"
@@ -158,9 +185,8 @@ class Logger:
             string += "time: {:.4f}s \t".format(time.time() - t)
 
         return string
-    
-    
-    def draw_loss_curves(self):
+
+    def draw_loss_curves(self) -> None:
         """
         Draw loss curves for train, validation, and test results.
 
@@ -183,19 +209,18 @@ class Logger:
             plt.legend(loc="upper right")
 
             # save image
-            filename = f'train_{i}.png'
+            filename = f"train_{i}.png"
             filepath = Path(self.args.plotdir, filename)
             plt.savefig(filepath)
             plt.close()
-            
 
     def save_checkpoint(
-        self, 
+        self,
         args: argparse.Namespace,
         model: torch.nn.Module,
         optimizer: torch.optim.Optimizer,
         specifier: str = "",
-    ):
+    ) -> None:
         """
         Save model and optimizer checkpoints at specified path and specifier.
 
@@ -217,8 +242,7 @@ class Logger:
         if optimizer is not None:
             torch.save(optimizer.state_dict(), optimizer_file_path)
 
-            
-    def create_log( 
+    def create_log(
         self,
         args: argparse.Namespace,
         accuracy: float = None,
@@ -227,7 +251,7 @@ class Logger:
         final_test: bool = False,
         test_results: pd.DataFrame = None,
         specifier: str = "",
-    ):
+    ) -> None:
         """
         Create a log file and save the model and results.
 
@@ -245,8 +269,10 @@ class Logger:
             self.val_results.to_pickle(Path(self.args.log_path, "out_dict", "val_loss"))
 
         if self.test_results is not None:
-            self.test_results.to_pickle(Path(self.args.log_path, "out_dict", "test_loss"))
-            
+            self.test_results.to_pickle(
+                Path(self.args.log_path, "out_dict", "test_loss")
+            )
+
         if accuracy is not None:
             np.save(Path(self.args.log_path, "accuracy"), accuracy)
 
@@ -259,7 +285,9 @@ class Logger:
                 ],
                 columns=["loss", "score"],
             )
-            pd_test_results.to_pickle(Path(self.args.log_path, "out_dict", "test_results"))
+            pd_test_results.to_pickle(
+                Path(self.args.log_path, "out_dict", "test_results")
+            )
 
             pd_test_results_per_influenced = pd.DataFrame(
                 list(
@@ -285,7 +313,6 @@ class Logger:
 
         # Save the model checkpoint
         self.save_checkpoint(args, model, optimizer, specifier=specifier)
-    
 
     # def draw_val_curve(self):
     #     for i in self.val_results.columns:
@@ -302,7 +329,7 @@ class Logger:
     #         # save image
     #         plt.savefig(Path(self.args.log_path, 'train_' + i + ".png"))
     #         plt.close()
-    
+
     # def draw_tta_curves(self):
     #     for i in self.val_results.columns:
     #         if 'tta_ori_' in i:

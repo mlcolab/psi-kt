@@ -52,40 +52,70 @@ def parse_args(parser):
         default="../kt",
         help="Input data dir.",
     )
-    parser.add_argument("--dataset", type=str, help="[junyi, assistment12, ]")
-    parser.add_argument("--kfold", type=int, default=5, help="K-fold number.")
-    parser.add_argument("--fold", type=int, default=0, help="Select a fold to run.")
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        help="dataset choices from [junyi15, assistment12, asssitment17]",
+    )
 
     parser.add_argument(
-        "--max_step", type=int, default=50, help="Max time steps per sequence."
+        "--max_step",
+        type=int,
+        default=50,
+        help="max time steps per sequence in pre-processing",
     )
-    parser.add_argument("--regenerate_corpus", action="store_true", default=False)
+    parser.add_argument(
+        "--regenerate_corpus",
+        type=int,
+        default=1,
+        help="whether to regenerate the corpus based on interaction data",
+    )
 
-    parser.add_argument("--train_time_ratio", type=float, default=0.2, help="")
-    parser.add_argument("--val_time_ratio", type=float, default=0.2, help="")
-    parser.add_argument("--test_time_ratio", type=float, default=0.2, help="")
+    parser.add_argument(
+        "--train_time_ratio",
+        type=float,
+        default=0.2,
+        help="the ratio of training data to the total data.",
+    )
+    parser.add_argument(
+        "--val_time_ratio",
+        type=float,
+        default=0.2,
+        help="the ratio of validation data to the total data.",
+    )
+    parser.add_argument(
+        "--test_time_ratio",
+        type=float,
+        default=0.2,
+        help="the ratio of testing data to the total data.",
+    )
 
     ############## logger ##############
-    parser.add_argument("--create_logs", default=1)
+    parser.add_argument(
+        "--create_logs", type=int, default=1, help="whether to create logs"
+    )
     parser.add_argument(
         "--save_folder",
         type=str,
         default="../kt/logs",
+        help="where to save the model and logs",
     )
     parser.add_argument(
         "--save_every",
         type=int,
         default=10,
+        help="how often to save the model.",
     )
     parser.add_argument(
         "--expername",
         type=str,
         default="",
+        help="experiment name in saving the logs",
     )
 
     ############## KTRunner ##############
-    parser.add_argument("--vcl", type=int, default=0)
-    parser.add_argument("--finetune", type=int, default=0)
+    parser.add_argument("--vcl", type=int, default=0, help="whether to use VCL")
+    parser.add_argument("--finetune", type=int, default=0, help="whether to finetune")
     parser.add_argument(
         "--train_mode",
         type=str,
@@ -96,12 +126,12 @@ def parse_args(parser):
         + "ns_split_time"
         + "ns_split_learner"
         + "ln_split_time",
-    )  #
+    )
 
     ############## load and save model ##############
-    parser.add_argument("--start_epoch", type=int, default=0)
+    parser.add_argument("--start_epoch", type=int, default=0, help="start epoch")
     parser.add_argument(
-        "--load", type=int, default=0, help="Whether load model and continue to train"
+        "--load", type=int, default=0, help="whether load model and continue to train"
     )
     parser.add_argument(
         "--load_folder",
@@ -125,10 +155,10 @@ def parse_args(parser):
     )
     parser.add_argument("--lr", type=float, default=5e-3, help="Learning rate.")
     parser.add_argument(
-        "--batch_size", type=int, default=512, help="Batch size during training."
+        "--batch_size", type=int, default=512, help="batch size during training."
     )
     parser.add_argument(
-        "--eval_batch_size", type=int, default=512, help="Batch size during testing."
+        "--eval_batch_size", type=int, default=512, help="batch size during testing."
     )
     parser.add_argument("--vcl_predict_step", type=int, default=10)
     parser.add_argument(
@@ -140,7 +170,7 @@ def parse_args(parser):
     parser.add_argument(
         "--test_every", type=int, default=5, help="test results throughout training."
     )
-    
+
     ############## model architecture ##############
     parser.add_argument(
         "--multi_node",
@@ -152,10 +182,10 @@ def parse_args(parser):
         "--dropout",
         type=float,
         default=0.0,
-        help="Dropout probability for each deep layer",
+        help="dropout probability for each deep layer",
     )
     parser.add_argument(
-        "--l2", type=float, default=1e-5, help="Weight of l2_regularize in loss."
+        "--l2", type=float, default=1e-5, help="weight of l2_regularize in loss."
     )
     parser.add_argument(
         "--optimizer",

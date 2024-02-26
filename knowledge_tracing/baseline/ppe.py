@@ -10,6 +10,7 @@ from knowledge_tracing.baseline import *
 from knowledge_tracing.baseline.basemodel import BaseModel, BaseLearnerModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
+from knowledge_tracing.baseline import EPS, T_SCALE
 
 
 class PPE(BaseLearnerModel):
@@ -50,7 +51,6 @@ class PPE(BaseLearnerModel):
         mode: str = "ls_split_time",
         device: torch.device = torch.device("cpu"),
     ):
-        super().__init__(mode=args.train_mode, device=args.device, logs=logs)
         self.args = args
         self.logs = logs
         self.num_node = num_node
@@ -74,6 +74,10 @@ class PPE(BaseLearnerModel):
         self.variable_tau = torch.tensor(variable_tau, device=device).float()
         self.variable_s = torch.tensor(variable_s, device=device).float()
 
+        BaseLearnerModel.__init__(
+            self, mode=args.train_mode, device=args.device, logs=logs
+        )
+
     def _init_weights(self) -> None:
         """
         Initialize the weights based on the chosen training mode.
@@ -93,7 +97,7 @@ class PPE(BaseLearnerModel):
             try:
                 shape = utils.get_theta_shape(self.num_seq, self.num_node, 1)[
                     self.mode.lower()
-                ].value
+                ]
             except KeyError:
                 raise ValueError(f"Invalid mode: {self.mode}")
             self.lr = self._initialize_parameter(shape, self.device)
@@ -119,20 +123,20 @@ class PPE(BaseLearnerModel):
         Simulate the learner model's path over time.
 
         Args:
-            x0: shape[num_seq/bs, num_node]; the initial state of the learner model
-            t: shape[num_seq/bs, num_time_step]
-            items: [num_seq/bs, num_time_step];
+            x0: shape[num_seq/batch_size, num_node]; the initial state of the learner model
+            t: shape[num_seq/batch_size, num_time_step]
+            items: [num_seq/batch_size, num_time_step];
                 ** it cannot be None when mode=synthetic
             stats_cal_on_fly: whether calculate the stats of history based on the prediction
                 ** TODO test. it causes gradient error now
-            stats: [num_seq/bs, num_node, num_time_step, 3]; it contains [N_total, N_success, N_failure]
+            stats: [num_seq/batch_size, num_node, num_time_step, 3]; it contains [N_total, N_success, N_failure]
         """
         assert t.numel() > 0  # check if tensor is not empty
         num_node = x0.shape[-1]
         num_seq, time_step = t.shape
 
         dt = torch.diff(t).unsqueeze(1)
-        dt = torch.tile(dt, (1, num_node, 1)) / T_SCALE + EPS  # [bs, num_node, time-1]
+        dt = torch.tile(dt, (1, num_node, 1)) / T_SCALE + EPS  # [batch_size, num_node, time-1]
 
         # ----- compute the stats of history -----
         if items == None or num_node == 1:
@@ -170,23 +174,20 @@ class PPE(BaseLearnerModel):
             cur_repeat = whole_stats[:, :, i, 0]
             cur_history_last_time = whole_last_time[
                 :, :, : i + 1
-            ]  # [bs, num_node, i+1]
+            ]  # [batch_size, num_node, i+1]
             lags = (
                 torch.diff(cur_history_last_time) / T_SCALE + EPS
-            )  # [bs, num_node, i]
+            )  # [batch_size, num_node, i]
             lag_mask = lags > 0
             dn = ((1 / torch.log(abs(lags + EPS) + np.e)) * lag_mask).sum(dim=-1) / (
                 cur_repeat - 1 + EPS
-            )  # [bs, num_node]
-            dn = batch_b + batch_m * dn.unsqueeze(-1)  # [bs, num_node, 1]
+            )  # [batch_size, num_node]
+            dn = batch_b + batch_m * dn.unsqueeze(-1)  # [batch_size, num_node, 1]
 
             # - big T
             small_t = (
                 t[..., i : i + 1] - whole_last_time[..., : i + 1]
             ) / T_SCALE + EPS
-            # cur_t.unsqueeze(-1) - cur_item_times # [bs, times]
-            # mask1 = (cur_item_times!=0)
-            # small_t *= mask1
             small_t = torch.minimum(small_t, torch.tensor(1e2))
             big_t = torch.nan_to_num(torch.pow(small_t + EPS, -batch_x)) / (
                 torch.sum(
@@ -196,7 +197,7 @@ class PPE(BaseLearnerModel):
                 )
                 + EPS
             )
-            big_t = torch.sum(big_t * small_t, -1)[..., None]  # [bs, num_node]
+            big_t = torch.sum(big_t * small_t, -1)[..., None]  # [batch_size, num_node]
             big_t = torch.nan_to_num(big_t)
 
             big_t_mask = big_t != 0
@@ -248,21 +249,83 @@ class PPE(BaseLearnerModel):
         Returns:
             Dict[str, torch.Tensor]: A dictionary containing output tensors from the forward pass.
         """
-
         # Extract input tensors from feed_dict
-        cur_feed_dict = {
-            "skill_seq": feed_dict["skill_seq"][:, : idx + 1],
-            "label_seq": feed_dict["label_seq"][:, : idx + 1],
-            "time_seq": feed_dict["time_seq"][:, : idx + 1],
-            "num_history": feed_dict["num_history"][:, : idx + 1],
-            "num_success": feed_dict["num_success"][:, : idx + 1],
-            "num_failure": feed_dict["num_failure"][:, : idx + 1],
-            "user_id": feed_dict["user_id"],
-        }
+        cur_feed_dict = utils.get_feed_continual(
+            keys=[
+                "skill_seq",
+                "label_seq",
+                "time_seq",
+                "num_history",
+                "num_success",
+                "num_failure",
+                "user_id",
+            ],
+            data=feed_dict,
+            idx=idx,
+        )
 
         out_dict = self.forward(cur_feed_dict)
 
         return out_dict
+
+    def evaluate_cl(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+        metrics=None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Evaluate the learner model's performance.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data tensors.
+            idx (int, optional): Index of the evaluation batch. Defaults to None.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing evaluation results.
+        """
+        test_step = 10
+
+        skills = feed_dict["skill_seq"][:, idx : idx + test_step + 1]
+        labels = feed_dict["label_seq"][:, idx : idx + test_step + 1]
+        times = feed_dict["time_seq"][:, idx : idx + test_step + 1]
+
+        batch_size, _ = labels.shape
+        self.num_seq = batch_size
+
+        x0 = torch.zeros((batch_size, self.num_node)).to(labels.device)
+        if self.num_node > 1:
+            x0[torch.arange(batch_size), skills[:, 0]] += labels[:, 0]
+            items = skills
+        else:
+            x0[:, 0] += labels[:, 0]
+            items = None
+
+        stats = torch.stack(
+            [
+                feed_dict["num_history"],
+                feed_dict["num_success"],
+                feed_dict["num_failure"],
+            ],
+            dim=-1,
+        )
+        stats = stats.unsqueeze(1)
+
+        out_dict = self.simulate_path(
+            x0=x0,
+            t=times,
+            items=items,
+            user_id=feed_dict["user_id"],
+            stats=stats,
+            stats_cal_on_fly=True,
+        )
+
+        labels = labels.unsqueeze(1)[..., 1:].float()
+        prediction = out_dict["x_item_pred"][..., 1:]
+
+        return self.pred_evaluate_method(
+            prediction.flatten().cpu(), labels.flatten().cpu(), metrics
+        )
 
     def predictive_model(
         self,
@@ -286,12 +349,12 @@ class PPE(BaseLearnerModel):
         times = feed_dict["time_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
         labels = feed_dict["label_seq"][:, train_step - 1 :]  # [batch_size, seq_len]
 
-        bs, _ = labels.shape
-        self.num_seq = bs
+        batch_size, _ = labels.shape
+        self.num_seq = batch_size
 
-        x0 = torch.zeros((bs, self.num_node)).to(labels.device)
+        x0 = torch.zeros((batch_size, self.num_node)).to(labels.device)
         if self.num_node > 1:
-            x0[torch.arange(bs), skills[:, 0]] += labels[:, 0]
+            x0[torch.arange(batch_size), skills[:, 0]] += labels[:, 0]
             items = skills
         else:
             x0[:, 0] += labels[:, 0]
@@ -319,7 +382,7 @@ class PPE(BaseLearnerModel):
         out_dict.update(
             {
                 "prediction": out_dict["x_item_pred"][..., 1:],
-                "label": labels.unsqueeze(1)[..., 1:],  # [bs, 1, time]
+                "label": labels.unsqueeze(1)[..., 1:],  # [batch_size, 1, time]
             }
         )
 
@@ -356,13 +419,5 @@ class PPE(BaseLearnerModel):
             label = label.detach().cpu().data.numpy()
             evaluations = BaseModel.pred_evaluate_method(pred, label, metrics)
             losses.update(evaluations)
-
-        losses["learning_rate"] = self.lr.clone()[0, 0]
-        losses["variable_x"] = self.variable_x.clone()[0, 0]
-        losses["variable_b"] = self.variable_b.clone()[0, 0]
-        losses["variable_m"] = self.variable_m.clone()[0, 0]
-        losses["variable_tau"] = self.variable_tau.clone()[0, 0]
-        losses["variable_s"] = self.variable_s.clone()[0, 0]
-        losses["variable_b"] = self.variable_b.clone()[0, 0]
 
         return losses

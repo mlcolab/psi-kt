@@ -1,27 +1,27 @@
 import math, argparse
 from typing import List, Dict, Tuple, Optional
-from pathlib import Path
+from collections import defaultdict
 
 import numpy
+from pathlib import Path
 
 import torch
 from torch import nn, distributions
-from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.nn import functional as F
 
-from knowledge_tracing.groupkt import *
-from knowledge_tracing.groupkt.modules import build_dense_network, VAEEncoder
-from knowledge_tracing.groupkt.groupkt_graph_representation import VarTransformation
-from knowledge_tracing.groupkt.GMVAE.gmvae import *
+from knowledge_tracing.psikt import T_SCALE, EPS, COV_MIN
+from knowledge_tracing.psikt.modules import build_dense_network, VAEEncoder
+from knowledge_tracing.psikt.psikt_graph_representation import VarTransformation
+from knowledge_tracing.psikt.GMVAE.gmvae import *
 from knowledge_tracing.utils.logger import Logger
 from knowledge_tracing.baseline.basemodel import BaseModel
 
 
-class GroupKT(BaseModel):
+class PSIKT(BaseModel):
     """
-    Group Knowledge Tracing Model.
+    PSI Knowledge Tracing Model.
 
-    This class represents a Group Knowledge Tracing model used for training with different modes.
+    This class represents a PSI Knowledge Tracing model used for training with different modes.
 
     Args:
         mode (str): The training mode. Examples include 'train' and 'ls_split_time'.
@@ -32,7 +32,7 @@ class GroupKT(BaseModel):
         logs: Logs for the model.
 
     Usage:
-    >>> group_kt_model = GroupKT(mode, num_node, nx_graph, device, args, logs)
+    >>> psi_kt_model = PSIKT(mode, num_node, nx_graph, device, args, logs)
     """
 
     def __init__(
@@ -57,9 +57,7 @@ class GroupKT(BaseModel):
         self.args = args
         self.logs = logs
 
-        BaseModel.__init__(
-            self, model_path=Path(args.log_path, "Model/Model_{}_{}.pt")
-        )
+        BaseModel.__init__(self, model_path=Path(args.log_path, "Model"))
 
     @staticmethod
     def _normalize_timestamps(
@@ -86,12 +84,12 @@ class GroupKT(BaseModel):
         """
         Construct a multivariate Gaussian distribution from a mean and covariance matrix.
 
-        Parameters:
-        - mean: a PyTorch parameter representing the mean of the Gaussian distribution
-        - cov: a PyTorch parameter representing the covariance matrix of the Gaussian distribution
+        Args:
+            mean: a PyTorch parameter representing the mean of the Gaussian distribution
+            cov: a PyTorch parameter representing the covariance matrix of the Gaussian distribution
 
         Returns:
-        - dist: a PyTorch distribution representing the multivariate Gaussian distribution
+            dist: a PyTorch distribution representing the multivariate Gaussian distribution
         """
         if std.shape[-1] == 1:
             # if the covariance matrix is a scalar, create a univariate normal distribution
@@ -99,73 +97,15 @@ class GroupKT(BaseModel):
             return dist
 
         else:
-            # check if the covariance matrix is positive definite
-
-            # # way 1
-            # raw_sigma_bias = 0.0
-            # sigma_min = 1e-5
-            # sigma_scale = 0.05
-            # cov = (torch.maximum(F.softmax(cov + raw_sigma_bias, dim=-1),
-            #                                 torch.tensor(sigma_min)) * sigma_scale)
-
-            # # way 2
-            # try:
-            #     torch.linalg.cholesky(cov)
-            # except RuntimeError:
-            #     # if the covariance matrix is not positive definite, add a small positive constant to its diagonal
-            #     cov = cov + torch.eye(cov.size(-1)) * EPS
-
-            # way 3
-            # use the torch.cholesky() function to compute the Cholesky decomposition of a matrix.
-            # The resulting lower triangular matrix is guaranteed to be positive definite
             cov_pdm = torch.matmul(std, std.transpose(-1, -2)) + EPS
-            # try:
-            #     torch.linalg.cholesky(cov_pdm)
-            # except RuntimeError:
-            #     # if the covariance matrix is not positive definite, add a small positive constant to its diagonal
-            #     cov_pdm = cov_pdm + torch.eye(cov_pdm.size(-1)) * EPS
 
-            # create a multivariate normal distribution
             dist = distributions.MultivariateNormal(
                 mean, scale_tril=torch.tril(cov_pdm)
             )
         return dist
 
     @staticmethod
-    def _initialize_gaussian_mean_log_var(
-        dim: int, use_trainable_cov: bool, num_sample: int = 1
-    ) -> Tuple[nn.Parameter, nn.Parameter]:
-        """
-        Construct the initial mean and covariance matrix for the multivariate Gaussian distribution.
-
-        Args:
-            dim: an integer representing the dimension of the Gaussian distribution
-            use_trainable_cov: a boolean indicating whether to use a trainable covariance matrix
-            num_sample: an integer representing the number of samples to generate
-
-        Returns:
-            x0_mean: a PyTorch parameter representing the initial mean of the Gaussian distribution
-            x0_scale: a PyTorch parameter representing the initial covariance matrix of the Gaussian distribution
-        """
-        x0_mean = nn.init.xavier_uniform_(
-            torch.empty(num_sample, dim)
-        )  # , device=self.device))
-        x0_mean = nn.Parameter(x0_mean, requires_grad=True)
-
-        # m = nn.init.xavier_uniform_(torch.empty(num_sample, int(dim * (dim + 1) / 2), device=self.device))
-        # x0_scale = torch.zeros((num_sample, dim, dim), device=self.device)
-        # tril_indices = torch.tril_indices(row=dim, col=dim, offset=0)
-        # x0_scale[:, tril_indices[0], tril_indices[1]] += m
-        # x0_scale = nn.Parameter(x0_scale, requires_grad=use_trainable_cov)
-        x0_log_var = torch.ones((num_sample, dim)) * torch.log(torch.tensor(COV_MIN))
-        x0_log_var = nn.Parameter(x0_log_var, requires_grad=use_trainable_cov)
-
-        return x0_mean, x0_log_var
-
-    @staticmethod
-    def _positional_encoding1d(
-        dim: int, length: int, actual_time=None
-    ) -> torch.Tensor:
+    def _positional_encoding1d(dim: int, length: int, actual_time=None) -> torch.Tensor:
         """
         Modified based on https://github.com/wzlxjtu/PositionalEncoding2D
         Args:
@@ -177,7 +117,7 @@ class GroupKT(BaseModel):
         """
         if actual_time == None:
             position = torch.arange(0, length).unsqueeze(1)
-            
+
         else:
             device = actual_time.device
             if dim % 2 != 0:
@@ -223,7 +163,6 @@ class GroupKT(BaseModel):
             time steps. The 'absolute' option uses the original time values as time embeddings.
 
         """
-
         if type == "dt":
             dt = torch.diff(time, dim=1)
             t_pe = self._positional_encoding1d(
@@ -328,12 +267,12 @@ class GroupKT(BaseModel):
         outdict: Dict[str, torch.Tensor],
         metrics: List[str] = None,
     ):
-        pass
+        raise NotImplementedError
 
 
-class AmortizedGroupKT(GroupKT):
+class AmortizedPSIKT(PSIKT):
     """
-    An instance of AmortizedGroupKT.
+    An instance of AmortizedPSIKT.
 
     Args:
         mode (str): The mode for initialization (default: "ls_split_time").
@@ -361,7 +300,6 @@ class AmortizedGroupKT(GroupKT):
 
         self.var_log_max = torch.tensor(args.var_log_max)
         self.num_category = args.num_category
-        self.time_dependent_s = args.time_dependent_s
         self.learned_graph = args.learned_graph
 
         # initialize graph parameters
@@ -376,15 +314,24 @@ class AmortizedGroupKT(GroupKT):
         self.qs_hard = 0
 
         super().__init__(mode, num_node, nx_graph, device, args, logs)
-        
-    def _init_weights(self) -> None:
-        """
-        Initialize the weights of the model.
 
-        This function creates the necessary layers of the model and initializes their weights.
+    def _init_params(self, shape: Tuple[int, int], grad=True) -> None:
+        """
+        Initialize the parameters of the model.
+
+        This function creates the necessary layers of the model and initializes their parameters.
 
         Returns:
             None
+        """
+        param = nn.init.xavier_uniform_(torch.empty(shape))
+        return nn.Parameter(param, requires_grad=grad)
+
+    def _init_weights(self) -> None:
+        """
+        Initialize the weights of the model.
+        This function creates the necessary layers of the model and initializes their weights.
+
         """
         self.node_dist = VarTransformation(
             device=self.device,
@@ -405,19 +352,17 @@ class AmortizedGroupKT(GroupKT):
         )
 
         # ----- 2. transition distribution p(s|s') or p(s|s',y',c'); p(z|s,z') (OU) -----
-        time_step = int(self.args.max_step * self.args.train_time_ratio)
-        # TODO: more systematic way
         gen_st_h = nn.init.xavier_uniform_(torch.empty(1, self.dim_s))
         self.gen_st_h = nn.Parameter(torch.diag_embed(gen_st_h)[0], requires_grad=True)
-        gen_st_log_r = nn.init.xavier_uniform_(torch.empty(1, self.dim_s))
-        self.gen_st_log_r = nn.Parameter(gen_st_log_r, requires_grad=True)
+        self.gen_st_log_r = self._init_params((1, self.dim_s))
 
         # ----- 3. emission distribution p(y|z) -----
         self.y_emit = torch.nn.Sigmoid()
 
         # --------------- for parameters Phi ---------------
+        time_step = int(self.args.max_step * self.args.train_time_ratio)
         # the embedding network at each time step emb_t = f(y_t, c_t, t)
-        # the variational posterior distribution q(s_1:t | y_1:t, c_1:t) and q(z_1:t | y_1:t, c_1:t) TODO could add structure later q(z_1:t | y_1:t, s_1:t)
+        # the variational posterior distribution q(s_1:t | y_1:t, c_1:t) and q(z_1:t | y_1:t, c_1:t)
         # ----- 1. embedding network -----
         self.infer_network_emb = build_dense_network(
             self.node_dim * 2, [self.node_dim, self.node_dim], [nn.LeakyReLU(0.2), None]
@@ -428,10 +373,9 @@ class AmortizedGroupKT(GroupKT):
             self.node_dim, self.dim_s, self.num_category, time_step
         )
 
-        # self.st_transition_infer
-        # 3. variational posterior distribution q(z_1:t | y_1:t, c_1:t)
+        # ----- 3. variational posterior distribution q(z_1:t | y_1:t, c_1:t) -----
         self.infer_network_posterior_z = nn.LSTM(
-            input_size=self.node_dim,  # self.infer_network_emb.hidden_size*2 if self.infer_network_emb.bidirectional else self.infer_network_emb.hidden_size,
+            input_size=self.node_dim,
             hidden_size=self.node_dim * 2,
             bidirectional=False,
             batch_first=True,
@@ -440,11 +384,33 @@ class AmortizedGroupKT(GroupKT):
             self.node_dim * 2, self.node_dim, self.num_node
         )
 
+    def _initialize_gaussian_mean_log_var(
+        self, dim: int, use_trainable_cov: bool, num_sample: int = 1
+    ) -> Tuple[nn.Parameter, nn.Parameter]:
+        """
+        Construct the initial mean and covariance matrix for the multivariate Gaussian distribution.
+
+        Args:
+            dim: an integer representing the dimension of the Gaussian distribution
+            use_trainable_cov: a boolean indicating whether to use a trainable covariance matrix
+            num_sample: an integer representing the number of samples to generate
+
+        Returns:
+            x0_mean: a PyTorch parameter representing the initial mean of the Gaussian distribution
+            x0_scale: a PyTorch parameter representing the initial covariance matrix of the Gaussian distribution
+        """
+        x0_mean = self._init_params((num_sample, dim))
+
+        x0_log_var = torch.ones((num_sample, dim)) * torch.log(torch.tensor(COV_MIN))
+        x0_log_var = nn.Parameter(x0_log_var, requires_grad=use_trainable_cov)
+
+        return x0_mean, x0_log_var
+
     def st_transition_gen(
         self,
-        qs_dist: MultivariateNormal,
+        qs_dist: distributions.MultivariateNormal,
         eval: bool = False,
-    ) -> MultivariateNormal:
+    ) -> distributions.MultivariateNormal:
         """
         Generate state transitions based on a given multivariate normal distribution.
 
@@ -470,22 +436,15 @@ class AmortizedGroupKT(GroupKT):
         ps0_cov_mat = torch.diag_embed(torch.exp(self.gen_s0_log_var.to(device)) + EPS)
         ps0_mean = self.gen_s0_mean.to(device)
 
-        # -- 1. the prior from generative model of GMVAE --
-        # s_category = self.s_category
-        # out_gen = self.gen_network_transition_s(s_category)
-        # ps_mean = out_gen['s_mean'] # [bs, 1, dim_s]
-        # ps_var = out_gen['s_var'] # [bs, 1, dim_s]
-
         # -- 2. prior of single step of H, R --
-        pst_mean = (
-            qs_mean[:, :, :-1] @ self.gen_st_h 
-        )  # [bs, 1, time-1, dim_s]
+        pst_mean = qs_mean[:, :, :-1] @ self.gen_st_h  # [bs, 1, time-1, dim_s]
         pst_transition_var = torch.exp(self.gen_st_log_r)
         pst_transition_cov_mat = torch.diag_embed(pst_transition_var + EPS)
         pst_cov_mat = (
             self.gen_st_h @ qs_cov_mat[:, :, :-1] @ self.gen_st_h.transpose(-1, -2)
             + pst_transition_cov_mat
         )  # [bs, 1, time-1, dim_s, dim_s]
+
         # concatenate sequential st and initial s0
         ps0_mean_bs = ps0_mean.reshape(1, 1, 1, self.dim_s).repeat(bs, 1, 1, 1)
         ps_mean = torch.cat([ps0_mean_bs, pst_mean], dim=-2)  # [bs, 1, time, dim_s]
@@ -496,32 +455,9 @@ class AmortizedGroupKT(GroupKT):
             [ps0_cov_mat_mc, pst_cov_mat], dim=-3
         )  # [bs, 1, time, dim_s, dim_s]
 
-        # # -- 3. multi-step transition --
-        # # -- prior of multiple steps of H, R --
-        # qs_sample = qs_dist.rsample((self.num_sample,)) # [num_sample, bs, 1, time, dim_s]
-        # qst_sample = qs_sample[:, :, :, 1:]
-        # bs = qst_sample.shape[1]
-        # device = qst_sample.device # useful when doing DDP
-        # time_step = qst_sample.shape[-2]
-
-        # # log-probability of sequential value s_{1:t} # TODO: a bit hacky
-        # prev_var = ps0_var
-        # prev_mean = ps0_mean
-        # pst_cov_mat = torch.diag_embed(torch.exp(self.gen_st_log_r) + EPS)
-        # ps_means, ps_vars = [ps0_mean], [ps0_var]
-
-        # for _ in range(time_step):
-        #     next_mean = prev_mean @ self.gen_st_h + self.gen_st_b # [bs, 1, dim_s]
-        #     next_var = self.gen_st_h @ prev_var @ self.gen_st_h.transpose(-1, -2) + pst_cov_mat # [bs, 1, dim_s, dim_s]
-        #     ps_means.append(next_mean)
-        #     ps_vars.append(next_var)
-        #     prev_mean = next_mean
-        #     prev_var = next_var
-
-        # ps_mean = torch.stack(ps_means, dim=1).unsqueeze(0) # [1, 1, time, dim_s]
-        # ps_cov_mat = torch.stack(ps_vars, dim=1).unsqueeze(0) # [1, 1, time, dim_s, dim_s]
-
-        ps_dist = MultivariateNormal(loc=ps_mean, scale_tril=torch.tril(ps_cov_mat))
+        ps_dist = distributions.MultivariateNormal(
+            loc=ps_mean, scale_tril=torch.tril(ps_cov_mat)
+        )
 
         if not eval:  # For debugging
             self.register_buffer("ps_mean", ps_mean.clone().detach())
@@ -580,11 +516,9 @@ class AmortizedGroupKT(GroupKT):
         # s_n and its disentangled elements
         qs_mean = qs_dist.mean[:, 0, 1:]  # [bs, time-1, dim_s]
         q_alpha = torch.relu(qs_mean[..., 0:1]) + EPS
-        q_mu = qs_mean[..., 1:2]  # torch.tanh(qs_mean[..., 1:2])
-        q_sigma = qs_mean[
-            ..., 2:3
-        ]  # TODO  q_sigma = torch.minimum(qs_mean[..., 2:3], self.var_log_max.to(device))
-        q_gamma = torch.sigmoid(qs_mean[..., 3:4])  # torch.zeros_like(q_sigma)
+        q_mu = qs_mean[..., 1:2]  # torch.tanh(qs_mean[..., 1:2]) #
+        q_sigma = qs_mean[..., 2:3]
+        q_gamma = torch.sigmoid(qs_mean[..., 3:4])  # torch.zeros_like(q_sigma) #
 
         # calculate useful variables
         # exp(-alpha * dt)
@@ -617,18 +551,13 @@ class AmortizedGroupKT(GroupKT):
             1, 1, self.num_node
         )  # [bs, time, num_node]
 
-        pz_dist = MultivariateNormal(
+        pz_dist = distributions.MultivariateNormal(
             loc=pz_mean, scale_tril=torch.tril(torch.diag_embed(pz_var + EPS))
         )
 
-        # if qs_sampled is None:
-        #     samples = qs_dist.rsample((self.num_sample,)) # [n, bs, time, dim_s]
-        #     qs_sampled = samples.transpose(1,0).reshape(bsn, 1, num_steps, self.dim_s)
-
-        # if self.time_dependent_s:
-        #     qst_sampled = qs_sampled[:,:,1:] # [bsn, 1, num_steps-1, dim_s]
-        # else:
-        #     qst_sampled = qs_sampled # TODO should repeat time-1 times
+        if qs_sampled is None:
+            samples = qs_dist.rsample((self.num_sample,))  # [n, bs, time, dim_s]
+            qs_sampled = samples.transpose(1, 0).reshape(bsn, 1, num_steps, self.dim_s)
 
         if not eval:
             self.register_buffer("pz_decay", pz_ou_decay.clone().detach())
@@ -664,7 +593,6 @@ class AmortizedGroupKT(GroupKT):
             emb_inputs,
             self.qs_temperature,
             self.qs_hard,
-            self.time_dependent_s,
         )
 
         s_category = qs_out_inf["categorical"]  # [bs, 1, num_cat]
@@ -672,18 +600,10 @@ class AmortizedGroupKT(GroupKT):
         s_var = qs_out_inf["s_var_infer"]  # [bs, 1, time, dim_s]
 
         s_var_mat = torch.diag_embed(s_var + EPS)  # [bs, 1, time, dim_s, dim_s]
-        qs_dist = MultivariateNormal(loc=s_mean, scale_tril=torch.tril(s_var_mat))
+        qs_dist = distributions.MultivariateNormal(
+            loc=s_mean, scale_tril=torch.tril(s_var_mat)
+        )
 
-        # NOTE: For debug use
-        if not eval:
-            self.register_buffer(
-                "qs_category_logits", qs_out_inf["logits"].clone().detach()
-            )
-            self.register_buffer(name="qs_mean", tensor=s_mean.clone().detach())
-            self.register_buffer(name="qs_var", tensor=s_var.clone().detach())
-            self.logits = qs_out_inf["logits"]
-            self.probs = qs_out_inf["prob_cat"]
-            self.s_category = s_category
         self.register_buffer("qs_category", s_category.clone().detach())
 
         return qs_dist
@@ -693,7 +613,7 @@ class AmortizedGroupKT(GroupKT):
         feed_dict: Tuple[torch.Tensor, torch.Tensor],
         emb_inputs: Optional[torch.Tensor] = None,
         eval: bool = False,
-    ) -> MultivariateNormal:
+    ) -> distributions.MultivariateNormal:
         """
         Compute the posterior distribution of `z_t` using an inference network.
 
@@ -724,7 +644,7 @@ class AmortizedGroupKT(GroupKT):
         qz_cov_mat = torch.diag_embed(
             torch.exp(qz_log_var) + EPS
         )  # [bs, times, num_node, num_node]
-        qz_dist = MultivariateNormal(
+        qz_dist = distributions.MultivariateNormal(
             loc=qz_mean, scale_tril=torch.tril(qz_cov_mat)
         )  # [bs, times, num_node]; [bs, times, num_node, num_node]
 
@@ -878,6 +798,12 @@ class AmortizedGroupKT(GroupKT):
         self.register_buffer(
             name="output_emb_input", tensor=emb_history.clone().detach()
         )
+        return_dict = {}
+        return_dict["label"] = feed_dict["label_seq"]
+        return_dict["item"] = feed_dict["skill_seq"]
+        return_dict["time"] = feed_dict["time_seq"]
+        return_dict["qs_dist"] = qs_dist
+        return_dict["qz_dist"] = qz_dist
 
         return return_dict
 
@@ -894,7 +820,7 @@ class AmortizedGroupKT(GroupKT):
         t_all = feed_dict["time_seq"]
         y_all = feed_dict["label_seq"]
         item_all = feed_dict["skill_seq"]
-        bs, time_step = t_all.shape
+        bs, _ = t_all.shape
         bsn = bs * self.num_sample
 
         max_step = self.args.max_step
@@ -919,14 +845,14 @@ class AmortizedGroupKT(GroupKT):
             self.node_dist.sample_A(self.num_sample)[-1][:, 0]
             .mean(0)
             .to(z_last_mean.device)
-        )  # # adj =  torch.exp(self.node_dist.edge_log_probs()[0]).to(sampled_s.device) # adj_ij means i has influence on j
+        )  # adj_ij means i has influence on j
         dt = (
             torch.diff(t_all[:, -test_step - 1 :], dim=-1).unsqueeze(-1) / T_SCALE + EPS
         )  # [bs, num_steps-1, 1]
         for i in range(test_step):
             # p(st-1) = N(m, P), p(st|st-1) = N(st|H*st-1 + b, R)
             # p(st) = N(st|H*m + b, H*P*H' + R)
-            s_next_mean = s_last_mean @ self.gen_st_h # [bs, 1, dim_s]
+            s_next_mean = s_last_mean @ self.gen_st_h  # [bs, 1, dim_s]
             s_next_cov_mat = (
                 self.gen_st_h @ s_last_cov_mat @ self.gen_st_h.transpose(-1, -2)
                 + st_tran_r
@@ -938,11 +864,9 @@ class AmortizedGroupKT(GroupKT):
 
             # p(zt) = N(zt|zt-1, st)
             q_alpha = torch.relu(s_next_mean[..., 0:1]) + EPS
-            q_mu = s_next_mean[..., 1:2]  # torch.tanh(s_next_mean[..., 1:2])  #
+            q_mu = s_next_mean[..., 1:2]
             q_sigma = s_next_mean[..., 2:3]  # [bs, 1, 1]
-            q_gamma = torch.sigmoid(
-                s_next_mean[..., 3:4]
-            )  # torch.zeros_like(q_sigma) #
+            q_gamma = torch.sigmoid(s_next_mean[..., 3:4])
             # calculate useful variables
             pz_ou_decay = torch.exp(-q_alpha * dt[:, i : i + 1])  # [bs, 1, 1]
             pz_ou_var = (
@@ -967,7 +891,7 @@ class AmortizedGroupKT(GroupKT):
             1, 1, self.num_node
         )  # [bs, time, num_node]
 
-        pred_z_dist = MultivariateNormal(
+        pred_z_dist = distributions.MultivariateNormal(
             loc=pred_z_mean, scale_tril=torch.tril(torch.diag_embed(pred_z_var + EPS))
         )
         pred_z_sampled = pred_z_dist.sample(
@@ -990,23 +914,6 @@ class AmortizedGroupKT(GroupKT):
             torch.gather(pred_z_sampled, 1, item_test_mc).transpose(-1, -2).contiguous()
         )  # [bsn, time, 1]
 
-        # # here are Karman filter
-        # ps_sampled_future = []
-        # qs_sampled = qs_dist.rsample((self.num_sample,)) # [n, bs, 1, time, dim_s]
-        # qs_sampled = qs_sampled.transpose(1,0).reshape(-1, 1, train_step, self.dim_s)
-        # ps_prev = qs_sampled[:,:,-1:]
-        # for i in range(10): # TODO
-        #     ps_next = ps_prev @ self.gen_st_h + self.gen_st_b
-        #     ps_sampled_future.append(ps_next)
-        #     ps_prev = ps_next
-        # ps_sampled_future = torch.cat(ps_sampled_future, dim=-2)
-        # s_sampled = torch.cat([qs_sampled, ps_sampled_future], dim=-2) # [bsn, 1, time, dim_s]
-        # z_prior_dist = self.zt_transition_gen(qs_sampled = s_sampled, feed_dict=feed_dict, eval=True)
-        # sampled_scalar_z = z_prior_dist.rsample()[:,:,-test_step:]
-        # bsn = sampled_scalar_z.shape[0]
-        # items = item_all.unsqueeze(1).repeat(1, self.num_sample, 1).reshape(bsn, 1, -1)[:,:,-test_step:] # [bsn, 1, time]
-        # sampled_scalar_z_item = torch.gather(sampled_scalar_z[..., 0], 1, items).transpose(-1,-2).contiguous() # [bsn, time, 1]
-
         pred_y_test = self.y_emit(pred_z_sampled_item)
         pred = pred_y_test.reshape(bs, self.num_sample, test_step)
         mc_label = y_all[:, -test_step:].unsqueeze(1).repeat(1, self.num_sample, 1)
@@ -1014,6 +921,8 @@ class AmortizedGroupKT(GroupKT):
         return {
             "prediction": pred,
             "label": mc_label,
+            "pred_s_mean": pred_s_mean,
+            "pred_s_cov_mat": pred_s_cov_mat,
         }
 
     def get_objective_values(
@@ -1076,7 +985,7 @@ class AmortizedGroupKT(GroupKT):
         )  # [bsn, time, 1]
 
         y_prob_train = self.y_emit(qz_sampled_item)
-        y_dist_train = torch.distributions.bernoulli.Bernoulli(probs=y_prob_train)
+        y_dist_train = distributions.bernoulli.Bernoulli(probs=y_prob_train)
         y_train_mc = (
             label.unsqueeze(1).repeat(1, self.num_sample, 1).reshape(bsn, -1, 1).float()
         )
@@ -1113,18 +1022,16 @@ class AmortizedGroupKT(GroupKT):
             + w_y * yt_log_prob[:, 1:]
         ) / 3  # [bs,]
         initial_likelihood = (
-            qs_log_prob[:, 0] + qz_log_prob[:, 0] + yt_log_prob[:, 0]
+            w_s * qs_log_prob[:, 0] + w_z * qz_log_prob[:, 0] + w_y * yt_log_prob[:, 0]
         ) / 3
 
         t1_mean = torch.mean(sequence_likelihood)
         t2_mean = torch.mean(initial_likelihood) * 1e-4
 
         t3_mean = torch.mean(qs_dist.entropy())
-        t4_mean = torch.mean(qz_dist.entropy())  # TODO
+        t4_mean = torch.mean(qz_dist.entropy())
 
-        elbo = (
-            t1_mean + t2_mean + temp_s * t3_mean + temp_z * t4_mean
-        )  # /self.num_node*t4_mean
+        elbo = t1_mean + t2_mean + temp_s * t3_mean + temp_z * t4_mean
 
         return dict(
             elbo=elbo,
@@ -1141,3 +1048,743 @@ class AmortizedGroupKT(GroupKT):
             label=label[:, None, :, None],  # [bs, 1, time, 1]
             sampled_s=qs_sampled,
         )
+
+    def loss(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        outdict: Dict[str, torch.Tensor],
+        metrics: List[str] = None,
+    ):
+        """ """
+
+        losses = defaultdict(lambda: torch.zeros(()))
+
+        # Calculate binary cross-entropy loss -> not used for optimization only for visualization
+        gt = outdict["label"].repeat(1, self.num_sample, 1, 1)
+        pred = outdict["prediction"]
+
+        loss_fn = torch.nn.BCELoss()
+        bceloss = loss_fn(pred.flatten(), gt.float().flatten())
+        losses["loss_bce"] = bceloss
+
+        for key in [
+            "elbo",
+            "initial_likelihood",
+            "sequence_likelihood",
+            "st_entropy",
+            "zt_entropy",
+            "yt_log_prob",
+            "zt_log_prob",
+            "st_log_prob",
+        ]:
+            losses[key] = outdict[key].mean()
+
+        gmvae_loss = LossFunctions()
+        loss_cat = -gmvae_loss.entropy(self.logits, self.probs) - numpy.log(0.1)
+        losses["loss_cat"] = loss_cat * self.args.cat_weight
+
+        loss_cat_in_entropy = gmvae_loss.prior_entropy(
+            self.num_category, self.gen_network_transition_s, self.device
+        )
+        losses["loss_cat_in_entropy"] = (
+            loss_cat_in_entropy * self.args.cat_in_entropy_weight
+        )
+
+        losses["loss_total"] = -outdict["elbo"].mean() + losses["loss_cat"]
+
+        # Evaluate metrics
+        if metrics != None:
+            pred = pred.detach().cpu().data.numpy()
+            gt = gt.detach().cpu().data.numpy()
+            evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
+            for key in evaluations.keys():
+                losses[key] = evaluations[key]
+
+        return losses
+
+
+class ContinualPSIKT(AmortizedPSIKT):
+    def __init__(
+        self,
+        mode: str = "train",
+        num_node: int = 1,
+        num_seq: int = 1,
+        args: argparse.Namespace = None,
+        device: torch.device = None,
+        logs: Logger = None,
+        nx_graph: numpy.ndarray = None,
+    ) -> None:
+        super().__init__(mode, num_node, args, device, logs, nx_graph)
+
+        time_step_save = args.max_step
+        self.num_seq_save = num_seq
+
+        s_shape = (num_seq, 1, time_step_save, self.dim_s)
+        z_shape = (num_seq, 1, time_step_save, self.num_node)
+        z_shape_pred = (num_seq, 1, time_step_save, self.num_node)
+
+        self.pred_s_means = nn.Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.pred_s_vars = nn.Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.infer_s_means = nn.Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.infer_s_vars = nn.Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+
+        self.pred_s_means_update = nn.Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.pred_s_vars_update = nn.Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.infer_s_means_update = nn.Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+        self.infer_s_vars_update = nn.Parameter(
+            torch.zeros(s_shape, device=self.device), requires_grad=False
+        )
+
+        self.pred_z_means = nn.Parameter(
+            torch.zeros(z_shape_pred, device=self.device), requires_grad=False
+        )
+        self.pred_z_vars = nn.Parameter(
+            torch.zeros(z_shape_pred, device=self.device), requires_grad=False
+        )
+        self.infer_z_means = nn.Parameter(
+            torch.zeros(z_shape, device=self.device), requires_grad=False
+        )
+        self.infer_z_vars = nn.Parameter(
+            torch.zeros(z_shape, device=self.device), requires_grad=False
+        )
+
+        self.pred_z_means_update = nn.Parameter(
+            torch.zeros(z_shape_pred, device=self.device), requires_grad=False
+        )
+        self.pred_z_vars_update = nn.Parameter(
+            torch.zeros(z_shape_pred, device=self.device), requires_grad=False
+        )
+        self.infer_z_means_update = nn.Parameter(
+            torch.zeros(z_shape, device=self.device), requires_grad=False
+        )
+        self.infer_z_vars_update = nn.Parameter(
+            torch.zeros(z_shape, device=self.device), requires_grad=False
+        )
+
+        self.var_minimum = torch.log(torch.tensor(1).to(self.device))
+
+        self.infer_network_emb = build_dense_network(
+            self.node_dim * 2, [self.node_dim, self.node_dim], [nn.LeakyReLU(0.2), None]
+        )
+
+        self.infer_network_posterior_s = nn.LSTM(
+            input_size=self.node_dim,
+            hidden_size=self.node_dim * 2,
+            bidirectional=False,
+            batch_first=True,
+        )
+        self.infer_network_posterior_z = nn.LSTM(
+            input_size=self.node_dim,
+            hidden_size=self.node_dim * 2,
+            bidirectional=False,
+            batch_first=True,
+        )
+        self.infer_network_posterior_mean_var_s = VAEEncoder(
+            self.node_dim * 2, self.node_dim, self.dim_s
+        )
+
+    def st_transition_infer(
+        self,
+        feed_dict: Dict[str, torch.Tensor] = None,
+        emb_inputs: torch.Tensor = None,
+        idx: int = None,
+    ) -> torch.distributions.MultivariateNormal:
+        """
+        Compute the posterior distribution of the latent variable `s_t`.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor], optional): A dictionary containing input
+                data for inference, if not using `emb_inputs`.
+            emb_inputs (torch.Tensor, optional): Pre-embedded input data, if not using
+                `feed_dict`.
+            idx (int, optional): The index or time step for which to compute the posterior
+                distribution. Default is None.
+
+        Returns:
+            torch.distributions.MultivariateNormal: The posterior distribution of `s_t`
+                as a Multivariate Normal distribution.
+
+        """
+        output, _ = self.infer_network_posterior_s(emb_inputs)
+        output = output[:, -1:]
+        mean, log_var = self.infer_network_posterior_mean_var_s(
+            output
+        )  # [bs, time_step, dim_s]
+
+        log_var = torch.minimum(log_var, self.var_minimum)
+        cov_mat = torch.diag_embed(torch.exp(log_var) + EPS)
+        dist_s = distributions.multivariate_normal.MultivariateNormal(
+            loc=mean, scale_tril=torch.tril(cov_mat)
+        )
+
+        return dist_s
+
+    def zt_transition_infer(
+        self,
+        feed_dict: Dict[str, torch.Tensor] = None,
+        emb_inputs: torch.Tensor = None,
+        idx: int = None,
+    ) -> torch.distributions.MultivariateNormal:
+        """
+        Compute the posterior distribution of the latent variable `z_t` given the input and output sequences.
+
+        Args:
+            inputs (tuple): A tuple containing the feed dictionary and the sampled skills `s_t`.
+            num_sample (int): Number of samples for Monte Carlo estimation of the posterior distribution.
+            emb_inputs (torch.Tensor): Optional embedded input sequence of shape [batch_size, time_step, dim_item+dim_time].
+
+        Returns:
+            z_sampled (torch.Tensor): Sampled latent variable `z_t` of shape [batch_size*num_sample, 1, time_step, out_dim].
+            z_entropy (torch.Tensor): Entropy of the posterior distribution of `z_t`.
+            z_log_prob_q (torch.Tensor): Log probability of the posterior distribution of `z_t`.
+            rnn_states (torch.Tensor): Output states of the posterior network.
+            z_mean (torch.Tensor): Mean of the posterior distribution of `z_t`.
+            z_log_var (torch.Tensor): Log variance of the posterior distribution of `z_t`.
+        """
+
+        output, _ = self.infer_network_posterior_z(emb_inputs)
+        output = output[:, -1:]
+        mean, log_var = self.infer_network_posterior_mean_var_z(output)
+
+        # mean, log_var = self.infer_network_posterior_mean_var_z(emb_inputs)  # [batch_size, time_step, dim_s]
+        log_var = torch.minimum(log_var, self.var_minimum)
+        cov_mat = torch.diag_embed(torch.exp(log_var) + EPS)
+
+        dist_z = distributions.multivariate_normal.MultivariateNormal(
+            loc=mean, scale_tril=torch.tril(cov_mat)
+        )
+
+        return dist_z
+
+    def predictive_model(
+        self,
+        feed_dict: Dict[str, torch.Tensor] = None,
+        idx: int = None,
+        eval: bool = False,
+        update: bool = False,
+        s_prior: torch.distributions.MultivariateNormal = None,
+        z_prior: torch.distributions.MultivariateNormal = None,
+    ) -> Tuple[
+        torch.distributions.MultivariateNormal, torch.distributions.MultivariateNormal
+    ]:
+        """
+        Perform predictive modeling.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): Dictionary containing input data with dtype torch.Tensor.
+        """
+
+        user = feed_dict["user_id"]
+        y_idx = feed_dict["label_seq"][:, idx : idx + 1]  # [bs, 1]
+        device = y_idx.device
+        bs = y_idx.shape[0]
+
+        if idx == 0:
+            t_idx = feed_dict["time_seq"][:, : idx + 1]  # [bs, 2]
+            dt = t_idx / T_SCALE + EPS
+            s_tilde_dist = distributions.MultivariateNormal(
+                self.gen_s0_mean.unsqueeze(0).repeat(bs, 1, 1),
+                scale_tril=torch.tril(
+                    torch.diag_embed(torch.exp(self.gen_s0_log_var) + EPS)
+                ),
+            )
+
+            s_tilde_dist_mean = s_tilde_dist.mean  # [num_seq, 1, dim_s]
+            s_tilde_dist_var = torch.diagonal(s_tilde_dist.scale_tril, dim1=-2, dim2=-1)
+
+            # p_theta(z_0)
+            z_tilde_dist = distributions.MultivariateNormal(
+                self.gen_z0_mean.unsqueeze(0).repeat(bs, 1, self.num_node),
+                scale_tril=torch.tril(
+                    torch.diag_embed(
+                        torch.exp(self.gen_z0_log_var.repeat(1, self.num_node)) + EPS
+                    )
+                ).unsqueeze(0),
+            )
+            z_tilde_dist_mean = z_tilde_dist.mean  # [1, 1, dim_z]
+            z_tilde_dist_var = torch.diagonal(z_tilde_dist.scale_tril, dim1=-2, dim2=-1)
+
+        else:
+            t_idx = feed_dict["time_seq"][:, idx - 1 : idx + 1]  # [bs, 2]
+            dt = torch.diff(t_idx, dim=-1) / T_SCALE + EPS
+
+            if s_prior != None:
+                s_prior_mean = s_prior.mean
+                s_prior_cov = torch.diagonal(s_prior.scale_tril, dim1=1, dim2=2)
+
+            else:
+                s_prior_mean = self.infer_s_means_update[user, :, idx - 1]
+                s_prior_cov = self.infer_s_vars_update[user, :, idx - 1]
+
+            s_tilde_dist_mean = s_prior_mean @ self.gen_st_h  # [bs, 1, dim_s]
+            s_prior_cov_mat = torch.diag_embed(s_prior_cov)  # [bs, 1, dim_s, dim_s]
+            pst_transition_var = torch.exp(self.gen_st_log_r)
+            pst_transition_cov_mat = torch.diag_embed(
+                pst_transition_var + EPS
+            )  # [1, dim_s, dim_s]
+            s_tilde_dist_var_mat = (
+                self.gen_st_h @ s_prior_cov_mat @ self.gen_st_h.transpose(-1, -2)
+                + pst_transition_cov_mat
+            )  # [bs, 1, dim_s, dim_s]
+            s_tilde_dist_var = torch.diagonal(
+                s_tilde_dist_var_mat, dim1=-2, dim2=-1
+            )  # [bs, 1, dim_s]
+            s_tilde_dist = distributions.multivariate_normal.MultivariateNormal(
+                loc=s_tilde_dist_mean,
+                scale_tril=torch.tril(torch.diag_embed(s_tilde_dist_var)),
+            )
+
+            # q_phi(z_t-1) the posterior of last time step is the prior of this time step
+            if z_prior != None:
+                z_prior_mean = z_prior.mean
+                z_prior_cov = torch.diagonal(z_prior.scale_tril, dim1=1, dim2=2)  # TODO
+            else:
+                z_prior_mean = self.infer_z_means_update[
+                    user, :, idx - 1
+                ]  # [bs, 1, dim_z]
+                z_prior_cov = self.infer_z_vars_update[user, :, idx - 1]
+
+            s_next_sample = s_tilde_dist_mean  # [bs, 1, dim_s]
+            z_last_sample = z_prior_mean  # [bs, 1, num_node]
+
+            sampled_alpha = torch.relu(s_next_sample[..., 0:1]) + EPS
+            sampled_mu = s_next_sample[..., 1:2]
+            sampled_sigma = s_next_sample[..., 2:3]
+            sampled_gamma = torch.sigmoid(s_next_sample[..., 3:4])
+
+            ou_decay = torch.exp(-sampled_alpha * dt.reshape(bs, 1, 1))  # [bs, 1, 1]
+            graph_adj = (
+                self.node_dist.sample_A(self.num_sample)[-1][:, 0].mean(0).to(device)
+            )
+            empower = (
+                sampled_gamma * (z_last_sample @ graph_adj) / self.num_node
+            )  # [bs, 1, num_node]
+            empowered_mu = sampled_mu + empower
+
+            z_tilde_dist_mean = ou_decay * z_prior_mean + (1 - ou_decay) * empowered_mu
+            z_tilde_dist_var = (
+                sampled_sigma**2 * (1 - ou_decay**2) / (2 * sampled_alpha + EPS)
+                + EPS
+            )
+            z_tilde_dist = distributions.multivariate_normal.MultivariateNormal(
+                loc=z_tilde_dist_mean,
+                scale_tril=torch.tril(
+                    torch.diag_embed(z_tilde_dist_var.repeat(1, 1, self.num_node))
+                ),
+            )
+
+        if not eval:
+            if not update:
+                self.pred_s_means[user, :, idx] = s_tilde_dist_mean.detach().clone()
+                self.pred_s_vars[user, :, idx] = s_tilde_dist_var.detach().clone()
+                self.pred_z_means[user, :, idx] = z_tilde_dist_mean.detach().clone()
+                self.pred_z_vars[user, :, idx] = z_tilde_dist_var.detach().clone()
+            else:
+                self.pred_s_means_update[
+                    user, :, idx
+                ] = s_tilde_dist_mean.detach().clone()
+                self.pred_s_vars_update[
+                    user, :, idx
+                ] = s_tilde_dist_var.detach().clone()
+                self.pred_z_means_update[
+                    user, :, idx
+                ] = z_tilde_dist_mean.detach().clone()
+                self.pred_z_vars_update[
+                    user, :, idx
+                ] = z_tilde_dist_var.detach().clone()
+
+        return s_tilde_dist, z_tilde_dist
+
+    def inference_model(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+        eval: bool = False,
+        update: bool = False,
+    ) -> Tuple[distributions.MultivariateNormal, distributions.MultivariateNormal]:
+        """
+        Args:
+            eval: if True, it will not update the parameters.
+                    Usually this happens during evaluation or comparison when there is no gradient.
+            update: if True, it means the network is optimized by the update loss.
+                    We should save the interested parameters in the updated list.
+        """
+        y_idx = feed_dict["label_seq"][:, idx : idx + 1]  # [bs, times]
+        t_idx = feed_dict["time_seq"][:, idx : idx + 1]
+        item = feed_dict["skill_seq"][:, idx : idx + 1]  # [bs, times]
+
+        # ----- embedding -----
+        t_emb = self.get_time_embedding(t_idx, "absolute")  # [bs, times, node_dim]
+        y_emb = torch.tile(
+            y_idx.unsqueeze(-1), (1, 1, self.node_dim)
+        )  # [bs, times, node_dim]
+        node_emb = self.node_dist._get_node_embedding()[item]  # [bs, times, dim]
+        emb_input = torch.cat([node_emb, y_emb], dim=-1)  # [bs, times, dim*2]
+        emb_history = self.infer_network_emb(emb_input)
+
+        emb_rnn_inputs = emb_history + t_emb
+
+        # -----  `q(s[t] | y[1:t])' -----
+        s_dist = self.st_transition_infer(feed_dict, emb_inputs=emb_rnn_inputs, idx=idx)
+
+        # ----- `q(z[t] | y[1:t])' -----
+        z_dist = self.zt_transition_infer(
+            feed_dict,
+            emb_inputs=emb_rnn_inputs,
+            idx=idx,
+        )
+
+        if not eval:
+            users = feed_dict["user_id"]
+            if not update:
+                self.infer_s_means[users, :, idx] = s_dist.mean.detach().clone()
+                self.infer_s_vars[users, :, idx] = (
+                    torch.diagonal(s_dist.scale_tril, dim1=-2, dim2=-1).detach().clone()
+                )
+                self.infer_z_means[users, :, idx] = z_dist.mean.detach().clone()
+                self.infer_z_vars[users, :, idx] = (
+                    torch.diagonal(z_dist.scale_tril, dim1=-2, dim2=-1).detach().clone()
+                )
+            else:
+                self.infer_s_means_update[users, :, idx] = s_dist.mean.detach().clone()
+                self.infer_s_vars_update[users, :, idx] = (
+                    torch.diagonal(s_dist.scale_tril, dim1=-2, dim2=-1).detach().clone()
+                )
+                self.infer_z_means_update[users, :, idx] = z_dist.mean.detach().clone()
+                self.infer_z_vars_update[users, :, idx] = (
+                    torch.diagonal(z_dist.scale_tril, dim1=-2, dim2=-1).detach().clone()
+                )
+
+        return s_dist, z_dist
+
+    def objective_function(
+        self,
+        feed_dict_idx: Dict[str, torch.Tensor],
+        idx: int,
+        pred_dist=None,
+        post_dist=None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Compute the objective function for continual learning.
+
+        Args:
+            feed_dict_idx (Dict[str, torch.Tensor]): A dictionary containing input data for
+                the objective function computation.
+            idx (int): The index or time step for which to compute the objective function.
+            pred_dist: Predicted distributions (e.g., posterior) for latent variables.
+            post_dist: Inferred distributions (e.g., posterior) for latent variables.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing various components of the
+                objective function, including ELBO, sequence likelihood, log probabilities,
+                entropies, predictions, and labels.
+
+        Note:
+            - The objective function typically consists of terms related to log probabilities
+            of latent variables, entropies, and weighted components.
+            - This method assumes a specific structure for input data, pred_dist, and post_dist.
+        """
+        y_idx = feed_dict_idx["label_seq"][:, idx : idx + 1]
+        item_idx = feed_dict_idx["skill_seq"][:, idx : idx + 1]
+
+        # p_tilde_theta(s_t) = \int p_theta(s_t | s_t-1) q_phi(s_t-1 | y_1:t-1) ds_t
+        # p_tilde_theta(z_t) = \int p_theta(z_t | s_t, z_t-1) q_phi(z_t-1 | y_1:t-1) dz_t
+        s_tilde_dist, z_tilde_dist = pred_dist
+        # q_phi(s_t | y_1:t), q_phi(z_t | y_1:t)
+        s_infer_dist, z_infer_dist = post_dist
+
+        # log tilde_p_theta(s_t)
+        s_vp_sample = s_infer_dist.rsample(
+            (self.num_sample,)
+        )  # [num_sample, bs, 1, dim_s]
+        log_prob_st = s_tilde_dist.log_prob(s_vp_sample)  # [num_sample, bs, 1, dim_s]
+        log_prob_st = log_prob_st.mean() / self.dim_s
+
+        z_vp_sample = z_infer_dist.rsample(
+            (self.num_sample,)
+        )  # [num_sample, bs, 1, dim_z]
+        log_prob_zt = z_tilde_dist.log_prob(z_vp_sample)  # [num_sample, bs, 1, dim_z]
+        log_prob_zt = log_prob_zt.mean() / self.dim_z
+
+        item_idx_mc = item_idx.unsqueeze(0).repeat(self.num_sample, 1, 1)  # [n, bs, 1]
+        sampled_scalar_z = torch.gather(z_vp_sample[:, :, 0], dim=2, index=item_idx_mc)
+
+        emission_prob = self.y_emit(sampled_scalar_z)  # [n, bs, 1]
+        emission_dist = torch.distributions.bernoulli.Bernoulli(probs=emission_prob)
+        prediction = emission_dist.sample()  # NOTE: only for evaluation; no gradient
+        label = y_idx.unsqueeze(0).repeat(self.num_sample, 1, 1).float()
+        log_prob_yt = emission_dist.log_prob(label).mean()
+
+        st_entropy = s_infer_dist.entropy().mean()
+        zt_entropy = z_infer_dist.entropy().mean()
+
+        elbo = (
+            self.args.s_log_weight * log_prob_st
+            + self.args.z_log_weight * log_prob_zt
+            + self.args.y_log_weight * log_prob_yt
+            + self.args.s_entropy_weight * st_entropy
+            + self.args.z_entropy_weight * zt_entropy
+        )
+
+        return dict(
+            elbo=elbo,
+            sequence_likelihood=log_prob_yt + log_prob_zt + log_prob_st,
+            log_prob_yt=log_prob_yt,
+            log_prob_zt=log_prob_zt,
+            log_prob_st=log_prob_st,
+            st_entropy=st_entropy,
+            zt_entropy=zt_entropy,
+            prediction=prediction,
+            label=label,
+            sampled_s=s_vp_sample,
+        )
+
+    def comparison_function(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Compute comparisons between optimization and inference.
+
+        This method computes comparisons between optimization and inference outcomes for
+        a given index. It evaluates the impact of changes in latent variable distributions
+        on model performance.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data for
+                the comparison function computation.
+            idx (int, optional): The index or time step for which to compute comparisons.
+                Default is None.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing comparison metrics for
+                optimization and inference outcomes.
+
+        Note:
+            - This method computes various comparison metrics, including differences in
+            losses between old and new predictions.
+            - This is only for debugging
+        """
+        loss_fn = torch.nn.BCELoss()
+
+        comparison = defaultdict(lambda: torch.zeros(()))  # , device=self.device))
+        users = feed_dict["user_id"]
+        labels = feed_dict["label_seq"][:, idx].float()  # [bs, times]
+        items = feed_dict["skill_seq"][:, idx]  # [bs, times]
+
+        # ------ comparison 1: check if optimization works ------
+        old_z_tilde_dist = torch.distributions.MultivariateNormal(
+            loc=self.pred_z_means[users, :, idx],
+            scale_tril=torch.diag_embed(self.pred_z_vars[users, :, idx]),
+        )
+        new_z_tilde_dist = torch.distributions.MultivariateNormal(
+            loc=self.pred_z_means_update[users, :, idx],
+            scale_tril=torch.diag_embed(self.pred_z_vars_update[users, :, idx]),
+        )
+        old_y = self.y_emit(old_z_tilde_dist.sample((self.num_sample,))).mean(0)
+        new_y = self.y_emit(new_z_tilde_dist.sample((self.num_sample,))).mean(0)
+        old_y = torch.gather(old_y, dim=2, index=items.reshape(-1, 1, 1))
+        new_y = torch.gather(new_y, dim=2, index=items.reshape(-1, 1, 1))
+
+        comparison["comp_1_tilde"] = loss_fn(
+            new_y.flatten(), labels.flatten()
+        ) - loss_fn(old_y.flatten(), labels.flatten())
+
+        old_z_infer_dist = torch.distributions.MultivariateNormal(
+            loc=self.infer_z_means[users, :, idx],
+            scale_tril=torch.diag_embed(self.infer_z_vars[users, :, idx]),
+        )
+        new_z_infer_dist = torch.distributions.MultivariateNormal(
+            loc=self.infer_z_means_update[users, :, idx],
+            scale_tril=torch.diag_embed(self.infer_z_vars_update[users, :, idx]),
+        )
+        old_y = self.y_emit(old_z_infer_dist.sample((self.num_sample,))).mean(0)
+        new_y = self.y_emit(new_z_infer_dist.sample((self.num_sample,))).mean(0)
+        old_y = torch.gather(old_y, dim=2, index=items.reshape(-1, 1, 1))
+        new_y = torch.gather(new_y, dim=2, index=items.reshape(-1, 1, 1))
+
+        comparison["comp_1_infer"] = loss_fn(
+            new_y.flatten(), labels.flatten()
+        ) - loss_fn(old_y.flatten(), labels.flatten())
+
+        return comparison
+
+    def loss(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        outdict: Dict[str, torch.Tensor],
+        metrics: List[str] = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Calculates the loss of the model based on the ground truth label and predicted label.
+
+        Args:
+            feed_dict (dict): The input to the model
+            outdict (dict): The output of the model
+            metrics (dict): A dictionary of metrics to evaluate the performance of the model
+
+        Returns:
+            losses (defaultdict): A defaultdict of losses
+        """
+        losses = defaultdict(lambda: torch.zeros(()))
+
+        # Calculate binary cross-entropy loss -> not used for optimization only for visualization
+        gt = outdict["label"]
+        pred = outdict["prediction"]
+        loss_fn = torch.nn.BCELoss()
+        bceloss = loss_fn(pred, gt.float())
+        losses["loss_bce"] = bceloss
+
+        for key in [
+            "elbo",
+            "sequence_likelihood",
+            "st_entropy",
+            "zt_entropy",
+            "log_prob_yt",
+            "log_prob_zt",
+            "log_prob_st",
+        ]:
+            losses[key] = outdict[key].mean()
+        losses["loss_total"] = -outdict["elbo"].mean()
+
+        # Evaluate metrics
+        if metrics != None:
+            self.metrics = metrics
+            pred = pred.detach().cpu().data.numpy()
+            gt = gt.detach().cpu().data.numpy()
+            evaluations = BaseModel.pred_evaluate_method(pred, gt, metrics)
+        for key in evaluations.keys():
+            losses[key] = evaluations[key]
+
+        return losses
+
+    def eval_model(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Perform predictive modeling.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): Dictionary containing input data with dtype torch.Tensor.
+        """
+
+        test_step = 10
+        user = feed_dict["user_id"]
+        s_tilde_dist = torch.distributions.MultivariateNormal(
+            loc=self.infer_s_means_update[user, :, idx],
+            scale_tril=torch.diag_embed(self.infer_s_vars_update[user, :, idx]),
+        )
+        z_tilde_dist = torch.distributions.MultivariateNormal(
+            loc=self.infer_z_means_update[user, :, idx],
+            scale_tril=torch.diag_embed(self.infer_z_vars_update[user, :, idx]),
+        )
+
+        y_all = feed_dict["label_seq"][:, idx + 1 : idx + test_step + 1]  # [bs, times]
+        item_all = feed_dict["skill_seq"][:, idx + 1 : idx + test_step + 1]
+        t_all = feed_dict["time_seq"][:, idx : idx + test_step + 1]  # [bs, 10]
+        bs, _ = t_all.shape
+        bsn = bs * self.num_sample
+
+        qs_dist, qz_dist = s_tilde_dist, z_tilde_dist
+
+        # analytical solution
+        pred_s_mean, pred_s_var, pred_z_mean, pred_z_var = [], [], [], []
+        s_last_mean = qs_dist.mean  # [bs, 1, dim_s]
+        s_last_cov_mat = qs_dist.covariance_matrix  # [bs, 1, dim_s, dim_s]
+        st_tran_r = torch.diag_embed(torch.exp(self.gen_st_log_r) + EPS)
+        z_last_mean = qz_dist.mean  # [bs, 1, num_node]
+        pz_graph_adj = (
+            self.node_dist.sample_A(self.num_sample)[-1][:, 0]
+            .mean(0)
+            .to(z_last_mean.device)
+        )
+        dt = (
+            torch.diff(t_all, dim=-1).unsqueeze(-1) / T_SCALE + EPS
+        )  # [bs, num_steps, 1]
+        for i in range(test_step):
+            # p(st-1) = N(m, P), p(st|st-1) = N(st|H*st-1 + b, R)
+            # p(st) = N(st|H*m + b, H*P*H' + R)
+            s_next_mean = s_last_mean @ self.gen_st_h  # [bs, 1, dim_s]
+            s_next_cov_mat = (
+                self.gen_st_h @ s_last_cov_mat @ self.gen_st_h.transpose(-1, -2)
+                + st_tran_r
+            )  # [bs, 1, dim_s, dim_s]
+            pred_s_mean.append(s_next_mean)
+            pred_s_var.append(s_next_cov_mat)
+            s_last_mean = s_next_mean
+            s_last_cov_mat = s_next_cov_mat
+
+            # p(zt) = N(zt|zt-1, st)
+            q_alpha = torch.relu(s_next_mean[..., 0:1]) + EPS
+            q_mu = s_next_mean[..., 1:2]  # torch.tanh(s_next_mean[..., 1:2])  #
+            q_sigma = s_next_mean[..., 2:3]  # [bs, 1, 1]
+            q_gamma = torch.sigmoid(s_next_mean[..., 3:4])
+            # calculate useful variables
+            pz_ou_decay = torch.exp(-q_alpha * dt[:, i : i + 1])  # [bs, 1, 1]
+            pz_ou_var = (
+                q_sigma
+                * q_sigma
+                * (1 - pz_ou_decay * pz_ou_decay)
+                / (2 * q_alpha + EPS)
+            )  # [bs, num_steps-1, 1]
+            pz_empower = (z_last_mean @ pz_graph_adj) / self.num_node * q_gamma
+            pz_empowered_mu = q_mu + pz_empower  # [bs, time-1, num_node]
+            pz_ou_mean = (
+                pz_ou_decay * z_last_mean + (1 - pz_ou_decay) * pz_empowered_mu
+            )  # [bs, 1, num_node]
+            z_last_mean = pz_ou_mean
+            pred_z_mean.append(pz_ou_mean)
+            pred_z_var.append(pz_ou_var)
+
+        pred_s_mean = torch.cat(pred_s_mean, dim=1)  # [bs, time, dim_s]
+        pred_s_cov_mat = torch.cat(pred_s_var, dim=1)  # [bs, time, dim_s, dim_s]
+        pred_z_mean = torch.cat(pred_z_mean, dim=1)  # [bs, time, num_node]
+        pred_z_var = torch.cat(pred_z_var, dim=1).repeat(
+            1, 1, self.num_node
+        )  # [bs, time, num_node]
+
+        pred_z_dist = torch.distributions.MultivariateNormal(
+            loc=pred_z_mean, scale_tril=torch.tril(torch.diag_embed(pred_z_var + EPS))
+        )
+        pred_z_sampled = pred_z_dist.sample(
+            (self.num_sample,)
+        )  # [n, bs, time, num_node]
+        pred_z_sampled = pred_z_sampled.transpose(1, 0).reshape(
+            bsn, test_step, self.num_node
+        )  # [bsn, time, num_node]
+        pred_z_sampled = pred_z_sampled.transpose(
+            -1, -2
+        ).contiguous()  # [bsn, num_node, time]
+
+        item_test = item_all
+        item_test_mc = (
+            item_test.unsqueeze(1)
+            .repeat(1, self.num_sample, 1)
+            .reshape(bsn, 1, test_step)
+        )  # [bsn, 1, time]
+        pred_z_sampled_item = (
+            torch.gather(pred_z_sampled, 1, item_test_mc).transpose(-1, -2).contiguous()
+        )  # [bsn, time, 1]
+
+        pred_y_test = self.y_emit(pred_z_sampled_item)
+        pred = pred_y_test.reshape(bs, self.num_sample, test_step)
+        mc_label = y_all.unsqueeze(1).repeat(1, self.num_sample, 1)
+
+        return self.pred_evaluate_method(pred.cpu(), mc_label.cpu(), self.metrics)

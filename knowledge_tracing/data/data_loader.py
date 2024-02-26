@@ -16,13 +16,15 @@ class DataReader(object):
     For specific data features, it will be defined at get_feed_dict function in each KT model class.
 
     Args:
-        prefix:    data folder path
-        dataset:   the name of KT dataset
-        sep:       the delimiter when loading a csv file
-        k_fold:    number of k folder to do cross-validation
-        max_step:  the maximum step considered during training; NOTE: sometimes it has also been defined during the pre-processing process
-        logs:      the log instance where defining the saving/loading information
-
+        data_dir:   data folder path (without dataset prefix)
+        dataset:    the name of KT dataset (the data should be in the data folder)
+        k_fold:     number of k folder to do cross-validation
+        max_step:   the maximum step considered during training; NOTE: it should be defined during the pre-processing process
+        num_learner:    the number of learners used for num_learnerting or small-scaled training
+        train_mode: the mode of training data split; it can be either "split_learner" or "split_time"
+        train_time_ratio/test_time_ratio:
+                    the ratio of time steps used for training/testing data split
+        val_ratio:  the ratio of learners used for validation data split
     """
 
     def __init__(
@@ -34,7 +36,7 @@ class DataReader(object):
         self.dataset = args.dataset
         self.k_fold = args.kfold
         self.max_step = int(args.max_step)
-        self.overfit = args.overfit
+        self.num_learner = args.num_learner
 
         self.train_mode = args.train_mode
         self.train_time_ratio = args.train_time_ratio
@@ -182,76 +184,19 @@ class DataReader(object):
             ]
         )
         val_size = int(0.1 * len(residual_df))
-        val_indices = np.random.choice(
-            residual_df.index, val_size, replace=False
-        )  # random
+        val_indices = np.random.choice(residual_df.index, val_size, replace=False)
         self.data_df["val"] = self.user_seq_df.iloc[val_indices]
 
         self.data_df["train"] = residual_df.drop(val_indices)
         self.data_df["whole"] = self.user_seq_df
 
     def gen_time_split_data(
-        self, train_ratio: float, test_ratio: float, val_ratio: float = 0.2, id: int = 0
-    ) -> None:
-        """
-        Generate train/test/validation splits based on time steps.
-
-        This method splits the user sequences into training, testing, and validation sets based on the provided
-        ratios of train, test, and validation data.
-
-        Args:
-            train_ratio (float): Ratio of data for training.
-            test_ratio (float): Ratio of data for testing.
-            val_ratio (float, optional): Ratio of data for validation. Defaults to 0.2.
-            id (int, optional): Identifier for the split operation. Defaults to 0.
-
-        Returns:
-            None
-        """
-        assert train_ratio + test_ratio + val_ratio <= 1
-
-        n_time_steps = len(self.user_seq_df["time_seq"][0])
-        self.data_df = {
-            "train": dict(),
-            "val": dict(),
-            "test": dict(),
-            "whole": dict(),
-        }
-
-        train_size = math.ceil(n_time_steps * train_ratio)
-        test_size = math.ceil(n_time_steps * test_ratio)
-        val_size = math.ceil(
-            n_time_steps * val_ratio
-        )  # n_time_steps-train_size-test_size
-        whole_size = train_size + test_size + val_size
-
-        for key in self.user_seq_df.keys():
-            if key != "user_id":
-                value = np.stack(self.user_seq_df[key].values)
-                self.data_df["train"][key] = value[
-                    :, train_size * id : train_size * (id + 1)
-                ].tolist()
-                self.data_df["val"][key] = value[
-                    :, train_size : val_size + train_size
-                ].tolist()
-                self.data_df["test"][key] = value[
-                    :, train_size + val_size : val_size + train_size + test_size
-                ].tolist()
-                self.data_df["whole"][key] = value[:, :whole_size].tolist()
-
-        for key in self.data_df.keys():
-            self.data_df[key] = pd.DataFrame.from_dict(
-                self.data_df[key], orient="columns"
-            )
-            self.data_df[key]["user_id"] = self.user_seq_df["user_id"]
-
-    def gen_time_split_data_improve(
         self,
         train_time_ratio,
         test_time_ratio,
         val_time_ratio,
         random_seed=2022,
-        overfit=0,
+        num_learner=0,
     ):
         """"""
         self.data_df = {
@@ -263,11 +208,11 @@ class DataReader(object):
 
         n_learners = len(self.user_seq_df)
 
-        if overfit:
-            assert overfit * (1 + val_time_ratio) <= n_learners
-            n_val_learners = int(overfit * val_time_ratio)
+        if num_learner:
+            assert num_learner * (1 + val_time_ratio) <= n_learners
+            n_val_learners = int(num_learner * val_time_ratio)
             train_val_user_list = self.user_seq_df.sample(
-                n=n_val_learners + overfit, random_state=random_seed
+                n=n_val_learners + num_learner, random_state=random_seed
             )
             val_user_list = train_val_user_list.sample(
                 n=n_val_learners, random_state=random_seed
@@ -275,6 +220,9 @@ class DataReader(object):
             test_user_list = train_val_user_list.loc[
                 ~train_val_user_list.index.isin(val_user_list.index)
             ]
+
+            # test_user_list = self.user_seq_df.loc[~self.user_seq_df.index.isin(train_val_user_list.index)]
+            # test_user_list = test_user_list.sample(n=num_learner, random_state=random_seed)
 
         else:
             train_val_user_list = self.user_seq_df
@@ -345,13 +293,12 @@ class DataReader(object):
             self.logs.write_to_log_file("# Training mode splits LEARNER")
 
         elif "split_time" in self.train_mode:
-            # corpus.gen_time_split_data(args.train_time_ratio, args.test_time_ratio, args.val_time_ratio*args.validate)
-            corpus.gen_time_split_data_improve(
+            corpus.gen_time_split_data(
                 args.train_time_ratio,
                 args.test_time_ratio,
                 args.val_time_ratio,
                 args.random_seed,
-                args.overfit,
+                args.num_learner,
             )
             self.logs.write_to_log_file("# Training mode splits TIME")
 

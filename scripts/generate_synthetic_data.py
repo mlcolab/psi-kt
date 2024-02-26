@@ -1,13 +1,10 @@
 import sys
+
 sys.path.append("..")
 
 import argparse
 import datetime
 from pathlib import Path
-
-from scipy.special import expit
-import numpy as np
-import networkx as nx
 
 import torch
 
@@ -15,25 +12,23 @@ from knowledge_tracing.baseline.halflife_regression import hlr as HLR
 from knowledge_tracing.baseline.learner_model import ou as VanillaOU
 from knowledge_tracing.baseline.learner_model import graph_ou as GraphOU
 from knowledge_tracing.baseline.ppe import ppe as PPE
-
-import knowledge_tracing.utils.visualize as visualize
 import knowledge_tracing.utils.utils as utils
 
 
 def parse_args(parser):
     # ----- global -----
     parser.add_argument(
-        "--random_seed", type=int, default=1, help="Random seed for reproducibility"
+        "--random_seed", type=int, default=1, help="random seed for reproducibility"
     )
     parser.add_argument(
-        "--num_sequence", type=int, default=1, help="Number of sequences to generate"
+        "--num_sequence", type=int, default=1, help="number of sequences to generate"
     )
     parser.add_argument(
         "--learner_model",
         type=str,
         default="graph_ou",
         choices=["hlr", "ppe", "ou", "graph_ou"],
-        help="Type of learner model: hlr, ou, graph_ou, egraph_ou, ppe",
+        help="type of learner models: hlr, ou, graph_ou, egraph_ou, ppe",
     )
 
     # ----- time points -----
@@ -42,24 +37,24 @@ def parse_args(parser):
         type=str,
         default="random",
         choices=["random", "uniform"],
-        help="Type of time distribution: random or uniform",
+        help="type of time distributions: random or uniform",
     )
     parser.add_argument(
-        "--time_step", type=int, default=20, help="Time step between points"
+        "--time_step", type=int, default=20, help="time step between points"
     )
     parser.add_argument(
-        "--max_time_step", type=int, default=250, help="Maximum time step"
+        "--max_time_step", type=int, default=250, help="maximum time step"
     )
 
     # ----- random graph -----
     parser.add_argument(
-        "--num_node", type=int, default=2, help="Number of nodes in the random graph"
+        "--num_node", type=int, default=10, help="number of nodes in the random graph"
     )
     parser.add_argument(
         "--edge_prob",
         type=float,
         default=0.4,
-        help="Probability of an edge between nodes",
+        help="probability of an edge between nodes",
     )
 
     # ----- ou process -----
@@ -67,19 +62,19 @@ def parse_args(parser):
         "--mean_rev_speed",
         type=float,
         default=0.02,
-        help="Mean reversion speed parameter",
+        help="mean reversion speed parameter",
     )
     parser.add_argument(
         "--mean_rev_level",
         type=float,
         default=0.7,
-        help="Mean reversion level parameter",
+        help="mean reversion level parameter",
     )
-    parser.add_argument("--vola", type=float, default=0.01, help="Volatility parameter")
-    parser.add_argument("--rho", type=float, default=2, help="Rho parameter")
-    parser.add_argument("--omega", type=float, default=0.75, help="Omega parameter")
+    parser.add_argument("--vola", type=float, default=0.01, help="volatility parameter")
+    parser.add_argument("--rho", type=float, default=2, help="rho parameter")
+    parser.add_argument("--omega", type=float, default=0.75, help="omega parameter")
     parser.add_argument(
-        "--gamma", type=float, default=[0.1, 0.2, 0.5, 0.75, 1], help="Gamma parameter"
+        "--gamma", type=float, default=[0.1, 0.2, 0.5, 0.75, 1], help="gamma parameter"
     )
 
     # ----- hlr process -----
@@ -87,7 +82,7 @@ def parse_args(parser):
         "--theta",
         type=list,
         default=[1 / 4, 1 / 2, -1 / 3],
-        help="List of theta parameters",
+        help="list of theta parameters",
     )
 
     # ----- ppe process -----
@@ -95,10 +90,10 @@ def parse_args(parser):
         "--learning_rate",
         type=float,
         default=[0.01, 0.05, 0.1, 0.2, 0.5, 1],
-        help="Learning rate for the PPE process",
+        help="learning rate for the PPE process",
     )
     parser.add_argument(
-        "--decay_rate", type=float, default=0.2, help="Decay rate for the PPE process"
+        "--decay_rate", type=float, default=0.2, help="decay rate for the PPE process"
     )
 
     # ----- save path -----
@@ -106,7 +101,7 @@ def parse_args(parser):
         "--save_path",
         type=str,
         default="..kt_data/synthetic",
-        help="Path to save results",
+        help="path to save results",
     )
 
     return parser

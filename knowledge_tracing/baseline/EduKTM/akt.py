@@ -92,7 +92,7 @@ class AKT(BaseModel):
         # Store the arguments and logs for later use
         self.args = args
         self.logs = logs
-        super().__init__(model_path=Path(args.log_path, "Model/Model_{}_{}.pt"))
+        BaseModel.__init__(self, model_path=Path(args.log_path, "Model"))
 
     def _init_weights(
         self,
@@ -153,8 +153,6 @@ class AKT(BaseModel):
             nn.Linear(32, 1),
         )
 
-        self.loss_function = nn.BCELoss(reduction="sum")
-
     def forward_cl(
         self,
         feed_dict: Dict[str, torch.Tensor],
@@ -172,15 +170,107 @@ class AKT(BaseModel):
         """
 
         # Extract input tensors from feed_dict
-        cur_feed_dict = {
-            "skill_seq": feed_dict["skill_seq"][:, : idx + 1],
-            "label_seq": feed_dict["label_seq"][:, : idx + 1],
-            "quest_seq": feed_dict["quest_seq"][:, : idx + 1],
-        }
+        cur_feed_dict = utils.get_feed_continual(
+            keys=["skill_seq", "label_seq", "quest_seq"],
+            data=feed_dict,
+            idx=idx,
+        )
 
         out_dict = self.forward(cur_feed_dict)
 
         return out_dict
+
+    def evaluate_cl(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+        metrics=None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Evaluate a Continual Learning (CL) model's performance.
+
+        This method evaluates a Continual Learning (CL) model's performance for a given
+        index in a sequence. It calculates predictions for future time steps using the
+        model's current state.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data for
+                evaluation, including skill sequences, question sequences, and label
+                sequences.
+            idx (int, optional): The index at which to evaluate the model. Default is None.
+            metrics: User-defined metrics for evaluating model performance (not documented here).
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing evaluation results, typically
+            including model predictions and performance metrics.
+
+        Note:
+            - This method performs CL evaluation by making predictions for future time steps
+            based on the current model state.
+            - The `idx` parameter specifies the evaluation index within the sequences.
+            - The specific metrics used for evaluation are determined by the `metrics` parameter,
+            which is user-defined and not documented here.
+        """
+
+        test_time = 10
+
+        skills = feed_dict["skill_seq"]  # [batch_size, real_max_step]
+        questions = feed_dict["quest_seq"]  # [batch_size, real_max_step]
+        labels = feed_dict["label_seq"]  # [batch_size, real_max_step]
+
+        predictions = []
+
+        for i in range(0, test_time):
+            if i == 0:
+                inters = (
+                    skills[:, idx : idx + 1] + labels[:, idx : idx + 1] * self.skill_num
+                )
+
+            else:
+                pred_labels = torch.cat(
+                    [
+                        labels[:, idx : idx + 1],
+                        (torch.cat(predictions, -1) >= 0.5) * 1,
+                        labels[:, idx + i : idx + i + 1],
+                    ],
+                    dim=-1,
+                )  # [batch_size, i+2]
+
+                inters = skills[:, idx : idx + i + 2] + pred_labels * self.skill_num
+
+            skill_data = self.skill_embeddings(skills[:, idx : idx + i + 2])
+            inter_data = self.inter_embeddings(inters)
+
+            skill_diff_data = self.skill_diff(skills[:, idx : idx + i + 2])
+            inter_diff_data = self.inter_diff(inters)
+
+            q_diff = self.difficult_param(questions[:, idx : idx + i + 2])
+            skill_data = skill_data + q_diff * skill_diff_data
+            inter_data = inter_data + q_diff * inter_diff_data
+
+            x, y = skill_data, inter_data
+            for block in self.blocks_1:  # encode
+                y = block(mask=1, query=y, key=y, values=y)
+            flag_first = True
+            for block in self.blocks_2:
+                if flag_first:  # peek current question
+                    x = block(mask=1, query=x, key=x, values=x, apply_pos=False)
+                    flag_first = False
+                else:  # don't peek current response
+                    x = block(mask=0, query=x, key=x, values=y, apply_pos=True)
+                    flag_first = True
+
+            concat_q = torch.cat([x, skill_data], dim=-1)
+            prediction = self.out(concat_q).squeeze(-1).sigmoid()[:, -1:]
+
+            predictions.append(prediction)
+
+        prediction = torch.cat(predictions, dim=-1)
+        labels = feed_dict["label_seq"][:, idx + 1 : idx + test_time + 1].float()
+
+        return self.pred_evaluate_method(
+            prediction.flatten().cpu(), labels.flatten().cpu(), metrics
+        )
 
     def forward(
         self,
@@ -240,7 +330,6 @@ class AKT(BaseModel):
         out_dict = {
             "prediction": prediction,
             "label": label.float(),
-            "emb": x,
         }
 
         return out_dict
@@ -332,7 +421,6 @@ class AKT(BaseModel):
         out_dict = {
             "prediction": prediction,
             "label": labels[:, train_step:].float() if all_step > 1 else labels.float(),
-            "emb": x,
         }
 
         return out_dict
@@ -589,7 +677,7 @@ class MultiHeadAttention(nn.Module):
             q = self.k_linear(q).view(bs, -1, self.h, self.d_k)
         v = self.v_linear(v).view(bs, -1, self.h, self.d_k)
 
-        # transpose to get dimensions bs * h * sl * d_model
+        # transpose to get dimensions batch_size * h * sl * d_model
         k = k.transpose(1, 2)
         q = q.transpose(1, 2)
         v = v.transpose(1, 2)
@@ -633,7 +721,7 @@ class MultiHeadAttention(nn.Module):
         """
         scores = (
             torch.matmul(q, k.transpose(-2, -1)) / d_k**0.5
-        )  # BS, head, seqlen, seqlen
+        )  # batch_size, head, seqlen, seqlen
         bs, head, seqlen = scores.size(0), scores.size(1), scores.size(2)
 
         x1 = torch.arange(seqlen).expand(seqlen, -1)
@@ -641,18 +729,20 @@ class MultiHeadAttention(nn.Module):
         x2 = x1.transpose(0, 1).contiguous()
 
         with torch.no_grad():
-            scores_ = F.softmax(scores, dim=-1)  # BS,8,seqlen,seqlen
+            scores_ = F.softmax(scores, dim=-1)  # batch_size,8,seqlen,seqlen
             scores_ = scores_ * mask.float()
             scores_ = scores_.cuda() if self.gpu != "" else scores_
-            distcum_scores = torch.cumsum(scores_, dim=-1)  # bs, 8, sl, sl
-            disttotal_scores = torch.sum(scores_, dim=-1, keepdim=True)  # bs, 8, sl, 1
+            distcum_scores = torch.cumsum(scores_, dim=-1)  # batch_size, 8, sl, sl
+            disttotal_scores = torch.sum(
+                scores_, dim=-1, keepdim=True
+            )  # batch_size, 8, sl, 1
             position_effect = torch.abs(x1 - x2)[
                 None, None, :, :
             ].float()  # 1, 1, seqlen, seqlen
             position_effect = (
                 position_effect.cuda() if self.gpu != "" else position_effect
             )
-            # bs, 8, sl, sl positive distance
+            # batch_size, 8, sl, sl positive distance
             dist_scores = torch.clamp(
                 (disttotal_scores - distcum_scores) * position_effect, min=0.0
             )
@@ -667,7 +757,7 @@ class MultiHeadAttention(nn.Module):
 
         maxim = torch.tensor(-1e20).to(scores.device)
         scores = scores.masked_fill(mask == 0, maxim)  # float('-inf'))
-        scores = F.softmax(scores, dim=-1)  # BS, head, seqlen, seqlen
+        scores = F.softmax(scores, dim=-1)  # batch_size, head, seqlen, seqlen
         if zero_pad:
             pad_zero = torch.zeros(bs, head, 1, seqlen).float()
             pad_zero = pad_zero.cuda() if self.gpu != "" else pad_zero

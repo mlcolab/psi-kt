@@ -12,6 +12,60 @@ import torch
 from knowledge_tracing.utils import visualize
 
 
+def compute_entropy_mi(emb: torch.Tensor, default_dim: int = 16) -> None:
+    """
+    Computes the entropy and mutual information (MI) for given embeddings across learners and samples over time.
+
+    This function calculates the overall entropy (H(s)) of the embeddings, the conditional entropy (H(s|l))
+    given a learner, and mutual information metrics between learners and samples over time, considering both
+    full covariance and diagonal covariance approximations. The entropy calculations are based on the
+    determinant of the covariance matrix of embeddings, adjusted by a constant related to the dimensionality
+    and the log of 2*pi. Mutual information is calculated as the difference between entropies.
+
+    Args:
+        emb (Tensor): A 4-dimensional tensor of shape [num_learner, num_sample, time_step, dim] representing
+                      the embeddings from which to calculate entropy and mutual information. 'dim' is the
+                      dimensionality of each embedding vector.
+        default_dim (int, optional): The dimension to normalize entropy calculations to. Defaults to 16.
+
+    Note:
+        This function uses PyTorch operations to compute covariances and determinants, and thus requires
+        tensors to be of a type that PyTorch can operate on. The function does not return any values but
+        prints the results directly. For a different behavior (e.g., returning values), modifications to the
+        function are necessary.
+    """
+    num_learner, num_sample, time, dim = emb.shape
+    const = dim / 2 * (1 + np.log(2 * np.pi))
+
+    # H(s)
+    cov_s = torch.cov(emb.reshape(-1, dim).transpose(0, 1))
+    hs = torch.log(torch.linalg.det(cov_s))
+    hs = (hs / 2 + const) * default_dim / dim
+
+    # H(s|l)
+    hs_l_list = []
+    cov_sl_list = []
+    for i in range(num_learner):
+        cov_sl = torch.cov(emb[i].reshape(-1, dim).transpose(0, 1))
+        determinant = torch.linalg.det(cov_sl)
+        hs_l_list.append(torch.log(determinant))
+        cov_sl_list.append(determinant)
+    hs_l = hs_l_list.sum() / (len(hs_l_list) - i)
+    hs_l = (hs_l / 2 + const) * default_dim / dim
+
+    hs_diag = torch.var(emb.reshape(-1, dim), 0)
+    hs_diag = torch.log(hs_diag).sum()
+    hs_diag = hs_diag / 2 + const
+
+    hs_l_diag = torch.var(emb.reshape(num_learner, -1, dim), 1)
+    hs_l_diag = torch.log(hs_l_diag).sum(1).mean()
+    hs_l_diag = (hs_l_diag / 2 + const) * default_dim / dim
+
+    print("I_sl_full_full", hs - hs_l)
+    print("I_sl_full_diag", hs - hs_l_diag)
+    print("I_sl_diag_diag", hs_diag - hs_l_diag)
+
+
 def get_theta_shape(num_seq: int, num_node: int, other) -> dict:
     """
     Get the shape of theta parameters based on the training mode.
@@ -38,7 +92,7 @@ def get_theta_shape(num_seq: int, num_node: int, other) -> dict:
     )
 
 
-def load_corpus(logs, args):
+def load_corpus(logs: object, args: argparse.Namespace) -> object:
     """
     Load corpus from the corpus path, and split the data into k folds.
 
@@ -115,6 +169,46 @@ def get_feed_general(
 
         # Convert the sequence to a PyTorch tensor and add it to the feed_dict dictionary
         feed_dict[key] = torch.as_tensor(seq)
+
+    return feed_dict
+
+
+def get_feed_continual(
+    keys: dict, data: pd.DataFrame, idx: int, pad_list: bool = False
+) -> dict:
+    """
+    Create a feed dictionary for a given index from a DataFrame (for continual learning tasks).
+
+    Args:
+        keys (dict): A dictionary where keys are target variable names and values
+                     are column names in the DataFrame `data` containing the
+                     corresponding sequence data.
+        data (pd.DataFrame): The DataFrame containing the sequence data.
+        idx (int): The index up to which the sequences should be extracted.
+        pad_list (bool, optional): Whether to pad sequences if their keys end with
+                                   '_seq' or contain 'num_'. Default is False.
+
+    Returns:
+        dict: A dictionary with target variable names as keys and PyTorch tensors
+              containing sequences of data up to the specified index as values.
+
+    Note:
+        - If `pad_list` is True, sequences whose keys end with '_seq' or contain
+          'num_' will be padded to the length of the longest sequence in the batch.
+    """
+    # Create an empty dictionary to hold the feed_dict values
+    feed_dict = {}
+
+    # Iterate over the keys in the provided list
+    for key, value in keys.items():
+        # Extract the sequence of values for the current key from the input data
+        if "_seq" in key or "num_" in key:
+            seq = data[value][:, : idx + 1]
+        else:
+            seq = data[value]
+
+        # Convert the sequence to a PyTorch tensor and add it to the feed_dict dictionary
+        feed_dict[key] = seq
 
     return feed_dict
 
@@ -221,7 +315,7 @@ def check_dir(file_name: str) -> None:
     dir_path.touch()
 
 
-def get_time():
+def get_time() -> str:
     """
     Get the current time.
     """
@@ -573,7 +667,7 @@ def simulate_graph_ou_learning_path(
     Simulate a learning path using the graph OU model.
     Args:
         args (argparse.Namespace): Command-line arguments containing:
-            - mean_rev_speed (float): Mean reversion speed. 
+            - mean_rev_speed (float): Mean reversion speed.
             - mean_rev_level (float): Mean reversion level.
             - vola (float): Volatility.
             - num_sequence (int): Number of sequences.

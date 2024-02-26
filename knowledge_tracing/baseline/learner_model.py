@@ -155,17 +155,13 @@ class VanillaOU(BaseLearnerModel):
         vola = vola if vola is not None else self.vola
 
         dt = torch.diff(t)
-        dt = torch.log(
-            dt
-        )  # TODO to find the right temperature of time difference in different real-world datasets
+        dt = torch.log(dt)
         mu = self.mean(x, dt, speed, level)
         sigma = self.std(dt, speed, vola)
         var = self.variance(dt, speed, vola)
 
         dist = torch.distributions.normal.Normal(loc=mu, scale=var)
         log_pdf = dist.log_prob(x).sum(-1)
-        # log_scale = torch.log(sigma) / 2
-        # log_pdf = -((x - mu) ** 2) / (2 * var) - log_scale - torch.log(torch.sqrt(2 * torch.tensor(math.pi,device=device)))
 
         return log_pdf
 
@@ -205,7 +201,7 @@ class VanillaOU(BaseLearnerModel):
                 torch.relu(self.vola)[..., 0] + EPS, (num_seq, num_node)
             )
         elif ("ls_" in self.mode) or ("ln" in self.mode):
-            batch_speed = torch.relu(self.mean_rev_speed[user_id])[..., 0] + EPS  # TODO
+            batch_speed = torch.relu(self.mean_rev_speed[user_id])[..., 0] + EPS
             batch_level = self.mean_rev_level[user_id][..., 0]
             batch_vola = torch.relu(self.vola[user_id])[..., 0] + EPS
         elif "ns_" in self.mode:
@@ -292,11 +288,6 @@ class VanillaOU(BaseLearnerModel):
         for key in evaluations.keys():
             losses[key] = evaluations[key]
 
-        # TODO better visualization
-        losses["mean_rev_speed"] = self.mean_rev_speed[0].clone()
-        losses["mean_rev_level"] = self.mean_rev_level[0].clone()
-        losses["vola"] = self.vola[0].clone()
-
         return losses
 
 
@@ -378,12 +369,10 @@ class GraphOU(VanillaOU):
         t = t
         dt = torch.diff(t).unsqueeze(1) / T_SCALE + EPS
         dt = torch.tile(dt, (1, num_node, 1)) + EPS  # [bs, num_node, time-1]
-        # dt = torch.log(dt) # TODO to find the right temperature of time difference in different real-world datasets
 
         if items == None or num_node == 1:
             items = torch.zeros_like(t, device=self.device, dtype=torch.long)
 
-        # ipdb.set_trace()
         if "simple" in self.mode:
             batch_speed = torch.tile(
                 torch.relu(self.mean_rev_speed)[..., 0] + EPS, (num_seq, num_node)
@@ -394,7 +383,7 @@ class GraphOU(VanillaOU):
             )
             batch_gamma = torch.tile(self.gamma[..., 0], (num_seq, num_node))
         elif ("ls_" in self.mode) or ("ln_" in self.mode):
-            batch_speed = torch.relu(self.mean_rev_speed[user_id])[..., 0] + EPS  # TODO
+            batch_speed = torch.relu(self.mean_rev_speed[user_id])[..., 0] + EPS
             batch_level = self.mean_rev_level[user_id][..., 0]
             batch_vola = torch.relu(self.vola[user_id])[..., 0] + EPS
             batch_gamma = self.gamma[user_id][..., 0]
@@ -407,8 +396,9 @@ class GraphOU(VanillaOU):
             batch_gamma = torch.tile(self.gamma[..., 0], (num_seq, 1))
 
         # graph
+        # TODO future work could test with multiple power of adj -> multi-step transition
         adj = self.adj.float()
-        adj_t = torch.transpose(adj, -1, -2)  # TODO test with multiple power of adj
+        adj_t = torch.transpose(adj, -1, -2)
         assert num_node == adj.shape[-1]
 
         scale = self.std(dt, speed=batch_speed, vola=batch_vola)  # [bs, num_node, t-1]
@@ -422,24 +412,15 @@ class GraphOU(VanillaOU):
 
         # find degree 0
         in_degree = adj_t.sum(dim=-1)
-        ind = torch.where(in_degree == 0)[0]  # [284,]
+        ind = torch.where(in_degree == 0)[0]
 
         for i in range(1, time_step):
-            # TODO no spike
             cur_item = items[:, i]  # [num_seq, ]
 
             empower = torch.einsum("ij, ai->aj", adj_t, x_last)
             empower = (1 / (in_degree[None, :] + EPS)) * batch_gamma * empower
             empower[:, ind] = 0
-            # ipdb.set_trace()
-            # stable = torch.pow((success_last/(num_last+EPS)), self.rho)
 
-            # # Choice 1
-            # stable = batch_level
-            # tmp_mean_level = omega * empower + (1-omega) * stable
-            # tmp_batch_speed = batch_speed
-
-            # Choice 2
             stable = batch_speed
             tmp_mean_level = batch_level
             tmp_batch_speed = torch.relu(omega * empower + (1 - omega) * stable) + EPS
@@ -487,11 +468,5 @@ class GraphOU(VanillaOU):
             evaluations = BaseModel.pred_evaluate_method(pred, label, metrics)
         for key in evaluations.keys():
             losses[key] = evaluations[key]
-
-        # TODO better visualization
-        losses["mean_rev_speed"] = self.mean_rev_speed[0].clone()
-        losses["mean_rev_level"] = self.mean_rev_level[0].clone()
-        losses["vola"] = self.vola[0].clone()
-        losses["gamma"] = self.gamma[0].clone()
 
         return losses

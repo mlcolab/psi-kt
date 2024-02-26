@@ -10,6 +10,7 @@ from knowledge_tracing.baseline import *
 from knowledge_tracing.baseline.basemodel import BaseModel, BaseLearnerModel
 from knowledge_tracing.utils import logger, utils
 from knowledge_tracing.data.data_loader import DataReader
+from knowledge_tracing.baseline.halflife_regression import T_SCALE, EPS
 
 
 class HLR(BaseLearnerModel):
@@ -23,12 +24,12 @@ class HLR(BaseLearnerModel):
         https://github.com/duolingo/halflife-regression/blob/0041df0dcd436bf1b4aa7a17a020d9c670db70d8/experiment.py
 
     Args:
-        theta: [bs/num_seq, num_node, 3]; should be 3D vector indicates the parameters of the model;
+        theta: [batch_size/num_seq, num_node, 3]; should be 3D vector indicates the parameters of the model;
             the näive version is to compute the dot product of theta and [N_total, N_success, N_failure]
         base: the base of HLR model
         num_seq: when mode==synthetic, it is the number of sequences to generate;
             is mode==train, it is the number of batch size
-        items: [bs/num_seq, time_step]
+        items: [batch_size/num_seq, time_step]
         mode: [synthetic, train]; synthetic is to generate new sequences based on given theta; train is to
             train the parameters theta given observed data.
         device: cpu or cuda to put all variables and train the model
@@ -68,7 +69,9 @@ class HLR(BaseLearnerModel):
         else:
             self.adj = None
 
-        super().__init__(mode=args.train_mode, device=args.device, logs=logs)
+        BaseLearnerModel.__init__(
+            self, mode=args.train_mode, device=args.device, logs=logs
+        )
 
     def _init_weights(self) -> None:
         if self.mode == "synthetic":
@@ -77,7 +80,7 @@ class HLR(BaseLearnerModel):
             try:
                 shape = utils.get_theta_shape(self.num_seq, self.num_node, 3)[
                     self.mode.lower()
-                ].value
+                ]
             except KeyError:
                 raise ValueError(f"Invalid mode: {self.mode}")
             self.theta = self._initialize_parameter(shape, self.device)
@@ -151,7 +154,7 @@ class HLR(BaseLearnerModel):
         dt = torch.diff(t).unsqueeze(1)
         dt = (
             torch.tile(dt, (1, self.num_node, 1)) / T_SCALE + EPS
-        )  # [bs, num_node, time-1]
+        )  # [batch_size, num_node, time-1]
 
         # ----- compute the stats of history -----
         if items == None or self.num_node == 1:
@@ -191,7 +194,7 @@ class HLR(BaseLearnerModel):
             cur_item = items[:, i]  # [num_seq, ]
             cur_dt = (
                 t[:, None, i] - whole_last_time[..., i]
-            ) / T_SCALE + EPS  # [bs, num_node]
+            ) / T_SCALE + EPS  # [batch_size, num_node]
             cur_feat = whole_stats[:, :, i]
 
             feat = torch.mul(cur_feat, batch_theta).sum(-1)
@@ -199,8 +202,10 @@ class HLR(BaseLearnerModel):
 
             half_life = self.hclip(self.base**feat)
             half_life = self.base**feat
-            p_all = self.pclip(self.base ** (-cur_dt / half_life))  # [bs, num_node]
-            p_item = p_all[torch.arange(num_seq), cur_item]  # [bs, ]
+            p_all = self.pclip(
+                self.base ** (-cur_dt / half_life)
+            )  # [batch_size, num_node]
+            p_item = p_all[torch.arange(num_seq), cur_item]  # [batch_size, ]
 
             if stats_cal_on_fly or self.mode == "synthetic":
                 success = nn.functional.gumbel_softmax(torch.log(p_item), hard=True)
@@ -219,10 +224,10 @@ class HLR(BaseLearnerModel):
 
         params = {
             # NOTE: the first element of the following values in out_dict is not predicted
-            "half_life": half_lifes,  # [bs, num_node, times]
-            "x_item_pred": x_item_pred,  # [bs, 1, times]
-            "x_all_pred": x_pred,  # [bs, num_node, times]
-            "num_history": all_feature[..., 0],  # [bs, num_node, times]
+            "half_life": half_lifes,  # [batch_size, num_node, times]
+            "x_item_pred": x_item_pred,  # [batch_size, 1, times]
+            "x_all_pred": x_pred,  # [batch_size, num_node, times]
+            "num_history": all_feature[..., 0],  # [batch_size, num_node, times]
             "num_success": all_feature[..., 1],
             "num_failure": all_feature[..., 2],
         }
@@ -245,19 +250,82 @@ class HLR(BaseLearnerModel):
             Dict[str, torch.Tensor]: A dictionary containing output tensors from the forward pass.
         """
         # Extract input tensors from feed_dict
-        cur_feed_dict = {
-            "skill_seq": feed_dict["skill_seq"][:, : idx + 1],
-            "label_seq": feed_dict["label_seq"][:, : idx + 1],
-            "time_seq": feed_dict["time_seq"][:, : idx + 1],
-            "num_history": feed_dict["num_history"][:, : idx + 1],
-            "num_success": feed_dict["num_success"][:, : idx + 1],
-            "num_failure": feed_dict["num_failure"][:, : idx + 1],
-            "user_id": feed_dict["user_id"],
-        }
+        cur_feed_dict = cur_feed_dict = utils.get_feed_continual(
+            keys=[
+                "skill_seq",
+                "label_seq",
+                "time_seq",
+                "num_history",
+                "num_success",
+                "num_failure",
+                "user_id",
+            ],
+            data=feed_dict,
+            idx=idx,
+        )
 
         out_dict = self.forward(cur_feed_dict)
 
         return out_dict
+
+    def evaluate_cl(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+        metrics=None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Evaluate the learner model's performance.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data tensors.
+            idx (int, optional): Index of the evaluation batch. Defaults to None.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing evaluation results.
+        """
+        test_step = 10
+
+        skills_test = feed_dict["skill_seq"][:, idx : idx + test_step + 1]
+        labels_test = feed_dict["label_seq"][:, idx : idx + test_step + 1]
+        times_test = feed_dict["time_seq"][:, idx : idx + test_step + 1]
+
+        bs, _ = labels_test.shape
+        self.num_seq = bs
+
+        x0 = torch.zeros((bs, self.num_node)).to(labels_test.device)
+        if self.num_node > 1:
+            x0[torch.arange(bs), skills_test[:, 0]] += labels_test[:, 0]
+            items = skills_test
+        else:
+            x0[:, 0] += labels_test[:, 0]
+            items = None
+
+        stats = torch.stack(
+            [
+                feed_dict["num_history"],
+                feed_dict["num_success"],
+                feed_dict["num_failure"],
+            ],
+            dim=-1,
+        )
+        stats = stats.unsqueeze(1)
+
+        out_dict = self.simulate_path(
+            x0=x0,
+            t=times_test,
+            items=items,
+            user_id=feed_dict["user_id"],
+            stats=stats,
+            stats_cal_on_fly=True,
+        )
+
+        labels = labels_test.unsqueeze(1)[..., 1:].float()
+        prediction = out_dict["x_item_pred"][..., 1:]
+
+        return self.pred_evaluate_method(
+            prediction.flatten().cpu(), labels.flatten().cpu(), metrics
+        )
 
     def loss(
         self,
@@ -355,7 +423,7 @@ class HLR(BaseLearnerModel):
         out_dict.update(
             {
                 "prediction": out_dict["x_item_pred"][..., 1:],
-                "label": labels_test.unsqueeze(1)[..., 1:],  # [bs, 1, time]
+                "label": labels_test.unsqueeze(1)[..., 1:],  # [batch_size, 1, time]
             }
         )
 

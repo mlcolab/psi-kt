@@ -20,7 +20,7 @@ class BaselineKTRunner(KTRunner):
         self,
         args: argparse.Namespace,
         logs: logger.Logger,
-    ):
+    ) -> None:
         """
         Initialize the BaselineKTRunner instance.
 
@@ -28,57 +28,14 @@ class BaselineKTRunner(KTRunner):
             args (argparse.Namespace): Global arguments provided as a namespace.
             logs (logger.Logger): The Logger instance for logging information.
         """
-
+        KTRunner.__init__(self, args, logs)
         self.time = None
-
-        # number of data to train
-        self.overfit = args.overfit
-
-        # training options
-        self.epoch = args.epoch
-        self.batch_size = args.batch_size_multiGPU
-        self.eval_batch_size = args.eval_batch_size
-
-        # list of evaluation metrics to use during training
-        self.metrics = args.metric.strip().lower().split(",")
-        for i in range(len(self.metrics)):
-            self.metrics[i] = self.metrics[i].strip()
-
-        self.args = args
-        self.early_stop = args.early_stop
-        self.logs = logs
-        self.device = args.device
-
-    def _eva_termination(
-        self,
-        model: torch.nn.Module,
-        metrics_list: list = None,
-        metrics_log: dict = None,
-    ) -> bool:
-        """
-        Determine whether the training should be terminated based on the validation results.
-
-        Returns:
-        - True if the training should be terminated, False otherwise
-        """
-
-        for m in metrics_list:
-            valid = list(metrics_log[m])
-
-            # Check if the last 10 validation results have not improved
-            if not (len(valid) > 10 and utils.non_increasing(valid[-10:])):
-                return False
-            # Check if the maximum validation result has not improved for the past 10 epochs
-            elif not (len(valid) - valid.index(max(valid)) > 10):
-                return False
-
-        return True
 
     def train(
         self,
         model: torch.nn.Module,
         corpus: DataReader,
-    ):
+    ) -> None:
         """
         Trains the KT model instance with parameters.
 
@@ -86,28 +43,34 @@ class BaselineKTRunner(KTRunner):
             model: the KT model instance with parameters to train
             corpus: data
         """
+        # Ensure that training data is available
         assert corpus.data_df["train"] is not None
+        # Mark the start time of the training
         self.start_time = self._check_time(start=True)
 
-        # Prepare training data (if needs quick test then specify overfit arguments in the args);
-        set_name = ["train", "val", "test", "whole"]
-        if self.overfit > 0:
-            epoch_train_data, epoch_val_data, epoch_test_data, epoch_whole_data = [
-                copy.deepcopy(corpus.data_df[key][: self.overfit]) for key in set_name
+        # Prepare training data (if needs quick test then specify num_learner arguments in the args);
+        set_name = ["train", "val", "test"]
+        if self.num_learner > 0:
+            # If specified, limit the data to the first 'num_learner' entries
+            epoch_train_data, epoch_val_data, epoch_test_data = [
+                copy.deepcopy(corpus.data_df[key][: self.num_learner])
+                for key in set_name
             ]
         else:
-            epoch_train_data, epoch_val_data, epoch_test_data, epoch_whole_data = [
+            epoch_train_data, epoch_val_data, epoch_test_data = [
                 copy.deepcopy(corpus.data_df[key]) for key in set_name
             ]
 
-        # Return a random sample of items from an axis of object.
+        # Shuffle training data
         epoch_train_data = epoch_train_data.sample(frac=1).reset_index(drop=True)
+        # Prepare data batches for training and optionally for validation and testing
         self.train_batches = model.module.prepare_batches(
             corpus, epoch_train_data, self.batch_size, phase="train"
         )
         self.val_batches = None
         self.test_batches = None
 
+        # Prepare validation and test batches if respective flags are set
         if self.args.test:
             self.test_batches = model.module.prepare_batches(
                 corpus, epoch_test_data, self.eval_batch_size, phase="test"
@@ -119,17 +82,25 @@ class BaselineKTRunner(KTRunner):
 
         try:
             for epoch in range(self.epoch):
+                # Collect garbage to free up memory
                 gc.collect()
+
+                # Set model to training mode
                 model.module.train()
 
+                # Check and print the elapsed time
                 self._check_time()
 
+                # Perform a single epoch of training
                 loss = self.fit(model, epoch=epoch)
-                test = self.test(model, corpus, epoch, loss)
+                # Optionally perform testing after each epoch
+                _ = self.test(model, corpus, epoch, loss)
 
+                # Save the model periodically
                 if epoch % self.args.save_every == 0:
                     model.module.save_model(epoch=epoch)
 
+                # Early stopping based on validation performance
                 if self.early_stop:
                     if self._eva_termination(
                         model, self.metrics, self.logs.val_results
@@ -138,9 +109,12 @@ class BaselineKTRunner(KTRunner):
                             "Early stop at %d based on validation result." % (epoch)
                         )
                         break
+
+                # Draw loss curves
                 self.logs.draw_loss_curves()
 
         except KeyboardInterrupt:
+            # Handle manual interruption of training
             self.logs.write_to_log_file("Early stop manually")
             exit_here = input("Exit completely without evaluation? (y/n) (default n):")
             if exit_here.lower().startswith("y"):
@@ -194,7 +168,7 @@ class BaselineKTRunner(KTRunner):
         corpus: DataReader,
         epoch: int = 0,
         train_loss: float = 0.0,
-    ):
+    ) -> tuple:
         """
         Perform testing on the model.
 
@@ -212,7 +186,6 @@ class BaselineKTRunner(KTRunner):
         val_result, test_result = None, None
 
         with torch.no_grad():
-
             if self.args.validate:
                 val_result = self.evaluate(
                     model, corpus, "val", self.val_batches, epoch=epoch
@@ -236,7 +209,11 @@ class BaselineKTRunner(KTRunner):
                     )
                 )
 
-            if (self.args.test) & (epoch % self.args.test_every == 0):
+            if (
+                (self.args.test)
+                & (epoch % self.args.test_every == 0)
+                & (epoch >= self.early_stop)
+            ):
                 test_result = self.evaluate(
                     model, corpus, "test", self.test_batches, epoch=epoch
                 )
@@ -259,7 +236,7 @@ class BaselineKTRunner(KTRunner):
         self,
         model: torch.nn.Module,
         epoch: int = 0,
-    ):
+    ) -> dict:
         """
         Trains the given model on the given batches of data.
 
@@ -290,7 +267,6 @@ class BaselineKTRunner(KTRunner):
             mininterval=1,
             desc="Epoch %5d" % epoch,
         ):
-
             batch = model.module.batch_to_gpu(batch, self.device)
 
             # Reset gradients.
@@ -320,35 +296,62 @@ class BaselineKTRunner(KTRunner):
 
         return self.logs.train_results["loss_total"][-1]
 
-    def predict(self, model, corpus, set_name, data_batches=None, epoch=None):
+    def predict(
+        self,
+        model: torch.nn.Module,
+        corpus: DataReader,
+        set_name: str,
+        data_batches: list = None,
+        epoch: int = 0,
+    ) -> tuple:
         """
+        Performs prediction on a specified dataset using the provided model.
+
         Args:
-            model:
+            model: The trained model instance used for making predictions.
+            corpus: The data container from which the data batches are prepared.
+            set_name: A string indicating the name of the dataset to predict on (e.g., "train", "val", "test").
+            data_batches: A list of data batches prepared for prediction. If None, batches will be prepared based on set_name.
+            epoch: The current epoch number, used for logging or tracking. Not directly used in prediction.
+
+        Returns:
+            predictions: A numpy array containing the predicted values.
+            labels: A numpy array containing the true labels corresponding to the predictions.
         """
+        # Ensure the model is in evaluation mode to disable dropout or batch normalization effects during inference
         model.module.eval()
 
+        # Initialize lists to store predictions, labels, and raw outputs
         predictions, labels, outputs = [], [], []
 
+        # Iterate over each batch in the dataset
         for batch in tqdm(
             data_batches, leave=False, ncols=100, mininterval=1, desc="Predict"
         ):
+            # Move the batch data to the appropriate device (GPU or CPU)
             batch = model.module.batch_to_gpu(batch, self.device)
+            # Perform prediction using the model
             out_dict = model.module.predictive_model(batch)
+            # Collect the raw outputs for further analysis or debugging
             outputs.append(out_dict)
 
+            # Extract predictions and labels from the output dictionary
             prediction, label = out_dict["prediction"], out_dict["label"]
+            # Detach predictions and labels from the computation graph and move to CPU, converting to numpy arrays
             predictions.extend(prediction.detach().cpu().data.numpy())
             labels.extend(label.detach().cpu().data.numpy())
 
-        # import pickle
-        # import ipdb
-        # filehandler = open("/mnt/qb/work/mlcolab/hzhou52/0iclr_exp3_mi_learner_and_emb/10-20/akt_junyi15_1000_2023_260_test.obj","wb")
-        # pickle.dump(outputs,filehandler)
-        # filehandler.close()
-
+        # Convert lists of predictions and labels to numpy arrays for easier handling
         return np.array(predictions), np.array(labels)
 
-    def evaluate(self, model, corpus, set_name, data_batches=None, epoch=None):
+    def evaluate(
+        self,
+        model: torch.nn.Module,
+        corpus: DataReader,
+        set_name: str,
+        data_batches: list = None,
+        epoch: int = 0,
+    ) -> dict:
         """
         Evaluate the results for an input set.
 
@@ -376,7 +379,7 @@ class BaselineKTRunner(KTRunner):
 
         # Concatenate the predictions and labels into arrays.
         concat_pred, concat_label = [], []
-        for pred, label, length in zip(predictions, labels, lengths):
+        for pred, label, _ in zip(predictions, labels, lengths):
             concat_pred.append(pred)
             concat_label.append(label)
         concat_pred = np.concatenate(concat_pred)
@@ -386,3 +389,215 @@ class BaselineKTRunner(KTRunner):
         return model.module.pred_evaluate_method(
             concat_pred, concat_label, self.metrics
         )
+
+
+class BaselineContinualRunner(BaselineKTRunner):
+    """
+    This implements the training loop, testing & validation, optimization etc.
+    """
+
+    def __init__(
+        self,
+        args: argparse.Namespace,
+        logs: logger.Logger,
+    ) -> None:
+        """
+        Initialize the BaselineKTRunner instance.
+
+        Args:
+            args (argparse.Namespace): Global arguments provided as a namespace.
+            logs (logger.Logger): The Logger instance for logging information.
+        """
+
+        self.time = None
+
+        # number of data to train
+        self.num_learner = args.num_learner
+
+        # training options
+        self.epoch = args.epoch
+        self.batch_size = args.batch_size_multiGPU
+        self.eval_batch_size = args.eval_batch_size
+
+        # list of evaluation metrics to use during training
+        self.metrics = args.metric.strip().lower().split(",")
+        for i in range(len(self.metrics)):
+            self.metrics[i] = self.metrics[i].strip()
+
+        self.args = args
+        self.early_stop = args.early_stop
+        self.logs = logs
+        self.device = args.device
+
+    def train(
+        self,
+        model: torch.nn.Module,
+        corpus: DataReader,
+    ) -> None:
+        """
+        Initiates the training process for the KT model with the given dataset.
+
+        This method sets up the optimizer if it hasn't been already, prepares the data,
+        and iterates through a training loop to fit the model on the entire dataset for
+        a specified number of epochs or until early stopping is triggered.
+
+        Args:
+            model: The KT model instance to be trained.
+            corpus: The dataset wrapper used for training.
+        """
+        # Build the optimizer if it hasn't been built already.
+        if model.module.optimizer is None:
+            model.module.optimizer, model.module.scheduler = self._build_optimizer(
+                model
+            )
+
+        # Ensure the training data exists
+        assert corpus.data_df["train"] is not None
+
+        # Record the start time for the training process
+        self._check_time(start=True)
+
+        # Prepare the dataset. If num_learner is specified, use a subset of the data.
+        if self.num_learner > 0:
+            epoch_whole_data = copy.deepcopy(
+                corpus.data_df["whole"][: self.num_learner]
+            )
+            epoch_whole_data["user_id"] = np.arange(self.num_learner)
+        else:
+            epoch_whole_data = copy.deepcopy(corpus.data_df["whole"])
+
+        # Shuffle the dataset
+        epoch_whole_data = epoch_whole_data.sample(frac=1).reset_index(drop=True)
+        # Prepare batches from the shuffled dataset for training
+        whole_batches = model.module.prepare_batches(
+            corpus, epoch_whole_data, self.eval_batch_size, phase="whole"
+        )
+
+        try:
+            # Main training loop
+            for time in range(1, 100):
+                # Clean up memory
+                gc.collect()
+                # Set model to training mode
+                model.train()
+
+                # Check and log the time
+                self._check_time()
+                # Fit the model on the current batch
+                self.fit(model, whole_batches, epoch=time, time_step=time)
+                # Perform testing using the same batches
+                self.test(model, whole_batches, epoch=time, time_step=time)
+
+        except KeyboardInterrupt:
+            self.logs.write_to_log_file("Early stop manually")
+            exit_here = input("Exit completely without evaluation? (y/n) (default n):")
+            if exit_here.lower().startswith("y"):
+                self.logs.write_to_log_file(
+                    os.linesep + "-" * 45 + " END: " + utils.get_time() + " " + "-" * 45
+                )
+                exit(1)
+
+    def fit(
+        self,
+        model: torch.nn.Module,
+        batches: list,
+        epoch: int = 0,
+        time_step: int = 0,
+    ) -> dict:
+        """
+        Trains the given model on the given batches of data.
+
+        Args:
+            model: The model to train.
+            batches: A list of data, where each element is a batch to train.
+            epoch_train_data: A pandas DataFrame containing the training data.
+            epoch: The current epoch number.
+
+        Returns:
+            A dictionary containing the training losses.
+        """
+
+        model.module.train()
+        train_losses = defaultdict(list)
+
+        for mini_epoch in range(10):  # self.epoch):
+            # Iterate through each batch.
+            for batch in tqdm(
+                batches,
+                leave=False,
+                ncols=100,
+                mininterval=1,
+                desc="Epoch %5d" % epoch + " Time %5d" % mini_epoch,
+            ):
+                # Move the batch to the GPU.
+                batch = model.module.batch_to_gpu(batch, self.device)
+
+                # Reset gradients.
+                model.module.optimizer.zero_grad(set_to_none=True)
+
+                output_dict = model.module.forward_cl(batch, idx=time_step)
+                loss_dict = model.module.loss(batch, output_dict, metrics=self.metrics)
+                loss_dict["loss_total"].backward()
+
+                # Update parameters.
+                torch.nn.utils.clip_grad_norm_(model.module.parameters(), 100)
+                model.module.optimizer.step()
+
+                train_losses = self.logs.append_batch_losses(train_losses, loss_dict)
+
+            if mini_epoch % 10 == 0:
+                model.module.save_model(epoch=epoch, mini_epoch=mini_epoch)
+            self.logs.draw_loss_curves()
+
+            string = self.logs.result_string(
+                "train", epoch, train_losses, t=epoch, mini_epoch=mini_epoch
+            )
+            self.logs.write_to_log_file(string)
+            self.logs.append_epoch_losses(train_losses, "train")
+
+        return self.logs.train_results["loss_total"][-1]
+
+    def test(
+        self,
+        model: torch.nn.Module,
+        test_batches: list = None,
+        epoch: int = 0,
+        time_step: int = 0,
+    ) -> None:
+        """
+        Evaluates the model on a test dataset.
+
+        This method is called at specified epochs to evaluate the model's performance on the test dataset.
+        It computes the loss and other metrics defined in the initialization of the runner. The results are
+        logged for each epoch.
+
+        Args:
+            model: The KT model instance to be evaluated.
+            test_batches: A list of data batches for testing. Each batch is a portion of the test dataset.
+            epoch: The current epoch of the training process. Used for logging and to decide if testing should occur.
+            time_step: The current time step in the training process. Used for continual learning evaluations.
+
+        Returns:
+            None: This method logs the test results and does not return any values.
+        """
+        # Dictionary to store test losses and metrics
+        test_losses = defaultdict(list)
+
+        # Set the model to evaluation mode
+        model.module.eval()
+
+        # Check if testing is enabled and it's the correct epoch for testing
+        if (self.args.test) and (epoch % self.args.test_every == 0):
+            with torch.no_grad():  # Disable gradient computation for evaluation
+                for batch in test_batches:  # Iterate through each test batch
+                    # Move the batch to the appropriate device (GPU/CPU)
+                    batch = model.module.batch_to_gpu(batch, self.device)
+                    # Evaluate the model on the batch and obtain loss/metrics
+                    loss_dict = model.module.evaluate_cl(batch, time_step, self.metrics)
+                    # Append batch losses/metrics to the test losses
+                    test_losses = self.logs.append_batch_losses(test_losses, loss_dict)
+
+            # Generate a result string for the current epoch's test performance
+            string = self.logs.result_string("test", epoch, test_losses, t=epoch)
+            self.logs.write_to_log_file(string)
+            self.logs.append_epoch_losses(test_losses, "test")

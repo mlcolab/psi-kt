@@ -7,7 +7,7 @@ from torch import nn
 import torch.distributions as td
 import torch.nn.functional as F
 
-from knowledge_tracing.groupkt.GMVAE import EPS
+from knowledge_tracing.psikt.GMVAE import EPS
 
 
 class VarGT(nn.Module):
@@ -71,7 +71,7 @@ class VarDistribution(nn.Module):
             A binary adjacency matrix, size (num_graph, num_nodes, num_nodes).
         """
         logits = self.edge_log_probs()
-        off_diag_mask = 1 - torch.eye(self.num_nodes, device=self.device)
+        off_diag_mask = 1 - torch.eye(self.num_nodes, device=logits.device)
 
         probs = [
             F.gumbel_softmax(logits, tau=self.tau_gumbel, hard=False, dim=0)[1:]

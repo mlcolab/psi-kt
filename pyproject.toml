@@ -1,5 +1,5 @@
 [project]
-name = "knowledge_tracing"
+name = "psi-kt"
 version = "0.1.0.dev0"
 description = ""
 readme = "readme.md"

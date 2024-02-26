@@ -12,6 +12,7 @@ from knowledge_tracing import *
 from knowledge_tracing.baseline.basemodel import BaseModel
 from knowledge_tracing.utils import utils, logger
 from knowledge_tracing.data.data_loader import DataReader
+from knowledge_tracing.baseline.HawkesKT import T_SCALE
 
 
 class DKTFORGETTING(BaseModel):
@@ -91,9 +92,7 @@ class DKTFORGETTING(BaseModel):
         self.args = args
 
         # Call the constructor of the superclass (BaseModel) with the specified model path
-        BaseModel.__init__(
-            self, model_path=Path(args.log_path, "Model/Model_{}.pt")
-        )
+        BaseModel.__init__(self, model_path=Path(args.log_path, "Model"))
 
     @staticmethod
     def get_time_features(
@@ -181,8 +180,6 @@ class DKTFORGETTING(BaseModel):
         self.fout = torch.nn.Linear(3, self.hidden_size)
         self.out = torch.nn.Linear(self.hidden_size + 3, self.skill_num)
 
-        self.loss_function = torch.nn.BCELoss()
-
     def forward_cl(
         self,
         feed_dict: Dict[str, torch.Tensor],
@@ -197,86 +194,151 @@ class DKTFORGETTING(BaseModel):
         Returns:
             A dictionary containing the model's predictions and corresponding labels.
         """
+        # Extract input tensors from feed_dict
+        cur_feed_dict = utils.get_feed_continual(
+            keys=[
+                "skill_seq",
+                "label_seq",
+                "repeated_time_gap_seq",
+                "sequence_time_gap_seq",
+                "past_trial_counts_seq",
+                "user_id",
+                "inverse_indice",
+            ],
+            data=feed_dict,
+            idx=idx,
+        )
+        cur_feed_dict["length"] = torch.ones_like(cur_feed_dict["length"]) * (idx + 1)
 
-        items = feed_dict["skill_seq"][:, : idx + 1]  # [bs, time]
-        labels = feed_dict["label_seq"][:, : idx + 1]  # [bs, time]
-        indices = feed_dict["inverse_indice"]
+        out_dict = self.forward(cur_feed_dict)
+
+        return out_dict
+
+    def evaluate_cl(
+        self,
+        feed_dict: Dict[str, torch.Tensor],
+        idx: int = None,
+        metrics=None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Evaluate the learner model's performance.
+
+        Args:
+            feed_dict (Dict[str, torch.Tensor]): A dictionary containing input data tensors.
+            idx (int, optional): Index of the evaluation batch. Defaults to None.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing evaluation results.
+        """
+        test_step = 10
+
+        items = feed_dict["skill_seq"][:, idx : idx + test_step + 1]
+        labels = feed_dict["label_seq"][:, idx : idx + test_step + 1]
 
         repeated_time_gap_seq = feed_dict["repeated_time_gap_seq"][
-            :, : idx + 1
-        ]  # [bs, time, 1]
+            :, idx : idx + test_step + 1
+        ]
         sequence_time_gap_seq = feed_dict["sequence_time_gap_seq"][
-            :, : idx + 1
-        ]  # [bs, time, 1]
+            :, idx : idx + test_step + 1
+        ]
         past_trial_counts_seq = feed_dict["past_trial_counts_seq"][
-            :, : idx + 1
-        ]  # [bs, time, 1]
+            :, idx : idx + test_step + 1
+        ]
 
         # Compute item embeddings and feature interaction
-        embed_history_i = self.skill_embeddings(
-            items + labels * self.skill_num
-        )  # [bs, time, emb_size]
-        fin = self.fin(
+        predictions = []
+        last_emb = self.skill_embeddings(
+            items[:, 0:1] + labels[:, 0:1] * self.skill_num
+        )  # [batch_size, 1, emb_size]
+        last_fin = self.fin(
             torch.cat(
-                (repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq),
+                (
+                    repeated_time_gap_seq[:, 0:1],
+                    sequence_time_gap_seq[:, 0:1],
+                    past_trial_counts_seq[:, 0:1],
+                ),
                 dim=-1,
             )
-        )  # [bs, time, emb_size]
-        embed_history_i = torch.cat(
+        )  # [batch_size, max_stpe, emb_size]
+        last_emb = torch.cat(
             (
-                embed_history_i.mul(fin),
-                repeated_time_gap_seq,
-                sequence_time_gap_seq,
-                past_trial_counts_seq,
+                last_emb.mul(last_fin),
+                repeated_time_gap_seq[:, 0:1],
+                sequence_time_gap_seq[:, 0:1],
+                past_trial_counts_seq[:, 0:1],
             ),
             dim=-1,
         )
 
-        # Pack padded sequence and run through RNN layer
-        self.rnn.flatten_parameters()
-        output, _ = self.rnn(embed_history_i, None)  # [bs, time, emb_dim]
-        fout = self.fout(
-            torch.cat(
-                (repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq),
+        latent_states = None
+        for i in range(test_step):
+            output_rnn, latent_states = self.rnn(
+                last_emb, latent_states
+            )  # [batch_size, 1, emb_size]
+
+            fout = self.fout(
+                torch.cat(
+                    (
+                        repeated_time_gap_seq[:, i : i + 1],
+                        sequence_time_gap_seq[:, i : i + 1],
+                        past_trial_counts_seq[:, i : i + 1],
+                    ),
+                    dim=-1,
+                )
+            )  # [batch_size, 1, emb_size]
+
+            output = torch.cat(
+                (
+                    output_rnn.mul(fout),
+                    repeated_time_gap_seq[:, i + 1 : i + 2],
+                    sequence_time_gap_seq[:, i + 1 : i + 2],
+                    past_trial_counts_seq[:, i + 1 : i + 2],
+                ),
+                dim=-1,
+            )  # [batch_size, time-1, emb_size+3]
+
+            pred_vector = self.out(output)  # [batch_size, 1, skill_num]
+
+            target_item = items[:, i + 1 : i + 2]
+            prediction_sorted = torch.gather(
+                pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)
+            ).squeeze(
+                dim=-1
+            )  # [batch_size, 1]
+            prediction_sorted = torch.sigmoid(prediction_sorted)
+            prediction = prediction_sorted[feed_dict["inverse_indice"]]
+            predictions.append(prediction)
+
+            # last embedding
+            last_emb = self.skill_embeddings(
+                items[:, i + 1 : i + 2] + (prediction >= 0.5) * 1 * self.skill_num
+            )  # [batch_size, 1, emb_size]
+            last_fin = self.fin(
+                torch.cat(
+                    (
+                        repeated_time_gap_seq[:, i + 1 : i + 2],
+                        sequence_time_gap_seq[:, i + 1 : i + 2],
+                        past_trial_counts_seq[:, i + 1 : i + 2],
+                    ),
+                    dim=-1,
+                )
+            )  # [batch_size, 1, emb_size]
+            last_emb = torch.cat(
+                (
+                    last_emb.mul(last_fin),
+                    repeated_time_gap_seq[:, i + 1 : i + 2],
+                    sequence_time_gap_seq[:, i + 1 : i + 2],
+                    past_trial_counts_seq[:, i + 1 : i + 2],
+                ),
                 dim=-1,
             )
-        )  # [bs, time, emb_size]
-        output = torch.cat(
-            (
-                output.mul(fout),
-                repeated_time_gap_seq,
-                sequence_time_gap_seq,
-                past_trial_counts_seq,
-            ),
-            dim=-1,
-        )  # [bs, time, emb_size+3]
 
-        pred_vector = self.out(output)  # [bs, time, skill_num]
+        labels = feed_dict["label_seq"][:, idx + 1 : idx + test_step + 1].float()
+        prediction = torch.cat(predictions, -1)
 
-        target_item = feed_dict["skill_seq"][:, 1 : idx + 2]
-        prediction_sorted = torch.gather(
-            pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)
-        ).squeeze(dim=-1)
-        prediction_sorted = torch.sigmoid(prediction_sorted)
-        prediction = prediction_sorted[feed_dict["inverse_indice"]]
-
-        train_pred = prediction[:, :-1]
-        eval_pred = prediction[:, -1:]
-
-        # Extract the labels for the training and evaluation predictions
-        train_label = feed_dict["label_seq"][:, 1 : idx + 1]
-        train_label = train_label[indices].double()
-        eval_label = feed_dict["label_seq"][:, idx + 1 : idx + 2]
-        eval_label = eval_label[indices].double()
-
-        out_dict = {
-            "prediction": train_pred,
-            "label": train_label,
-            "cl_prediction": eval_pred,
-            "cl_label": eval_label,
-        }
-
-        return out_dict
+        return self.pred_evaluate_method(
+            prediction.flatten().cpu(), labels.flatten().cpu(), metrics
+        )
 
     def forward(
         self,
@@ -292,27 +354,33 @@ class DKTFORGETTING(BaseModel):
             A dictionary containing the model's predictions and corresponding labels.
         """
 
-        items = feed_dict["skill_seq"]  # [bs, max_step]
-        labels = feed_dict["label_seq"]  # [bs, max_step]
-        lengths = feed_dict["length"]  # [bs]
+        items = feed_dict["skill_seq"]  # [batch_size, max_step]
+        labels = feed_dict["label_seq"]  # [batch_size, max_step]
+        lengths = feed_dict["length"]  # [batch_size]
 
         if lengths.is_cuda:
             lengths = lengths.cpu().int()
 
-        repeated_time_gap_seq = feed_dict["repeated_time_gap_seq"]  # [bs, max_step]
-        sequence_time_gap_seq = feed_dict["sequence_time_gap_seq"]  # [bs, max_step]
-        past_trial_counts_seq = feed_dict["past_trial_counts_seq"]  # [bs, max_step]
+        repeated_time_gap_seq = feed_dict[
+            "repeated_time_gap_seq"
+        ]  # [batch_size, max_step]
+        sequence_time_gap_seq = feed_dict[
+            "sequence_time_gap_seq"
+        ]  # [batch_size, max_step]
+        past_trial_counts_seq = feed_dict[
+            "past_trial_counts_seq"
+        ]  # [batch_size, max_step]
 
         # Compute item embeddings and feature interaction
         embed_history_i = self.skill_embeddings(
             items + labels * self.skill_num
-        )  # [bs, max_stpe, emb_size]
+        )  # [batch_size, max_stpe, emb_size]
         fin = self.fin(
             torch.cat(
                 (repeated_time_gap_seq, sequence_time_gap_seq, past_trial_counts_seq),
                 dim=-1,
             )
-        )  # [bs, max_stpe, emb_size]
+        )  # [batch_size, max_stpe, emb_size]
         embed_history_i = torch.cat(
             (
                 embed_history_i.mul(fin),
@@ -345,9 +413,9 @@ class DKTFORGETTING(BaseModel):
                 past_trial_counts_seq[:, 1:, :],
             ),
             dim=-1,
-        )  # [bs, time-1, emb_size+3]
+        )  # [batch_size, time-1, emb_size+3]
 
-        pred_vector = self.out(output)  # [bs, time-1, skill_num]
+        pred_vector = self.out(output)  # [batch_size, time-1, skill_num]
 
         target_item = items[:, 1:]
         prediction_sorted = torch.gather(
@@ -362,7 +430,6 @@ class DKTFORGETTING(BaseModel):
         out_dict = {
             "prediction": prediction,
             "label": label,
-            "emb": rnn_output,
         }
 
         return out_dict
@@ -449,7 +516,7 @@ class DKTFORGETTING(BaseModel):
         real_batch_size = batch_end - batch_start
         user_ids = data["user_id"][batch_start : batch_start + real_batch_size].values
 
-        # *_seqs all have the same shape: [bs, ]; while each element in the bs is a list of times
+        # *_seqs all have the same shape: [batch_size, ]; while each element in the batch_size is a list of times
         item_seqs = data["skill_seq"][
             batch_start : batch_start + real_batch_size
         ].values
@@ -478,20 +545,20 @@ class DKTFORGETTING(BaseModel):
             "user_id": torch.from_numpy(user_ids[indice]).to(device),
             "skill_seq": torch.from_numpy(utils.pad_lst(item_seqs[indice])).to(
                 device
-            ),  # [bs, max_step]
+            ),  # [batch_size, max_step]
             "label_seq": torch.from_numpy(utils.pad_lst(label_seqs[indice])).to(
                 device
-            ),  # [bs, max_step]
+            ),  # [batch_size, max_step]
             "repeated_time_gap_seq": torch.from_numpy(repeated_time_gap_seq[indice]).to(
                 device
-            ),  # [bs, max_step]
+            ),  # [batch_size, max_step]
             "sequence_time_gap_seq": torch.from_numpy(sequence_time_gap_seq[indice]).to(
                 device
-            ),  # [bs, max_step]
+            ),  # [batch_size, max_step]
             "past_trial_counts_seq": torch.from_numpy(past_trial_counts_seq[indice]).to(
                 device
-            ),  # [bs, max_step]
-            "length": torch.from_numpy(lengths[indice]).to(device),  # [bs]
+            ),  # [batch_size, max_step]
+            "length": torch.from_numpy(lengths[indice]).to(device),  # [batch_size]
             "inverse_indice": torch.from_numpy(inverse_indice).to(device),
             "indice": torch.from_numpy(indice).to(device),
         }
@@ -512,27 +579,25 @@ class DKTFORGETTING(BaseModel):
         """
 
         train_step = int(self.args.max_step * self.args.train_time_ratio)
-        test_step = int(self.args.max_step * self.args.test_time_ratio)
-
-        items = feed_dict["skill_seq"][:, train_step - 1 :]  # [bs, max_step]
-        labels = feed_dict["label_seq"][:, train_step - 1 :]  # [bs, max_step]
+        items = feed_dict["skill_seq"][:, train_step - 1 :]  # [batch_size, max_step]
+        labels = feed_dict["label_seq"][:, train_step - 1 :]  # [batch_size, max_step]
         time_step = items.shape[-1]
 
         repeated_time_gap_seq = feed_dict["repeated_time_gap_seq"][
             :, train_step - 1 :
-        ]  # [bs, max_step]
+        ]  # [batch_size, max_step]
         sequence_time_gap_seq = feed_dict["sequence_time_gap_seq"][
             :, train_step - 1 :
-        ]  # [bs, max_step]
+        ]  # [batch_size, max_step]
         past_trial_counts_seq = feed_dict["past_trial_counts_seq"][
             :, train_step - 1 :
-        ]  # [bs, max_step]
+        ]  # [batch_size, max_step]
 
         # Compute item embeddings and feature interaction
         predictions = []
         last_emb = self.skill_embeddings(
             items[:, 0:1] + labels[:, 0:1] * self.skill_num
-        )  # [bs, 1, emb_size]
+        )  # [batch_size, 1, emb_size]
         last_fin = self.fin(
             torch.cat(
                 (
@@ -542,7 +607,7 @@ class DKTFORGETTING(BaseModel):
                 ),
                 dim=-1,
             )
-        )  # [bs, max_stpe, emb_size]
+        )  # [batch_size, max_stpe, emb_size]
         last_emb = torch.cat(
             (
                 last_emb.mul(last_fin),
@@ -557,7 +622,7 @@ class DKTFORGETTING(BaseModel):
             if i == 0:
                 output_rnn, latent_states = self.rnn(
                     last_emb, None
-                )  # [bs, 1, emb_size]
+                )  # [batch_size, 1, emb_size]
             else:
                 output_rnn, latent_states = self.rnn(last_emb, latent_states)
 
@@ -570,7 +635,7 @@ class DKTFORGETTING(BaseModel):
                     ),
                     dim=-1,
                 )
-            )  # [bs, 1, emb_size]
+            )  # [batch_size, 1, emb_size]
 
             output = torch.cat(
                 (
@@ -580,16 +645,16 @@ class DKTFORGETTING(BaseModel):
                     past_trial_counts_seq[:, i + 1 : i + 2],
                 ),
                 dim=-1,
-            )  # [bs, time-1, emb_size+3]
+            )  # [batch_size, time-1, emb_size+3]
 
-            pred_vector = self.out(output)  # [bs, 1, skill_num]
+            pred_vector = self.out(output)  # [batch_size, 1, skill_num]
 
             target_item = items[:, i + 1 : i + 2]
             prediction_sorted = torch.gather(
                 pred_vector, dim=-1, index=target_item.unsqueeze(dim=-1)
             ).squeeze(
                 dim=-1
-            )  # [bs, 1]
+            )  # [batch_size, 1]
             prediction_sorted = torch.sigmoid(prediction_sorted)
             prediction = prediction_sorted[feed_dict["inverse_indice"]]
             predictions.append(prediction)
@@ -597,7 +662,7 @@ class DKTFORGETTING(BaseModel):
             # last embedding
             last_emb = self.skill_embeddings(
                 items[:, i + 1 : i + 2] + (prediction >= 0.5) * 1 * self.skill_num
-            )  # [bs, 1, emb_size]
+            )  # [batch_size, 1, emb_size]
             last_fin = self.fin(
                 torch.cat(
                     (
@@ -607,7 +672,7 @@ class DKTFORGETTING(BaseModel):
                     ),
                     dim=-1,
                 )
-            )  # [bs, 1, emb_size]
+            )  # [batch_size, 1, emb_size]
             last_emb = torch.cat(
                 (
                     last_emb.mul(last_fin),
